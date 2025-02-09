@@ -1,2 +1,4 @@
 # Movies_pgvector_lab
-This is a repository intended to share the files of an educational LAB to play with pgvector and similarity searches on PostgreSQL.  
+This repository is intended for educational purpose, by following the instructions you will be able to have a LAB and play with pgvector and similarity searches on PostgreSQL.
+
+
