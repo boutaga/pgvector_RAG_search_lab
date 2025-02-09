@@ -5,7 +5,7 @@ This repository is intended for educational purpose, by following the instructio
 The aim of this LAB is to performa a similarity search to be able to recommend Netflix shows to DVDRental's users based on their renting profile. 
 
 
-## Install pgvector
+## Install pgvector and environment preparation
 
 **Clone the Repository:**  
     Clone the pgvector extension from GitHub:
