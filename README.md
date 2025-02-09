@@ -32,7 +32,7 @@ The aim of this LAB is to performa a similarity search to be able to recommend N
     SELECT * FROM pg_extension WHERE extname = 'vector';
 ```
     
-    This should show that pgvector is installed.
+This should show that pgvector is installed.
 
 
 
