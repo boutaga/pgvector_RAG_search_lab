@@ -10,27 +10,27 @@ The aim of this LAB is to performa a similarity search to be able to recommend N
 **Clone the Repository:**  
     Clone the pgvector extension from GitHub:
     
-    ```bash
+```bash
     cd /tmp
     git clone https://github.com/pgvector/pgvector.git
     cd pgvector
-    ```
+```
     
 **Build and Install:**  
     Use make to compile the extension and then install it:
     
-    ```bash
+```bash
     make
     sudo make install
-    ```
+```
     
 **Verify Installation:**  
     In psql, connect to your database and run:
     
-    ```sql
+```sql
     CREATE EXTENSION IF NOT EXISTS vector;
     SELECT * FROM pg_extension WHERE extname = 'vector';
-    ```
+```
     
     This should show that pgvector is installed.
 
