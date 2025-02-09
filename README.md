@@ -4,6 +4,7 @@ This repository is intended for educational purpose, by following the instructio
 
 The aim of this LAB is to performa a similarity search to be able to recommend Netflix shows to DVDRental's users based on their renting profile. 
 
+---
 
 ## pgvector installation and environment preparation
 
@@ -101,7 +102,7 @@ Create a virtual environment and install the required packages:
     
 
 
-
+---
 
 ## **create_emb.py Description**
 
@@ -207,7 +208,7 @@ WHERE <id_column> = %s;
 
 
 
-
+---
 
 
 ## **recommend_netflix.py Description**
