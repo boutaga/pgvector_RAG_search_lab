@@ -5,10 +5,47 @@ This repository is intended for educational purpose, by following the instructio
 The aim of this LAB is to performa a similarity search to be able to recommend Netflix shows to DVDRental's users based on their renting profile. 
 
 
+## 1.2 Installing pgvector
+
+**Clone the Repository:**  
+    Clone the pgvector extension from GitHub:
+    
+    ```bash
+    cd /tmp
+    git clone https://github.com/pgvector/pgvector.git
+    cd pgvector
+    ```
+    
+**Build and Install:**  
+    Use make to compile the extension and then install it:
+    
+    ```bash
+    make
+    sudo make install
+    ```
+    
+**Verify Installation:**  
+    In psql, connect to your database and run:
+    
+    ```sql
+    CREATE EXTENSION IF NOT EXISTS vector;
+    SELECT * FROM pg_extension WHERE extname = 'vector';
+    ```
+    
+    This should show that pgvector is installed.
+
+
+
+
+
 
 **Download the Sample Database:**  
     Visit [Neon’s PostgreSQL Sample Database](https://neon.tech/postgresql/postgresql-getting-started/postgresql-sample-database) and download the SQL dump file.
     Visit [Kaggle’s Netflix Shows dataset](https://www.kaggle.com/datasets/shivamb/netflix-shows) and download the CSV file (e.g., `netflix_titles.csv`).
+
+
+
+
 
 
 ```sql
