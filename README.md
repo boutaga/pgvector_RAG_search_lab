@@ -107,7 +107,7 @@ Create a virtual environment and install the required packages:
 
 This Python script, **`create_emb.py`**, is responsible for generating and storing **text embeddings** for rows in a PostgreSQL database. It is designed to work hand-in-hand with the previous recommendation script by populating the `embedding` column in specified tables (`film` and `netflix_shows`). Here’s a step-by-step breakdown of its key functionalities:
 
----
+
 
 ### 1. Prerequisites
 - **Environment Variable**:  
@@ -117,7 +117,7 @@ This Python script, **`create_emb.py`**, is responsible for generating and stori
   - The target tables (`film` and `netflix_shows`) are assumed to have a column named `embedding` of type `vector` (enabled via the `pgvector` extension).
   - The script expects text data (such as `description`) to be present in these tables.
 
----
+
 
 ### 2. Batching and Rate Limiting
 - The script uses a **batch approach** to handle embedding requests in chunks:
@@ -127,7 +127,7 @@ This Python script, **`create_emb.py`**, is responsible for generating and stori
 - **Exponential Backoff**:
   - If the script encounters rate-limit errors (HTTP 429) or quota issues from the API, it retries multiple times with an increasing delay (`delay *= 2`).
 
----
+
 
 ### 3. Retrieving and Updating Embeddings
 Two main functions manage the core logic:
@@ -155,7 +155,7 @@ WHERE <id_column> = %s;
 ```
 (where `%s` in the Python script is replaced with the actual embedding vector and row ID)
 
----
+
 
 ### 4. Script Flow
 1. **Open a Database Connection**:  
@@ -178,7 +178,7 @@ WHERE <id_column> = %s;
 5. **Close the Database Connection**:  
    Once all embeddings are updated, the script closes the connection.
 
----
+
 
 ### 5. Error Handling and Logging
 - **Rate Limits**:  
@@ -188,7 +188,7 @@ WHERE <id_column> = %s;
 - **Progress Logging**:  
   The script prints out batch IDs as they are processed and updated, so you can track progress and troubleshoot any issues.
 
----
+
 
 ### 6. Usage
 1. **Set Environment Variables**:
@@ -218,7 +218,7 @@ WHERE <id_column> = %s;
 - **Database Connection**: The script uses the environment variable `DATABASE_URL` to connect to the database. If this variable is not set, it defaults to `postgresql://postgres@localhost/dvdrental`.
 - **pgvector**: The script imports and registers the `pgvector` extension (`from pgvector.psycopg2 import register_vector`). This extension allows storing and querying vector columns (such as embeddings) in PostgreSQL.
 
----
+
 
 ### 2. Retrieving the Customer Profile (`get_customer_profile` function)
 - **Purpose**: Takes a `customer_id` and a database cursor as parameters, then:
@@ -243,7 +243,7 @@ WHERE <id_column> = %s;
 
 - **Result**: Returns a single profile embedding (as a list of floats) that represents the user’s taste or preferences based on their past rentals.
 
----
+
 
 ### 3. Generating Netflix Recommendations (`recommend_netflix` function)
 - **Customer Input**: Prompts the user to enter a customer ID. Validates that the input is a digit.
@@ -270,7 +270,7 @@ WHERE <id_column> = %s;
 
 - **Cleanup**: Closes the database cursor and connection before exiting.
 
----
+
 
 
 - **Usage**: Simply run the script in a Python 3 environment where the `DATABASE_URL` environment variable is set (or defaults to the local database).  
@@ -280,4 +280,4 @@ WHERE <id_column> = %s;
   ```
 
 
----
+
