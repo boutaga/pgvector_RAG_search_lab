@@ -204,13 +204,15 @@ WHERE <id_column> = %s;
    - Ensure the `embedding` columns in `film` and `netflix_shows` are populated with 1536-dimensional vectors.
    - If everything is successful, you can then use these embeddings in the recommendation script to provide content suggestions.
 
----
+
+
+
 
 
 
 ## **recommend_netflix.py Description**
 
----
+
 
 ### 1. Environment Setup
 - **Database Connection**: The script uses the environment variable `DATABASE_URL` to connect to the database. If this variable is not set, it defaults to `postgresql://postgres@localhost/dvdrental`.
