@@ -32,19 +32,13 @@ The aim of this LAB is to performa a similarity search to be able to recommend N
     SELECT * FROM pg_extension WHERE extname = 'vector';
 ```
     
-This should show that pgvector is installed.
-
-
-
-
 
 
 **Download the Sample Database:**  
-    Visit [Neon’s PostgreSQL Sample Database](https://neon.tech/postgresql/postgresql-getting-started/postgresql-sample-database) and download the SQL dump file.
-    Visit [Kaggle’s Netflix Shows dataset](https://www.kaggle.com/datasets/shivamb/netflix-shows) and download the CSV file (e.g., `netflix_titles.csv`).
 
+Visit [Neon’s PostgreSQL Sample Database](https://neon.tech/postgresql/postgresql-getting-started/postgresql-sample-database) and download the SQL dump file.
 
-
+Visit [Kaggle’s Netflix Shows dataset](https://www.kaggle.com/datasets/shivamb/netflix-shows) and download the CSV file (e.g., `netflix_titles.csv`).
 
 
 
@@ -94,6 +88,20 @@ ALTER TABLE netflix_shows ADD COLUMN embedding vector(1536);
 CREATE INDEX IF NOT EXISTS film_embedding_idx ON film USING hnsw (embedding vector_l2_ops);   
 CREATE INDEX IF NOT EXISTS netflix_shows_embedding_idx ON netflix_shows USING hnsw (embedding vector_l2_ops);
 ```
+
+### **Python Environment:**  
+
+Create a virtual environment and install the required packages:
+    
+```bash
+    python3 -m venv pgvector_lab
+    source pgvector_lab/bin/activate
+    pip install psycopg2-binary openai pgvector
+ ```
+    
+
+
+
 
 ## **create_emb.py Description**
 
