@@ -4,6 +4,22 @@ This repository is intended for educational purpose, by following the instructio
 
 The aim of this LAB is to performa a similarity search to be able to recommend Netflix shows to DVDRental's users based on their renting profile. 
 
+
+## Installation steps
+
+Here are the steps to build your environment :
+
+- Provision a Linux server that will host your PostgreSQL instance.
+- Install PostgreSQL 17.2 and pgvector 0.8.0 extension with it.
+- Import both dvdrental and netflix_shows databases into one database (this makes it easier to query both sources at the same time).
+- Add the vector fields in the target tables.
+- On your user environment create the two python scripts to create the embeddings and to run the query search for similarity.
+- Setup your Python virtual environment.
+- Get an API key for your AI model, in my case OpenAI, may even host locally your own LLM.
+- Run the script that creates the embeddings.
+- Run the script that queries your vectors and look for similarities.
+
+
 ---
 
 ## pgvector installation and environment preparation
