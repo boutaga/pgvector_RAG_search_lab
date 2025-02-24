@@ -4,6 +4,13 @@ This repository is intended for educational purpose, by following the instructio
 
 The aim of this LAB is to performa a similarity search to be able to recommend Netflix shows to DVDRental's users based on their renting profile. 
 
+## future features
+
+- Implementation of GraphDB
+- Example of RAG search using GraphDB
+- Example of RAG search using Graph + vectorDB
+
+
 
 ## Installation steps
 
