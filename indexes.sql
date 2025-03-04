@@ -1,7 +1,20 @@
+-- execution plan without an index
+------------------------------------------------------------------------------------------------------------------------->
+ Limit  (cost=133.11..133.12 rows=5 width=27) (actual time=7.658..7.660 rows=5 loops=1)
+   ->  Sort  (cost=133.11..135.61 rows=1000 width=27) (actual time=7.656..7.657 rows=5 loops=1)
+         Sort Key: ((embedding <-> '[-0.0060701305,-0.008093507,-0.0019467601,0.015574081,0.012467623,0.032596912,-0.0284?'>
+         Sort Method: top-N heapsort  Memory: 25kB
+         ->  Seq Scan on film  (cost=0.00..116.50 rows=1000 width=27) (actual time=0.041..7.389 rows=1000 loops=1)
+ Planning Time: 0.104 ms
+ Execution Time: 7.680 ms
+(7 rows)
+
+
+
 
 -- create a HNSW index on the embedding column of the film table
 CREATE INDEX film_embedding_idx ON public.film USING hnsw (embedding vector_l2_ops);
-
+CREATE INDEX film_embedding_ivfflat_idx ON public.film USING ivfflat (embedding) WITH (lists='100')
 
 -- create a HNSW index on the embedding column of the netflix_shows table
 CREATE INDEX netflix_shows_embedding_idx ON public.netflix_shows USING hnsw (embedding vector_l2_ops);
