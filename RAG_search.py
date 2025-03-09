@@ -9,17 +9,24 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_API_KEY
 
 def get_embedding(text, model="text-embedding-ada-002"):
-    """Generate an embedding for the given text using OpenAI API."""
-    response = openai.Embedding.create(input=[text], model=model)
-    embedding = response["data"][0]["embedding"]
+    """
+    Generate an embedding for the given text using the latest OpenAI API.
+    Access attributes using dot notation.
+    """
+    response = openai.embeddings.create(
+        input=text,
+        model=model
+    )
+    embedding = response.data[0].embedding  # dot notation for attribute access
     return embedding
 
 def query_similar_items(query_embedding, limit=5):
     """
     Connect to PostgreSQL and perform a similarity search using pgvector.
-    It uses the <-> operator to measure distance between the stored embedding
-    and the query embedding.
+    Convert the embedding (a list of floats) into a JSON string.
     """
+    vec_str = json.dumps(query_embedding)
+    
     conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
     sql = """
@@ -29,8 +36,7 @@ def query_similar_items(query_embedding, limit=5):
     ORDER BY embedding <-> %s::vector
     LIMIT %s;
     """
-    # Pass the embedding twice (for ordering) and the limit.
-    cur.execute(sql, (json.dumps(query_embedding), json.dumps(query_embedding), limit))
+    cur.execute(sql, (vec_str, vec_str, limit))
     results = cur.fetchall()
     cur.close()
     conn.close()
@@ -38,28 +44,26 @@ def query_similar_items(query_embedding, limit=5):
 
 def generate_answer(query, context):
     """
-    Use the OpenAI completion API to generate an answer based on the user query
-    and the retrieved context.
+    Generate an answer using the OpenAI ChatCompletion API with model GPT-4o.
+    This uses the new openai.chat.completions.create interface.
     """
-    prompt = f"""You are a helpful assistant. Answer the following question using only the context provided.
-    
-Context:
-{context}
-
-Question: {query}
-Answer:"""
-    response = openai.Completion.create(
-        engine="text-davinci-003",  # Alternatively, use ChatCompletion with gpt-3.5-turbo or gpt-4.
-        prompt=prompt,
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"}
+    ]
+    response = openai.chat.completions.create(
+        model="gpt-4o",  # Ensure you have access to GPT-4o
+        messages=messages,
         max_tokens=150,
         temperature=0.2,
     )
-    return response["choices"][0]["text"].strip()
+    return response.choices[0].message.content.strip()
 
 def main():
     query = input("Enter your question: ")
     # Generate an embedding for the query
     query_embedding = get_embedding(query)
+    
     # Retrieve top similar documents using pgvector similarity search
     similar_items = query_similar_items(query_embedding)
     
