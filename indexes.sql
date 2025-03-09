@@ -64,3 +64,49 @@ SET ivfflat.probes = 10;
  Planning Time: 0.153 ms
  Execution Time: 0.524 ms
 (5 rows)
+
+
+
+
+------------------------------------------------------------------------------------------------------------------------->
+
+
+
+CREATE INDEX film_embedding_cosine_idx 
+  ON public.film USING hnsw (embedding vector_cosine_ops);
+
+CREATE INDEX film_embedding_idx 
+ON public.film USING hnsw (embedding vector_l2_ops);
+
+--------------
+
+CREATE INDEX netflix_shows_embedding_idx 
+ON public.netflix_shows USING hnsw (embedding vector_l2_ops);
+
+CREATE INDEX netflix_shows_embedding_cosine_idx 
+  ON public.netflix_shows USING hnsw (embedding vector_cosine_ops);
+
+---------------
+
+CREATE INDEX film_embedding_ivfflat_idx 
+ON film USING ivfflat (embedding vector_l2_ops) WITH (lists = 100);
+
+CREATE INDEX film_embedding_ivfflat_cosine_idx 
+  ON film USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+
+
+CREATE INDEX netflix_embedding_ivfflat_cosine_idx 
+  ON netflix_shows USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+---------------
+
+
+CREATE INDEX netflix_embedding_cosine_idx 
+  ON netflix_shows USING diskann (embedding vector_cosine_ops);
+
+CREATE INDEX film_embedding_cosine_idx 
+  ON film USING diskann (embedding vector_cosine_ops);  
+
+CREATE INDEX netflix_embedding_idx 
+  ON netflix_shows USING diskann (embedding vector_l2_ops);
