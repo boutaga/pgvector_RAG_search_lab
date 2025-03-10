@@ -279,3 +279,201 @@ distance    | 0.4526900472984078
 title       | Duplicate
 description | Hilarious mix-ups and deadly encounters ensue when a convict seeks to escape authorities by assuming the identity of his doppelgänger, a perky chef.
 distance    | 0.45530040371443564
+
+
+
+
+
+
+
+
+
+
+postgres=# \c dvdrental
+You are now connected to database "dvdrental" as user "postgres".
+dvdrental=# WITH customer_profile AS (
+  SELECT AVG(f.embedding) AS profile_embedding
+  FROM rental r
+  JOIN inventory i ON r.inventory_id = i.inventory_id
+  JOIN film f ON i.film_id = f.film_id
+  WHERE r.customer_id = 524
+)
+SELECT n.title,
+       n.description,
+       n.embedding <-> cp.profile_embedding AS distance
+FROM netflix_shows n, customer_profile cp
+WHERE n.embedding IS NOT NULL
+ORDER BY n.embedding <=> cp.profile_embedding
+LIMIT 5;
+            title             |                                                                     description                                                                      |      distance
+------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------
+ Alarmoty in the Land of Fire | While vacationing at a resort, an ornery and outspoken man is held captive by a criminal organization.                                               |  0.4504742864770678
+ Baaghi                       | A martial artist faces his biggest test when he has to travel to Bangkok to rescue the woman he loves from the clutches of his romantic rival.       |  0.4517695114131648
+ Into the Badlands            | Dreaming of escaping to a distant city, a ferocious warrior and a mysterious boy tangle with territorial warlords and their highly trained killers.  | 0.45256925901147355
+ Antidote                     | A tough-as-nails treasure hunter protects a humanitarian doctor as she tries to cure a supernatural disease caused by a mysterious witch.            |  0.4526900472984078
+ Duplicate                    | Hilarious mix-ups and deadly encounters ensue when a convict seeks to escape authorities by assuming the identity of his doppelgänger, a perky chef. | 0.45530040371443564
+(5 rows)
+
+dvdrental=# explain analyze WITH customer_profile AS (
+  SELECT AVG(f.embedding) AS profile_embedding
+  FROM rental r
+  JOIN inventory i ON r.inventory_id = i.inventory_id
+  JOIN film f ON i.film_id = f.film_id
+  WHERE r.customer_id = 524
+)
+SELECT n.title,
+       n.description,
+       n.embedding <=> cp.profile_embedding AS distance
+FROM netflix_shows n, customer_profile cp
+WHERE n.embedding IS NOT NULL
+ORDER BY n.embedding <=> cp.profile_embedding
+LIMIT 5;
+                                                                    QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1457.26..1457.27 rows=5 width=173) (actual time=40.076..40.081 rows=5 loops=1)
+   ->  Sort  (cost=1457.26..1479.27 rows=8807 width=173) (actual time=40.075..40.079 rows=5 loops=1)
+         Sort Key: ((n.embedding <-> (avg(f.embedding))))
+         Sort Method: top-N heapsort  Memory: 27kB
+         ->  Nested Loop  (cost=471.81..1310.97 rows=8807 width=173) (actual time=1.822..38.620 rows=8807 loops=1)
+               ->  Aggregate  (cost=471.81..471.82 rows=1 width=32) (actual time=1.808..1.812 rows=1 loops=1)
+                     ->  Nested Loop  (cost=351.14..471.74 rows=25 width=18) (actual time=0.938..1.479 rows=19 loops=1)
+                           ->  Hash Join  (cost=350.86..462.01 rows=25 width=2) (actual time=0.927..1.431 rows=19 loops=1)
+                                 Hash Cond: (i.inventory_id = r.inventory_id)
+                                 ->  Seq Scan on inventory i  (cost=0.00..70.81 rows=4581 width=6) (actual time=0.006..0.262 rows=4581 loops=1)
+                                 ->  Hash  (cost=350.55..350.55 rows=25 width=4) (actual time=0.863..0.864 rows=19 loops=1)
+                                       Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                       ->  Seq Scan on rental r  (cost=0.00..350.55 rows=25 width=4) (actual time=0.011..0.858 rows=19 loops=1)
+                                             Filter: (customer_id = 524)
+                                             Rows Removed by Filter: 16025
+                           ->  Index Scan using film_pkey on film f  (cost=0.28..0.39 rows=1 width=22) (actual time=0.002..0.002 rows=1 loops=19)
+                                 Index Cond: (film_id = i.film_id)
+               ->  Seq Scan on netflix_shows n  (cost=0.00..729.07 rows=8807 width=183) (actual time=0.004..3.301 rows=8807 loops=1)
+                     Filter: (embedding IS NOT NULL)
+ Planning Time: 0.348 ms
+ Execution Time: 40.135 ms
+(21 rows)
+
+
+
+
+
+
+
+
+
+dvdrental=#  SELECT film_id, title
+    FROM film
+    ORDER BY embedding <=> '[-0.0060701305,-0.008093507,...,0.003111682,-0.006122369,-0.03251333]' LIMIT 5;
+
+
+ film_id |      title
+---------+-----------------
+      11 | Alamo Videotape
+     750 | Run Pacific
+     577 | Mile Mulan
+     129 | Cause Date
+     716 | Reap Unfaithful
+(5 rows)
+
+
+dvdrental=#  EXPLAIN ANALYZE SELECT film_id, title
+    FROM film
+    ORDER BY embedding <=> '[-0.0060701305,-0.008093507,...,0.003111682,-0.006122369,-0.03251333]' LIMIT 5;
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------->
+ Limit  (cost=4.08..6.22 rows=5 width=27) (actual time=0.772..0.872 rows=5 loops=1)
+   ->  Index Scan using film_embedding_cosine_idx on film  (cost=4.08..432.57 rows=1000 width=27) (actual time=0.771..0.870 rows=5 loops=1)
+         Order By: (embedding <=> '[-0.0060701305,-0.008093507,-0.0019467601,0.015574081,0.012467623,0.032596912,-0.028417822,-0.00088413904,-0.023375051,-0.0191681,0.0357173,0.019154169,0.008943256,-0.0030106872,0.0061084386,-0.0005972618,0.02875215>
+ Planning Time: 0.095 ms
+ Execution Time: 0.891 ms
+(5 rows)
+
+
+dvdrental=# \d film
+                                              Table "public.film"
+      Column      |            Type             | Collation | Nullable |                Default
+------------------+-----------------------------+-----------+----------+---------------------------------------
+ film_id          | integer                     |           | not null | nextval('film_film_id_seq'::regclass)
+ title            | character varying(255)      |           | not null |
+ description      | text                        |           |          |
+ release_year     | year                        |           |          |
+ language_id      | smallint                    |           | not null |
+ rental_duration  | smallint                    |           | not null | 3
+ rental_rate      | numeric(4,2)                |           | not null | 4.99
+ length           | smallint                    |           |          |
+ replacement_cost | numeric(5,2)                |           | not null | 19.99
+ rating           | mpaa_rating                 |           |          | 'G'::mpaa_rating
+ last_update      | timestamp without time zone |           | not null | now()
+ special_features | text[]                      |           |          |
+ fulltext         | tsvector                    |           | not null |
+ embedding        | vector(1536)                |           |          |
+Indexes:
+    "film_pkey" PRIMARY KEY, btree (film_id)
+    "film_embedding_cosine_idx" diskann (embedding)
+    "film_embedding_ivfflat_cosine_idx" ivfflat (embedding vector_cosine_ops) WITH (lists='100')
+    "film_fulltext_idx" gist (fulltext)
+    "film_hsnw_embedding_cosine_idx" hnsw (embedding vector_cosine_ops)
+    "idx_fk_language_id" btree (language_id)
+    "idx_title" btree (title)
+Foreign-key constraints:
+    "film_language_id_fkey" FOREIGN KEY (language_id) REFERENCES language(language_id) ON UPDATE CASCADE ON DELETE RESTRICT
+Referenced by:
+    TABLE "film_actor" CONSTRAINT "film_actor_film_id_fkey" FOREIGN KEY (film_id) REFERENCES film(film_id) ON UPDATE CASCADE ON DELETE RESTRICT
+    TABLE "film_category" CONSTRAINT "film_category_film_id_fkey" FOREIGN KEY (film_id) REFERENCES film(film_id) ON UPDATE CASCADE ON DELETE RESTRICT
+    TABLE "inventory" CONSTRAINT "inventory_film_id_fkey" FOREIGN KEY (film_id) REFERENCES film(film_id) ON UPDATE CASCADE ON DELETE RESTRICT
+Triggers:
+    film_fulltext_trigger BEFORE INSERT OR UPDATE ON film FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('fulltext', 'pg_catalog.english', 'title', 'description')
+    last_updated BEFORE UPDATE ON film FOR EACH ROW EXECUTE FUNCTION last_updated()
+
+
+
+---parameter changes to force the index usage
+
+SET enable_seqscan = off;
+SET enable_bitmapscan = off;
+SET enable_indexscan = on;
+SET random_page_cost = 0.1;
+SET seq_page_cost = 100;
+
+
+-- rewriting of the query to use the index
+
+dvdrental=# EXPLAIN ANALYZE
+WITH customer_profile AS (
+  SELECT AVG(f.embedding) AS profile_embedding
+  FROM rental r
+  JOIN inventory i ON r.inventory_id = i.inventory_id
+  JOIN film f ON i.film_id = f.film_id
+  WHERE r.customer_id = 524
+)
+SELECT n.title,
+       n.description,
+       n.embedding <=> (SELECT profile_embedding FROM customer_profile) AS distance
+FROM netflix_shows n
+WHERE n.embedding IS NOT NULL
+  AND n.embedding <=> (SELECT profile_embedding FROM customer_profile) < 0.5
+ORDER BY n.embedding <=> (SELECT profile_embedding FROM customer_profile)
+LIMIT 5;
+                                                                                           QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=146.81..147.16 rows=5 width=173) (actual time=2.450..2.605 rows=5 loops=1)
+   CTE customer_profile
+     ->  Aggregate  (cost=145.30..145.31 rows=1 width=32) (actual time=0.829..0.830 rows=1 loops=1)
+           ->  Nested Loop  (cost=0.84..145.24 rows=25 width=18) (actual time=0.021..0.509 rows=19 loops=1)
+                 ->  Nested Loop  (cost=0.57..137.87 rows=25 width=2) (actual time=0.017..0.466 rows=19 loops=1)
+                       ->  Index Only Scan using idx_unq_rental_rental_date_inventory_id_customer_id on rental r  (cost=0.29..127.27 rows=25 width=4) (actual time=0.010..0.417 rows=19 loops=1)
+                             Index Cond: (customer_id = 524)
+                             Heap Fetches: 0
+                       ->  Index Scan using inventory_pkey on inventory i  (cost=0.28..0.42 rows=1 width=6) (actual time=0.002..0.002 rows=1 loops=19)
+                             Index Cond: (inventory_id = r.inventory_id)
+                 ->  Index Scan using film_pkey on film f  (cost=0.28..0.29 rows=1 width=22) (actual time=0.002..0.002 rows=1 loops=19)
+                       Index Cond: (film_id = i.film_id)
+   InitPlan 2
+     ->  CTE Scan on customer_profile  (cost=0.00..0.02 rows=1 width=32) (actual time=0.832..0.832 rows=1 loops=1)
+   InitPlan 3
+     ->  CTE Scan on customer_profile customer_profile_1  (cost=0.00..0.02 rows=1 width=32) (actual time=0.001..0.001 rows=1 loops=1)
+   ->  Index Scan using netflix_embedding_cosine_idx on netflix_shows n  (cost=1.46..205.01 rows=2936 width=173) (actual time=2.449..2.601 rows=5 loops=1)
+         Order By: (embedding <=> (InitPlan 2).col1)
+         Filter: ((embedding IS NOT NULL) AND ((embedding <=> (InitPlan 3).col1) < '0.5'::double precision))
+ Planning Time: 0.354 ms
+ Execution Time: 2.643 ms
+(21 rows)
