@@ -54,7 +54,7 @@ def generate_answer(query, context):
         {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"}
     ]
     response = openai.chat.completions.create(
-        model="gpt-4o",  # Ensure you have access to GPT-4o
+        model="gpt-4o",  # Ensure you have access to GPT-4o, depending on your API plan and permissions - other models can be used as well
         messages=messages,
         max_tokens=150,
         temperature=0.2,
@@ -66,7 +66,7 @@ def main():
     # Generate an embedding for the query
     query_embedding = get_embedding(query)
     
-    # Retrieve top similar documents using pgvector similarity search
+    # Retrieve top similar documents using pgvector similarity search 
     similar_items = query_similar_items(query_embedding)
     
     if not similar_items:

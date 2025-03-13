@@ -120,7 +120,7 @@ Create a virtual environment and install the required packages:
 ```bash
     python3 -m venv pgvector_lab
     source pgvector_lab/bin/activate
-    pip install psycopg2-binary openai pgvector
+    pip install psycopg2-binary openai pgvector 
  ```
     
 
