@@ -4,6 +4,8 @@ import openai
 import json
 
 # Set your environment variables: DATABASE_URL and OPENAI_API_KEY
+# e.g., export DATABASE_URL="postgresql://postgres@localhost/dvdrental"
+# e.g., export OPENAI_API_KEY="sk-123...."
 DATABASE_URL = os.getenv("DATABASE_URL")  # e.g., "postgresql://postgres@localhost/dvdrental"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_API_KEY
