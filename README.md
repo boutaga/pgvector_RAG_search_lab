@@ -110,6 +110,10 @@ WITH (
     
 ALTER TABLE film ADD COLUMN embedding vector(1536);
 ALTER TABLE netflix_shows ADD COLUMN embedding vector(1536);
+
+ALTER TABLE film ADD COLUMN sparse_embedding sparsevec(30522);
+ALTER TABLE netflix_shows ADD COLUMN sparse_embedding sparsevec(30522);
+
     
 CREATE INDEX IF NOT EXISTS film_embedding_idx ON film USING hnsw (embedding vector_l2_ops);   
 CREATE INDEX IF NOT EXISTS netflix_shows_embedding_idx ON netflix_shows USING hnsw (embedding vector_l2_ops);
@@ -122,7 +126,7 @@ Create a virtual environment and install the required packages:
 ```bash
     python3 -m venv pgvector_lab
     source pgvector_lab/bin/activate
-    pip install psycopg2-binary openai pgvector 
+    pip install psycopg2-binary openai pgvector transformers torch sentencepiece
  ```
     
 
@@ -306,4 +310,90 @@ WHERE <id_column> = %s;
   ```
 
 
+## Hybrid RAG Search with Sparse-dense vectors
 
+
+### Example of query 
+
+
+```sql
+WITH dense_search AS (
+    SELECT
+        film_id,
+        -- Calculate dense similarity score (cosine similarity: 1 - cosine distance)
+        -- $1 should be the query's dense vector (e.g., from text-embedding-ada-002)
+        1 - (embedding <=> $1::vector) AS dense_score,
+        -- Rank results based on dense similarity
+        ROW_NUMBER() OVER (ORDER BY embedding <=> $1::vector ASC) as dense_rank
+    FROM
+        film
+    ORDER BY
+        dense_score DESC
+    LIMIT 100 -- Limit the number of results considered from dense search
+),
+sparse_search AS (
+    SELECT
+        film_id,
+        -- Calculate sparse similarity score (inner product)
+        -- $2 should be the query's sparse vector in '{idx:val,...}/dim' format
+        sparse_embedding <#> $2::sparsevec AS sparse_score,
+         -- Rank results based on sparse similarity
+        ROW_NUMBER() OVER (ORDER BY sparse_embedding <#> $2::sparsevec DESC) as sparse_rank
+    FROM
+        film
+    WHERE
+        -- Pre-filter using inner product index if available and beneficial
+        sparse_embedding <#> $2::sparsevec > 0 -- Example: only consider positive inner products
+    ORDER BY
+        sparse_score DESC
+    LIMIT 100 -- Limit the number of results considered from sparse search
+),
+-- Reciprocal Rank Fusion (RRF)
+rrf_ranked AS (
+    SELECT
+        film_id,
+        -- Calculate RRF score (k is typically 60, adjust as needed)
+        COALESCE(1.0 / (60 + dense_rank), 0.0) + COALESCE(1.0 / (60 + sparse_rank), 0.0) AS rrf_score
+    FROM dense_search
+    FULL OUTER JOIN sparse_search USING (film_id) -- Combine results using film_id
+)
+SELECT
+    f.film_id,
+    f.title,
+    f.description,
+    r.rrf_score
+FROM
+    rrf_ranked r
+JOIN
+    film f ON r.film_id = f.film_id
+ORDER BY
+    r.rrf_score DESC
+LIMIT 10; -- Get the top N hybrid results
+
+```
+
+### Explanation of the Hybrid Search Query (RRF Method):
+
+#### 1.dense_search CTE:
+Performs a nearest neighbor search using the dense embedding column and the dense query vector ($1).
+Calculates cosine similarity (1 - <=>).
+Assigns a dense_rank based on similarity.
+Limits the results (e.g., to 100) to manage performance.
+#### 2.sparse_search CTE:
+Performs a search using the sparse sparse_embedding column and the sparse query vector ($2).
+Uses the inner product operator (<#>) which is suitable for SPLADE vectors (representing term importance). Higher inner product means better sparse match.
+Assigns a sparse_rank based on the inner product score.
+Includes an optional WHERE clause (sparse_embedding <#> $2::sparsevec > 0) which might leverage an index if created with sparse_inner_product_ops and helps filter out non-matches early.
+Limits the results (e.g., to 100).
+#### 3.rrf_ranked CTE:
+Combines the results from dense_search and sparse_search using a FULL OUTER JOIN on the film_id to include items found in either search.
+Calculates the Reciprocal Rank Fusion (RRF) score for each film_id. The formula is sum(1 / (k + rank)) for each list an item appears in. k is a constant (often 60) that dampens the impact of high ranks. COALESCE handles items not found in one of the searches.
+#### 4.Final SELECT:
+Joins the RRF scores back to the original film table to retrieve other details (like title, description).
+Orders the final results by the calculated rrf_score in descending order.
+Applies a final LIMIT to get the desired number of top hybrid results.
+
+#### Parameters:
+
+$1: Your query text embedded using the dense embedding model (e.g., OpenAI text-embedding-ada-002), passed as a vector.
+$2: Your query text embedded using the sparse embedding model (SPLADE), passed as a sparsevec string in the format '{idx:val,...}/dim'.
