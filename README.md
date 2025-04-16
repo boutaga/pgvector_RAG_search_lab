@@ -379,16 +379,22 @@ Performs a nearest neighbor search using the dense embedding column and the dens
 Calculates cosine similarity (1 - <=>).
 Assigns a dense_rank based on similarity.
 Limits the results (e.g., to 100) to manage performance.
+
 #### 2.sparse_search CTE:
+
 Performs a search using the sparse sparse_embedding column and the sparse query vector ($2).
 Uses the inner product operator (<#>) which is suitable for SPLADE vectors (representing term importance). Higher inner product means better sparse match.
 Assigns a sparse_rank based on the inner product score.
 Includes an optional WHERE clause (sparse_embedding <#> $2::sparsevec > 0) which might leverage an index if created with sparse_inner_product_ops and helps filter out non-matches early.
 Limits the results (e.g., to 100).
+
 #### 3.rrf_ranked CTE:
+
 Combines the results from dense_search and sparse_search using a FULL OUTER JOIN on the film_id to include items found in either search.
 Calculates the Reciprocal Rank Fusion (RRF) score for each film_id. The formula is sum(1 / (k + rank)) for each list an item appears in. k is a constant (often 60) that dampens the impact of high ranks. COALESCE handles items not found in one of the searches.
+
 #### 4.Final SELECT:
+
 Joins the RRF scores back to the original film table to retrieve other details (like title, description).
 Orders the final results by the calculated rrf_score in descending order.
 Applies a final LIMIT to get the desired number of top hybrid results.
