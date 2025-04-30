@@ -196,13 +196,9 @@ def main():
             return
         print("\nStructured Query Results:")
         context = ""
-        if len(results) == 1 and len(results[0]) == 1 and isinstance(results[0][0], int):
-            context = f"There were {results[0][0]} matching your query."
-            print(context)
-        else:
-            for idx, row in enumerate(results, 1):
-                print(f"{idx}. {row}")
-                context += f"{row}\n"
+        for idx, row in enumerate(results, 1):
+            print(f"{idx}. {row}")
+            context += f"{row}\n"
         answer = generate_answer(query, context)
         print("\nAnswer:", answer)
         return
