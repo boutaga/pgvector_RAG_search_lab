@@ -48,8 +48,11 @@ def generate_answer(query, context):
     This uses the new openai.chat.completions.create interface.
     """
     messages = [
-        {"role": "system", "content":  "You are a helpful assistant. You must answer the following question using only the context provided from the local database. "
-                "Do not include any external information. If the answer is not present in the context, respond with 'No relevant information is available.'"},
+        {"role": "system", "content":"You are a helpful assistant. Your primary goal is to answer the user's 'Question' using the provided 'Context'."
+        "1. First, determine if the 'Context' contains information relevant to the 'Question'."
+        "2. If yes, formulate your answer based *solely* on the relevant information found in the 'Context'."
+        "3. If no, or if the 'Context' is insufficient, answer the 'Question' using your general knowledge (external sources)."
+        "4. **Crucially:** If you use external sources (step 3), you MUST start your response with: 'The provided context did not contain the relevant information. Based on external information:'"},
         {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"}
     ]
     response = openai.chat.completions.create(
