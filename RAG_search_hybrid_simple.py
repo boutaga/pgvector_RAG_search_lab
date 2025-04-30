@@ -136,76 +136,8 @@ def generate_answer(query, context):
     )
     return response.choices[0].message.content.strip()
 
-def classify_query(query):
-    messages = [
-        {"role": "system", "content": "Classify the following query as either 'structured' if it can be answered directly from database fields (e.g., release year, director, cast) or 'semantic' if it requires semantic understanding. Respond with only 'structured' or 'semantic'."},
-        {"role": "user", "content": query}
-    ]
-    response = openai.chat.completions.create(
-        model="gpt-4o",
-        messages=messages,
-        max_tokens=1,
-        temperature=0
-    )
-    return response.choices[0].message.content.strip().lower()
-
-def structured_query(query):
-    messages = [
-        {"role": "system", "content": "Given the following PostgreSQL table structure:\n\n"
-                                      "Table: netflix_shows\n"
-                                      "Columns:\n"
-                                      "- show_id (text)\n"
-                                      "- type (text)\n"
-                                      "- title (text)\n"
-                                      "- director (text)\n"
-                                      "- cast (text)\n"
-                                      "- country (text)\n"
-                                      "- date_added (text)\n"
-                                      "- release_year (integer)\n"
-                                      "- rating (text)\n"
-                                      "- duration (text)\n"
-                                      "- listed_in (text)\n"
-                                      "- description (text)\n\n"
-                                      "Generate an SQL query to answer the user's question. Only return the SQL query without explanation or markdown formatting."},
-        {"role": "user", "content": query}
-    ]
-    response = openai.chat.completions.create(
-        model="gpt-4o",
-        messages=messages,
-        max_tokens=100,
-        temperature=0
-    )
-    sql_query = response.choices[0].message.content.strip().replace("```sql", "").replace("```", "").strip()
-    print("\nGenerated SQL Query:\n", sql_query)
-    conn = psycopg2.connect(DATABASE_URL)
-    cur = conn.cursor()
-    cur.execute(sql_query)
-    results = cur.fetchall()
-    cur.close()
-    conn.close()
-    return results
-
 def main():
     query = input("Enter your question: ")
-    query_type = classify_query(query)
-
-    if query_type == "structured":
-        results = structured_query(query)
-        if not results:
-            print("No relevant documents were found.")
-            return
-        print("\nStructured Query Results:")
-        context = ""
-        if len(results) == 1 and len(results[0]) == 1 and isinstance(results[0][0], int):
-            context = f"There were {results[0][0]} matching your query."
-            print(context)
-        else:
-            for idx, row in enumerate(results, 1):
-                print(f"{idx}. {row}")
-                context += f"{row}\n"
-        answer = generate_answer(query, context)
-        print("\nAnswer:", answer)
-        return
     query_dense_emb = get_dense_embedding(query)
     tokenizer, model = initialize_sparse_model_and_tokenizer(MODEL_NAME)
     query_sparse_emb = get_sparse_embedding(tokenizer, model, query)
