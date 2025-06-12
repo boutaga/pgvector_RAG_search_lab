@@ -16,7 +16,7 @@ The goal is to perform similarity searches to recommend Netflix shows to DVDRent
 
 ## Installation steps
 
-1. Provision a Linux server with PostgreSQL 17.2 and pgvector 0.8.0.
+1. Provision a Linux server with PostgreSQL 17.X and pgvector 0.8.0.
 2. Import dvdrental and Netflix datasets into a single PostgreSQL database.
 3. Add vector and sparsevec columns to the relevant tables.
 4. Set up a Python virtual environment and install dependencies.
