@@ -39,14 +39,9 @@ env/
 *~
 .DS_Store
 
-# Claude system files
-.claude/
-CLAUDE.md
-claude.json
-.clauderc
-*.claude
-.claude-cache/
-claude-artifacts/
+# Development tools
+.vscode/
+.idea/
 
 # Git LFS - note: .gitattributes should be tracked, not ignored
 
@@ -67,3 +62,29 @@ Thumbs.db
 *.temp
 /tmp/
 /temp/
+
+# Conference and Presentation Materials (Private - NOT lab materials)
+plan.md
+/presentation/
+/conference/
+/slides/
+*.pptx
+*.ppt
+*.key
+presentation_notes.md
+conference_notes.md
+talk_notes.md
+speaker_notes.md
+demo_script_private.md
+
+# n8n Docker data (but NOT workflow JSONs which should be public)
+n8n_data/
+.n8n/
+
+# Private benchmark results (public results in lab/07_evaluation/results are tracked)
+benchmark_results_private/
+performance_tests_private/
+
+# Local configuration overrides
+config.local.yml
+settings.local.json
