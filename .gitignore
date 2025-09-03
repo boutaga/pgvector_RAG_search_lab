@@ -48,6 +48,8 @@ claude.json
 .claude-cache/
 claude-artifacts/
 
+# Git LFS - note: .gitattributes should be tracked, not ignored
+
 # Database
 *.db
 *.sqlite
