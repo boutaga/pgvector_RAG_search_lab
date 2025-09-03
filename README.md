@@ -1,4 +1,4 @@
-# Movies_pgvector_lab v1.2
+# pgvector_RAG_search_lab v1.2
 
 This repository is intended for educational purposes, providing a lab environment to explore pgvector and similarity searches on PostgreSQL.
 
