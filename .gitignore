@@ -88,3 +88,10 @@ performance_tests_private/
 # Local configuration overrides
 config.local.yml
 settings.local.json
+
+# Claude files and tracking
+CLAUDE.md
+.claude/
+map.md
+current_progress.md
+plan.md
