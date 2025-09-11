@@ -148,7 +148,7 @@ PG_VECTORSCALE_ENABLED=true
 # OpenAI Configuration
 OPENAI_API_KEY=your_openai_api_key_here
 OPENAI_MODEL_EMB=text-embedding-3-small
-OPENAI_MODEL_CHAT=gpt-5-mini
+OPENAI_MODEL_CHAT=gpt-4-mini
 
 # SPLADE Configuration
 SPLADE_MODEL=naver/splade-cocondenser-ensembledistil
@@ -171,7 +171,7 @@ STREAMLIT_THEME=dark
 
 # n8n Configuration (Docker)
 N8N_PORT=5678
-N8N_WEBHOOK_URL=http://localhost:5678/webhook
+WEBHOOK_URL=http://localhost:5678/webhook
 EOF
     
     print_status "Environment template created"

@@ -291,7 +291,7 @@ EOF
     
     if ask_yes_no "Start PostgreSQL container now?" "y"; then
         cd "${SCRIPT_DIR}"
-        docker-compose -f docker-compose-db.yml up -d
+        docker compose -f docker-compose-db.yml up -d
         cd - > /dev/null
         print_status "PostgreSQL container started"
     fi
@@ -390,9 +390,9 @@ install_all_dependencies() {
     # ML/AI dependencies
     if ask_yes_no "Install PyTorch (large download)?" "y"; then
         if ask_yes_no "Do you have CUDA-capable GPU?" "n"; then
-            pip install 'torch>=2.0'
-        else
             pip install 'torch>=2.0' --index-url https://download.pytorch.org/whl/cpu
+        else
+            pip install 'torch>=2.0' --index-url https://download.pytorch.org/whl/cu124
         fi
     fi
     
@@ -463,9 +463,9 @@ install_custom_dependencies() {
     
     if ask_yes_no "Install ML libraries (PyTorch, Transformers)?" "y"; then
         if ask_yes_no "Do you have CUDA-capable GPU?" "n"; then
-            pip install 'torch>=2.0'
-        else
             pip install 'torch>=2.0' --index-url https://download.pytorch.org/whl/cpu
+        else
+            pip install 'torch>=2.0' --index-url https://download.pytorch.org/whl/cu124
         fi
         pip install 'transformers>=4.30' sentencepiece
     fi
@@ -592,7 +592,7 @@ STREAMLIT_THEME=dark
 
 # n8n Configuration (Docker)
 N8N_PORT=5678
-N8N_WEBHOOK_URL=http://localhost:5678/webhook
+WEBHOOK_URL=http://localhost:5678/webhook
 EOF
     
     print_status "Environment template created"
@@ -751,7 +751,7 @@ EOF
     
     if command -v docker &> /dev/null && ask_yes_no "Start n8n container now?" "n"; then
         cd lab/06_workflows
-        docker-compose up -d
+        docker compose up -d
         cd ../..
         print_status "n8n container started on http://localhost:5678"
     fi

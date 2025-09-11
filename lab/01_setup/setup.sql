@@ -5,7 +5,7 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
--- Create the main articles table with all search capabilities
+-- Create the main articles table with core capabilities
 CREATE TABLE IF NOT EXISTS articles (
     id SERIAL PRIMARY KEY,
     title TEXT NOT NULL,
@@ -16,10 +16,6 @@ CREATE TABLE IF NOT EXISTS articles (
     title_vector vector(1536),
     content_vector vector(1536),
     
-    -- Sparse embeddings (pgvectorscale sparsevec)
-    title_sparse sparsevec(30522),
-    content_sparse sparsevec(30522),
-    
     -- Full-text search vectors
     content_tsv tsvector,
     title_content_tsvector tsvector,
@@ -29,6 +25,41 @@ CREATE TABLE IF NOT EXISTS articles (
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Add sparse columns only if vectorscale is available
+DO $$
+BEGIN
+    -- Check if vectorscale extension exists
+    IF EXISTS (
+        SELECT 1 FROM pg_available_extensions WHERE name = 'vectorscale'
+    ) OR EXISTS (
+        SELECT 1 FROM pg_extension WHERE extname = 'vectorscale'
+    ) THEN
+        -- Enable vectorscale if available but not enabled
+        IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vectorscale') THEN
+            CREATE EXTENSION vectorscale;
+        END IF;
+        
+        -- Add sparse columns
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'articles' AND column_name = 'title_sparse'
+        ) THEN
+            ALTER TABLE articles ADD COLUMN title_sparse sparsevec(30522);
+        END IF;
+        
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'articles' AND column_name = 'content_sparse'
+        ) THEN
+            ALTER TABLE articles ADD COLUMN content_sparse sparsevec(30522);
+        END IF;
+        
+        RAISE NOTICE 'vectorscale extension enabled with sparse vector support';
+    ELSE
+        RAISE NOTICE 'vectorscale extension not available - sparse vectors disabled';
+    END IF;
+END$$;
 
 -- Advanced full-text setup with weighted ranking (titles priority over content)
 CREATE OR REPLACE FUNCTION update_article_tsvector() RETURNS trigger AS $$
@@ -172,8 +203,7 @@ CREATE TABLE IF NOT EXISTS film (
     fulltext tsvector,
     
     -- Embeddings
-    embedding vector(1536),
-    sparse_embedding sparsevec(30522)
+    embedding vector(1536)
 );
 
 CREATE TABLE IF NOT EXISTS netflix_shows (
@@ -191,9 +221,32 @@ CREATE TABLE IF NOT EXISTS netflix_shows (
     description TEXT,
     
     -- Embeddings
-    embedding vector(1536),
-    sparse_embedding sparsevec(30522)
+    embedding vector(1536)
 );
+
+-- Add sparse columns to movie tables if vectorscale is available
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vectorscale') THEN
+        -- Add sparse column to film table
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'film' AND column_name = 'sparse_embedding'
+        ) THEN
+            ALTER TABLE film ADD COLUMN sparse_embedding sparsevec(30522);
+        END IF;
+        
+        -- Add sparse column to netflix_shows table
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'netflix_shows' AND column_name = 'sparse_embedding'
+        ) THEN
+            ALTER TABLE netflix_shows ADD COLUMN sparse_embedding sparsevec(30522);
+        END IF;
+        
+        RAISE NOTICE 'Added sparse embedding support to movie tables';
+    END IF;
+END$$;
 
 -- Customer and rental tables for recommendations
 CREATE TABLE IF NOT EXISTS customer (
