@@ -19,9 +19,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from lab.core.database import DatabaseService
 from lab.core.config import ConfigService, load_config
-from lab.04_search.simple_search import SimpleSearchEngine
-from lab.04_search.hybrid_search import HybridSearchEngine
-from lab.04_search.adaptive_search import AdaptiveSearchEngine
+from lab.search.simple_search import SimpleSearchEngine
+from lab.search.hybrid_search import HybridSearchEngine
+from lab.search.adaptive_search import AdaptiveSearchEngine
 
 
 # Global services (initialized in lifespan)

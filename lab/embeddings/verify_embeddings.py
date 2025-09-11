@@ -16,7 +16,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from lab.core.database import DatabaseService
 from lab.core.config import ConfigService, load_config
-from lab.03_embeddings.embedding_manager import EmbeddingManager
+from lab.embeddings.embedding_manager import EmbeddingManager
 
 
 @dataclass

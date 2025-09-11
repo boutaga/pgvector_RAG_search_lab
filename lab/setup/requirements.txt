@@ -1,5 +1,6 @@
 # Core Database and API
 psycopg[binary]>=3.2
+pgvector>=0.2.4
 openai>=1.30
 
 # LangChain Framework

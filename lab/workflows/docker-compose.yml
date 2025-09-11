@@ -12,7 +12,7 @@ services:
       - POSTGRES_HOST_AUTH_METHOD=trust
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ../01_setup/setup.sql:/docker-entrypoint-initdb.d/01_setup.sql:ro
+      - ../setup/setup.sql:/docker-entrypoint-initdb.d/setup.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -49,7 +49,7 @@ services:
   fastapi:
     build:
       context: ../..
-      dockerfile: lab/06_workflows/Dockerfile.fastapi
+      dockerfile: lab/workflows/Dockerfile.fastapi
     container_name: pgvector_lab_api
     ports:
       - "8000:8000"
@@ -71,13 +71,13 @@ services:
     restart: unless-stopped
     networks:
       - pgvector_lab
-    command: python -m uvicorn lab.05_api.fastapi_server:app --host 0.0.0.0 --port 8000 --reload
+    command: python -m uvicorn lab.api.fastapi_server:app --host 0.0.0.0 --port 8000 --reload
 
   # Streamlit Web UI
   streamlit:
     build:
       context: ../..
-      dockerfile: lab/06_workflows/Dockerfile.streamlit
+      dockerfile: lab/workflows/Dockerfile.streamlit
     container_name: pgvector_lab_ui
     ports:
       - "8501:8501"
@@ -94,7 +94,7 @@ services:
     restart: unless-stopped
     networks:
       - pgvector_lab
-    command: streamlit run lab/05_api/streamlit_app.py --server.port=8501 --server.address=0.0.0.0
+    command: streamlit run lab/api/streamlit_app.py --server.port=8501 --server.address=0.0.0.0
 
   # pgAdmin for database management (optional)
   pgadmin:
