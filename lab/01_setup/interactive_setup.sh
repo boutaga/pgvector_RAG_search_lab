@@ -54,6 +54,7 @@ ask_yes_no() {
     local question="$1"
     local default="${2:-y}"
     local prompt
+    local response
     
     if [ "$default" = "y" ]; then
         prompt="[Y/n]"
@@ -62,7 +63,7 @@ ask_yes_no() {
     fi
     
     while true; do
-        print_question "$question $prompt: "
+        printf "${BLUE}❓ %s %s: ${NC}" "$question" "$prompt"
         read -r response
         response=${response:-$default}
         case "$response" in
@@ -79,7 +80,7 @@ ask_input() {
     local default="$2"
     local response
     
-    print_question "$question [$default]: "
+    printf "${BLUE}❓ %s [%s]: ${NC}" "$question" "$default"
     read -r response
     echo "${response:-$default}"
 }
@@ -196,7 +197,7 @@ install_postgresql_local() {
     PG_DATABASE=$(ask_input "Database name" "pgvector_lab")
     PG_USER=$(ask_input "Database user" "postgres")
     
-    print_info "Enter database password (will not be displayed):"
+    printf "${CYAN}ℹ️  Enter database password (will not be displayed): ${NC}"
     read -s PG_PASSWORD
     echo ""
     
@@ -212,7 +213,7 @@ configure_existing_postgresql() {
     PG_DATABASE=$(ask_input "Database name" "pgvector_lab")
     PG_USER=$(ask_input "Database user" "postgres")
     
-    print_info "Enter database password (will not be displayed):"
+    printf "${CYAN}ℹ️  Enter database password (will not be displayed): ${NC}"
     read -s PG_PASSWORD
     echo ""
     
