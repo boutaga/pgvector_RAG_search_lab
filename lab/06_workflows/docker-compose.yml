@@ -1,0 +1,145 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with pgvector
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: pgvector_lab_db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${PG_PASSWORD:-postgres}
+      - POSTGRES_DB=${PG_DATABASE:-pgvector_lab}
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../01_setup/setup.sql:/docker-entrypoint-initdb.d/01_setup.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pgvector_lab
+
+  # n8n Workflow Automation
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: pgvector_lab_n8n
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=false
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=http://localhost:5678/
+      - N8N_LOG_LEVEL=info
+      - GENERIC_TIMEZONE=UTC
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./:/home/node/workflows
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - pgvector_lab
+
+  # FastAPI Backend
+  fastapi:
+    build:
+      context: ../..
+      dockerfile: lab/06_workflows/Dockerfile.fastapi
+    container_name: pgvector_lab_api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:${PG_PASSWORD:-postgres}@postgres:5432/${PG_DATABASE:-pgvector_lab}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL_EMB=${OPENAI_MODEL_EMB:-text-embedding-3-small}
+      - OPENAI_MODEL_CHAT=${OPENAI_MODEL_CHAT:-gpt-4-mini}
+      - SPLADE_MODEL=${SPLADE_MODEL:-naver/splade-cocondenser-ensembledistil}
+      - SPLADE_DEVICE=${SPLADE_DEVICE:-cpu}
+      - HYBRID_ALPHA=${HYBRID_ALPHA:-0.5}
+      - TOPK_RETRIEVAL=${TOPK_RETRIEVAL:-50}
+      - FINAL_K=${FINAL_K:-10}
+    volumes:
+      - ../..:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - pgvector_lab
+    command: python -m uvicorn lab.05_api.fastapi_server:app --host 0.0.0.0 --port 8000 --reload
+
+  # Streamlit Web UI
+  streamlit:
+    build:
+      context: ../..
+      dockerfile: lab/06_workflows/Dockerfile.streamlit
+    container_name: pgvector_lab_ui
+    ports:
+      - "8501:8501"
+    environment:
+      - DATABASE_URL=postgresql://postgres:${PG_PASSWORD:-postgres}@postgres:5432/${PG_DATABASE:-pgvector_lab}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL_EMB=${OPENAI_MODEL_EMB:-text-embedding-3-small}
+      - OPENAI_MODEL_CHAT=${OPENAI_MODEL_CHAT:-gpt-4-mini}
+      - API_BASE_URL=http://fastapi:8000
+    volumes:
+      - ../..:/app
+    depends_on:
+      - fastapi
+    restart: unless-stopped
+    networks:
+      - pgvector_lab
+    command: streamlit run lab/05_api/streamlit_app.py --server.port=8501 --server.address=0.0.0.0
+
+  # pgAdmin for database management (optional)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgvector_lab_pgadmin
+    ports:
+      - "5050:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL:-admin@pgvector.lab}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD:-admin}
+      - PGADMIN_CONFIG_SERVER_MODE=False
+      - PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED=False
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - pgvector_lab
+    profiles:
+      - tools
+
+  # Redis for caching (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: pgvector_lab_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - pgvector_lab
+    profiles:
+      - cache
+    command: redis-server --appendonly yes
+
+volumes:
+  postgres_data:
+  n8n_data:
+  pgadmin_data:
+  redis_data:
+
+networks:
+  pgvector_lab:
+    driver: bridge

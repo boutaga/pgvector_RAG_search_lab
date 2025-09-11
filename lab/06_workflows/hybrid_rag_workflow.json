@@ -1,0 +1,263 @@
+{
+  "name": "Hybrid RAG Demo with Parameter Control",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "h1i2j3k4-l5m6-7n8o-9p0q-r1s2t3u4v5w6",
+      "name": "Demo Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "query",
+              "value": "How does MVCC reduce locking in PostgreSQL?"
+            },
+            {
+              "name": "method",
+              "value": "hybrid"
+            }
+          ],
+          "number": [
+            {
+              "name": "alpha",
+              "value": 0.5
+            },
+            {
+              "name": "top_k",
+              "value": 5
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "i2j3k4l5-m6n7-8o9p-0q1r-s2t3u4v5w6x7",
+      "name": "Hybrid Parameters",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/search",
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        },
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "query",
+              "value": "={{ $json.query }}"
+            },
+            {
+              "name": "method",
+              "value": "={{ $json.method }}"
+            },
+            {
+              "name": "top_k",
+              "value": "={{ $json.top_k }}"
+            },
+            {
+              "name": "alpha",
+              "value": "={{ $json.alpha }}"
+            },
+            {
+              "name": "include_metadata",
+              "value": "true"
+            },
+            {
+              "name": "include_timing",
+              "value": "true"
+            }
+          ]
+        },
+        "sendBody": true
+      },
+      "id": "j3k4l5m6-n7o8-9p0q-1r2s-t3u4v5w6x7y8",
+      "name": "Hybrid RAG API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract and format the hybrid search response\nconst response = items[0].json;\n\n// Create detailed output for hybrid method\nconst output = {\n  query: response.query,\n  method: response.method_used,\n  alpha_used: response.alpha || 0.5,\n  answer: response.answer,\n  timing_ms: response.timing?.total_ms || 0,\n  context_count: response.contexts?.length || 0,\n  \n  // Enhanced context information for hybrid\n  contexts_detailed: (response.contexts || []).slice(0, 3).map(ctx => ({\n    title: ctx.title,\n    dense_score: ctx.sd || ctx.sim_dense || 0,\n    sparse_score: ctx.ss || ctx.sim_sparse || 0,\n    hybrid_score: ctx.hybrid || 0,\n    snippet: (ctx.content || '').substring(0, 150) + '...'\n  })),\n  \n  // Performance metrics\n  performance: {\n    total_time: response.timing?.total_ms || 0,\n    method: 'hybrid',\n    alpha: response.alpha || 0.5,\n    dense_weight: response.alpha || 0.5,\n    sparse_weight: 1 - (response.alpha || 0.5)\n  },\n  \n  success: response.success,\n  raw_response: response\n};\n\n// Add visual indicators\nif (response.success) {\n  output.status = '🎯 HYBRID SUCCESS';\n  output.improvement_note = 'Check context scores - hybrid combines semantic + lexical!';\n} else {\n  output.status = '❌ ERROR';\n}\n\nreturn [{ json: output }];"
+      },
+      "id": "k4l5m6n7-o8p9-0q1r-2s3t-u4v5w6x7y8z9",
+      "name": "Format Hybrid Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "demo_note",
+              "value": "🔧 DEMO TIP: Change alpha in 'Hybrid Parameters' node to see different results!\\n- alpha=0.3 → More sparse (exact terms)\\n- alpha=0.7 → More dense (semantic)\\n- alpha=0.5 → Balanced"
+            }
+          ]
+        }
+      },
+      "id": "l5m6n7o8-p9q0-1r2s-3t4u-v5w6x7y8z9a0",
+      "name": "Demo Instructions",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.alpha_used }}",
+              "operation": "smaller",
+              "value2": 0.4
+            }
+          ]
+        }
+      },
+      "id": "m6n7o8p9-q0r1-2s3t-4u5v-w6x7y8z9a0b1",
+      "name": "Alpha Analysis",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "alpha_interpretation",
+              "value": "🎯 SPARSE-HEAVY: This query benefits from exact term matching!"
+            }
+          ]
+        }
+      },
+      "id": "n7o8p9q0-r1s2-3t4u-5v6w-x7y8z9a0b1c2",
+      "name": "Sparse Heavy Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "alpha_interpretation",
+              "value": "🧠 DENSE-HEAVY: This query benefits from semantic understanding!"
+            }
+          ]
+        }
+      },
+      "id": "o8p9q0r1-s2t3-4u5v-6w7x-y8z9a0b1c2d3",
+      "name": "Dense Heavy Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [1560, 400]
+    }
+  ],
+  "connections": {
+    "Demo Start": {
+      "main": [
+        [
+          {
+            "node": "Hybrid Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hybrid Parameters": {
+      "main": [
+        [
+          {
+            "node": "Hybrid RAG API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hybrid RAG API": {
+      "main": [
+        [
+          {
+            "node": "Format Hybrid Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Hybrid Results": {
+      "main": [
+        [
+          {
+            "node": "Demo Instructions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Instructions": {
+      "main": [
+        [
+          {
+            "node": "Alpha Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alpha Analysis": {
+      "main": [
+        [
+          {
+            "node": "Sparse Heavy Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dense Heavy Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1",
+  "id": "hybrid-rag-demo-workflow",
+  "meta": {
+    "created_at": "2025-09-05T10:15:00.000Z",
+    "updated_at": "2025-09-05T10:15:00.000Z",
+    "instanceId": "n8n-rag-demo"
+  },
+  "tags": [
+    {
+      "id": "rag-demo",
+      "name": "RAG Demo"
+    },
+    {
+      "id": "hybrid",
+      "name": "Hybrid Search"
+    }
+  ]
+}

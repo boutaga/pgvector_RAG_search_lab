@@ -1,0 +1,319 @@
+{
+  "name": "RAG Method Comparison Dashboard",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "comp1a2b-3c4d-5e6f-7g8h-i9j0k1l2m3n4",
+      "name": "Start Comparison",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [200, 400]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "test_query",
+              "value": "What is WAL in PostgreSQL and why is it important?"
+            },
+            {
+              "name": "comparison_note",
+              "value": "🎯 DEMO: This workflow tests all three methods simultaneously"
+            }
+          ],
+          "number": [
+            {
+              "name": "top_k",
+              "value": 5
+            }
+          ]
+        }
+      },
+      "id": "comp2b3c-4d5e-6f7g-8h9i-j0k1l2m3n4o5",
+      "name": "Set Test Query",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "comp3c4d-5e6f-7g8h-9i0j-k1l2m3n4o5p6",
+      "name": "Prepare Methods",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Create separate requests for each RAG method\nconst testQuery = items[0].json.test_query;\nconst topK = items[0].json.top_k;\n\n// Define all three methods to test\nconst methods = [\n  {\n    name: 'naive',\n    description: 'Single dense embedding search',\n    params: {\n      query: testQuery,\n      method: 'naive',\n      top_k: topK,\n      include_metadata: true,\n      include_timing: true\n    }\n  },\n  {\n    name: 'hybrid',\n    description: 'Dense + sparse with balanced weights',\n    params: {\n      query: testQuery,\n      method: 'hybrid',\n      top_k: topK,\n      alpha: 0.5,\n      include_metadata: true,\n      include_timing: true\n    }\n  },\n  {\n    name: 'adaptive',\n    description: 'Intelligent routing based on query type',\n    params: {\n      query: testQuery,\n      method: 'adaptive',\n      top_k: topK,\n      include_metadata: true,\n      include_timing: true\n    }\n  }\n];\n\n// Return array of method configurations\nreturn methods.map(method => ({ json: method }));"
+      },
+      "id": "comp4d5e-6f7g-8h9i-0j1k-l2m3n4o5p6q7",
+      "name": "Generate Method Requests",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [860, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/search",
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        },
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "query",
+              "value": "={{ $json.params.query }}"
+            },
+            {
+              "name": "method",
+              "value": "={{ $json.params.method }}"
+            },
+            {
+              "name": "top_k",
+              "value": "={{ $json.params.top_k }}"
+            },
+            {
+              "name": "alpha",
+              "value": "={{ $json.params.alpha }}"
+            },
+            {
+              "name": "include_metadata",
+              "value": "={{ $json.params.include_metadata }}"
+            },
+            {
+              "name": "include_timing",
+              "value": "={{ $json.params.include_timing }}"
+            }
+          ]
+        },
+        "sendBody": true
+      },
+      "id": "comp5e6f-7g8h-9i0j-1k2l-m3n4o5p6q7r8",
+      "name": "Execute RAG Method",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1080, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process individual method results\nconst methodConfig = items[0].json;\nconst apiResponse = items[1].json;\n\n// Extract key metrics\nconst result = {\n  method_name: methodConfig.name,\n  method_description: methodConfig.description,\n  \n  // Performance metrics\n  performance: {\n    response_time_ms: apiResponse.timing?.total_ms || 0,\n    context_count: apiResponse.contexts?.length || 0,\n    success: apiResponse.success\n  },\n  \n  // Quality indicators\n  quality: {\n    answer_length: (apiResponse.answer || '').length,\n    top_similarity: apiResponse.contexts?.[0]?.hybrid || apiResponse.contexts?.[0]?.sim_dense || 0,\n    context_diversity: new Set((apiResponse.contexts || []).map(c => c.title)).size\n  },\n  \n  // Full response for detailed analysis\n  full_response: apiResponse,\n  \n  // Method-specific details\n  method_details: {\n    alpha: apiResponse.alpha,\n    method_used: apiResponse.method_used,\n    query: apiResponse.query\n  },\n  \n  // Top context preview\n  top_context: apiResponse.contexts?.[0] ? {\n    title: apiResponse.contexts[0].title,\n    snippet: (apiResponse.contexts[0].content || '').substring(0, 200) + '...',\n    scores: {\n      dense: apiResponse.contexts[0].sd || apiResponse.contexts[0].sim_dense || 0,\n      sparse: apiResponse.contexts[0].ss || apiResponse.contexts[0].sim_sparse || 0,\n      hybrid: apiResponse.contexts[0].hybrid || 0\n    }\n  } : null\n};\n\nreturn [{ json: result }];"
+      },
+      "id": "comp6f7g-8h9i-0j1k-2l3m-n4o5p6q7r8s9",
+      "name": "Process Method Result",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1300, 400]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "comp7g8h-9i0j-1k2l-3m4n-o5p6q7r8s9t0",
+      "name": "Collect All Results", 
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [1520, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Create comprehensive comparison dashboard\nconst results = items;\n\n// Sort by performance (response time)\nconst sortedBySpeed = [...results].sort((a, b) => \n  a.json.performance.response_time_ms - b.json.performance.response_time_ms\n);\n\n// Sort by quality (top similarity score)\nconst sortedByQuality = [...results].sort((a, b) => \n  b.json.quality.top_similarity - a.json.quality.top_similarity\n);\n\n// Create comparison dashboard\nconst dashboard = {\n  query_tested: results[0]?.json.method_details.query || 'Unknown',\n  comparison_timestamp: new Date().toISOString(),\n  \n  // Performance ranking\n  speed_ranking: sortedBySpeed.map((item, index) => ({\n    rank: index + 1,\n    method: item.json.method_name,\n    response_time_ms: item.json.performance.response_time_ms,\n    medal: index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'\n  })),\n  \n  // Quality ranking\n  quality_ranking: sortedByQuality.map((item, index) => ({\n    rank: index + 1,\n    method: item.json.method_name, \n    top_similarity: item.json.quality.top_similarity,\n    answer_length: item.json.quality.answer_length,\n    medal: index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'\n  })),\n  \n  // Method comparison table\n  method_comparison: results.map(item => ({\n    method: item.json.method_name,\n    description: item.json.method_description,\n    response_time: item.json.performance.response_time_ms + 'ms',\n    contexts_found: item.json.performance.context_count,\n    answer_quality: item.json.quality.top_similarity.toFixed(3),\n    top_context_title: item.json.top_context?.title || 'None',\n    success: item.json.performance.success ? '✅' : '❌'\n  })),\n  \n  // Winner analysis\n  recommendations: {\n    fastest_method: sortedBySpeed[0]?.json.method_name,\n    best_quality: sortedByQuality[0]?.json.method_name,\n    overall_winner: sortedByQuality[0]?.json.method_name, // Quality usually more important than speed\n    reasoning: `For this query type, ${sortedByQuality[0]?.json.method_name} provided the best relevance while ${sortedBySpeed[0]?.json.method_name} was fastest.`\n  },\n  \n  // Detailed results for deep dive\n  detailed_results: results.map(item => item.json)\n};\n\n// Add visual summary\ndashboard.visual_summary = `\n🎯 COMPARISON COMPLETE\n━━━━━━━━━━━━━━━━━━━━━━\n🏆 Best Quality: ${dashboard.recommendations.best_quality}\n⚡ Fastest: ${dashboard.recommendations.fastest_method}\n🎖️  Overall Winner: ${dashboard.recommendations.overall_winner}\n\n💡 ${dashboard.recommendations.reasoning}\n`;\n\nreturn [{ json: dashboard }];"
+      },
+      "id": "comp8h9i-0j1k-2l3m-4n5o-p6q7r8s9t0u1",
+      "name": "Create Comparison Dashboard",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1740, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.recommendations.overall_winner }}",
+              "operation": "equal",
+              "value2": "hybrid"
+            }
+          ]
+        }
+      },
+      "id": "comp9i0j-1k2l-3m4n-5o6p-q7r8s9t0u1v2",
+      "name": "Check Winner",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1960, 400]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "victory_message",
+              "value": "🎉 HYBRID WINS! \\n\\nAs expected, the hybrid approach provided the best balance of relevance and comprehensive coverage. This demonstrates why combining dense and sparse embeddings outperforms single methods.\\n\\n💡 This is exactly what we see in production workloads!"
+            }
+          ]
+        }
+      },
+      "id": "comp0j1k-2l3m-4n5o-6p7q-r8s9t0u1v2w3",
+      "name": "Hybrid Victory",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [2180, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "analysis_note",
+              "value": "🤔 INTERESTING RESULT!\\n\\nA method other than hybrid won this comparison. This can happen depending on the specific query characteristics and data distribution.\\n\\n📊 Check the detailed results to understand why - this is valuable insight for production tuning!"
+            }
+          ]
+        }
+      },
+      "id": "comp1k2l-3m4n-5o6p-7q8r-s9t0u1v2w3x4",
+      "name": "Alternative Winner",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [2180, 500]
+    }
+  ],
+  "connections": {
+    "Start Comparison": {
+      "main": [
+        [
+          {
+            "node": "Set Test Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Test Query": {
+      "main": [
+        [
+          {
+            "node": "Prepare Methods",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Methods": {
+      "main": [
+        [
+          {
+            "node": "Generate Method Requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Method Requests": {
+      "main": [
+        [
+          {
+            "node": "Execute RAG Method",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute RAG Method": {
+      "main": [
+        [
+          {
+            "node": "Process Method Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Method Result": {
+      "main": [
+        [
+          {
+            "node": "Collect All Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect All Results": {
+      "main": [
+        [
+          {
+            "node": "Create Comparison Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Comparison Dashboard": {
+      "main": [
+        [
+          {
+            "node": "Check Winner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Winner": {
+      "main": [
+        [
+          {
+            "node": "Hybrid Victory",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alternative Winner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1",
+  "id": "rag-comparison-dashboard",
+  "meta": {
+    "created_at": "2025-09-05T10:45:00.000Z",
+    "updated_at": "2025-09-05T10:45:00.000Z",
+    "instanceId": "n8n-rag-demo"
+  },
+  "tags": [
+    {
+      "id": "rag-demo",
+      "name": "RAG Demo"
+    },
+    {
+      "id": "comparison",
+      "name": "Method Comparison"
+    },
+    {
+      "id": "dashboard",
+      "name": "Dashboard"
+    }
+  ]
+}

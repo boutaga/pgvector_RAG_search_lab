@@ -1,0 +1,92 @@
+[
+  {
+    "query": "What is machine learning?",
+    "expected_doc_ids": [1, 2, 3, 15, 22],
+    "metadata": {
+      "category": "conceptual",
+      "difficulty": "easy",
+      "expected_type": "definition"
+    }
+  },
+  {
+    "query": "Who invented the telephone?",
+    "expected_doc_ids": [4, 5],
+    "metadata": {
+      "category": "factual",
+      "difficulty": "easy",
+      "expected_type": "person"
+    }
+  },
+  {
+    "query": "Explain quantum computing applications in cryptography",
+    "expected_doc_ids": [6, 7, 8, 9, 18, 25],
+    "metadata": {
+      "category": "exploratory",
+      "difficulty": "hard",
+      "expected_type": "explanation"
+    }
+  },
+  {
+    "query": "When was the first computer built?",
+    "expected_doc_ids": [10, 11],
+    "metadata": {
+      "category": "factual",
+      "difficulty": "medium",
+      "expected_type": "date"
+    }
+  },
+  {
+    "query": "How do neural networks learn?",
+    "expected_doc_ids": [12, 13, 14, 28, 29],
+    "metadata": {
+      "category": "conceptual",
+      "difficulty": "medium",
+      "expected_type": "process"
+    }
+  },
+  {
+    "query": "Compare supervised and unsupervised learning",
+    "expected_doc_ids": [15, 16, 17],
+    "metadata": {
+      "category": "exploratory",
+      "difficulty": "medium",
+      "expected_type": "comparison"
+    }
+  },
+  {
+    "query": "What are the main programming languages for data science?",
+    "expected_doc_ids": [19, 20, 21],
+    "metadata": {
+      "category": "factual",
+      "difficulty": "easy",
+      "expected_type": "list"
+    }
+  },
+  {
+    "query": "Explain the transformer architecture in deep learning",
+    "expected_doc_ids": [23, 24, 30, 31],
+    "metadata": {
+      "category": "conceptual",
+      "difficulty": "hard",
+      "expected_type": "architecture"
+    }
+  },
+  {
+    "query": "What are the ethical implications of artificial intelligence?",
+    "expected_doc_ids": [26, 27, 32, 33, 34],
+    "metadata": {
+      "category": "exploratory",
+      "difficulty": "hard",
+      "expected_type": "discussion"
+    }
+  },
+  {
+    "query": "List the Nobel Prize winners in Physics from 2020",
+    "expected_doc_ids": [35, 36],
+    "metadata": {
+      "category": "factual",
+      "difficulty": "medium",
+      "expected_type": "list"
+    }
+  }
+]
