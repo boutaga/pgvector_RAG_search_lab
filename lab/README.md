@@ -11,23 +11,34 @@ A modular, production-ready implementation of Retrieval-Augmented Generation (RA
 
 ### Installation
 
-1. **Clone and setup environment:**
+#### Option 1: Interactive Setup (Recommended)
 ```bash
 git clone <repository>
 cd Movies_pgvector_lab
-python -m venv pgvector_lab
-source pgvector_lab/bin/activate  # On Windows: pgvector_lab\Scripts\activate
+bash lab/01_setup/interactive_setup.sh
 ```
 
-2. **Install dependencies:**
+#### Option 2: Docker Compose (Fastest)
 ```bash
-pip install psycopg2-binary openai pgvector transformers torch streamlit fastapi uvicorn plotly pandas
+git clone <repository>
+cd Movies_pgvector_lab/lab/06_workflows
+cp ../01_setup/.env.template .env
+# Edit .env with your API keys
+docker-compose up -d
 ```
 
-3. **Configure environment:**
+#### Option 3: Manual Setup
 ```bash
-export DATABASE_URL="postgresql://username:password@localhost/database"
-export OPENAI_API_KEY="your_openai_api_key"
+git clone <repository>
+cd Movies_pgvector_lab
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -r lab/01_setup/requirements.txt
+
+# Configure environment
+cp lab/01_setup/.env.template .env
+# Edit .env with your credentials
+source .env
 ```
 
 4. **Generate embeddings:**
@@ -73,6 +84,16 @@ streamlit run lab/05_api/streamlit_app.py
 - **FastAPI**: RESTful API with automatic documentation
 - **Streamlit**: Interactive web interface with real-time search comparison
 - **Metrics**: Performance tracking and visualization
+
+### Workflows & Automation (`lab/06_workflows/`)
+- **n8n Workflows**: Ready-to-import automation workflows
+- **Docker Compose**: Complete stack deployment
+- **Container Orchestration**: PostgreSQL, n8n, FastAPI, Streamlit
+
+### Evaluation & Benchmarking (`lab/07_evaluation/`)
+- **Quality Evaluation**: Precision, Recall, F1, MRR, NDCG metrics
+- **Performance Benchmarking**: Latency, throughput, scalability testing
+- **A/B Testing**: Method comparison and analysis
 
 ## 🔍 Search Methods
 
@@ -160,6 +181,14 @@ python lab/05_api/fastapi_server.py
 # API documentation: http://localhost:8000/docs
 ```
 
+**n8n Workflows:**
+```bash
+cd lab/06_workflows
+docker-compose up -d
+# Access n8n at: http://localhost:5678
+# Import workflows from JSON files
+```
+
 ### Python API
 
 ```python
@@ -193,17 +222,28 @@ print(response['answer'])
 - **Error Handling**: Comprehensive retry logic and graceful degradation  
 - **Progress Tracking**: Real-time feedback for long-running operations
 - **Logging**: Structured logging with configurable levels
+- **Docker Deployment**: Complete containerized stack with orchestration
+- **Health Checks**: Service monitoring and automatic restarts
 
 ### Evaluation & Monitoring
 - **Performance Metrics**: Query latency, result quality, cost analysis
 - **Search Comparison**: Side-by-side evaluation of different methods
 - **Embedding Validation**: Quality checks and statistical analysis
 - **Interactive Visualization**: Real-time charts and performance dashboards
+- **Benchmarking Suite**: Comprehensive performance and scalability testing
+- **A/B Testing**: Statistical comparison of different search methods
 
 ## 🗂️ Project Structure
 
 ```
 lab/
+├── 01_setup/                  # Setup and installation
+│   ├── setup.sh              # Automated setup script
+│   ├── interactive_setup.sh  # Interactive setup with choices
+│   ├── requirements.txt      # Python dependencies
+│   ├── .env.template         # Environment configuration template
+│   └── setup.sql             # Database schema setup
+│
 ├── core/                      # Core service layer
 │   ├── database.py           # Database service with connection pooling
 │   ├── embeddings.py         # Dense & sparse embedding services
@@ -231,9 +271,16 @@ lab/
 │   ├── fastapi_server.py     # REST API backend
 │   └── streamlit_app.py      # Interactive web UI
 │
+├── 06_workflows/              # Automation and deployment
+│   ├── docker-compose.yml    # Complete stack deployment
+│   ├── *.json               # n8n workflow definitions
+│   └── README.md            # Workflow documentation
+│
 └── 07_evaluation/             # Performance evaluation
+    ├── evaluator.py          # Quality evaluation framework
     ├── benchmark.py          # Performance benchmarking
-    └── metrics.py            # Evaluation metrics
+    ├── test_cases.json       # Sample evaluation test cases
+    └── README.md             # Evaluation documentation
 ```
 
 ## 🎯 Use Cases
@@ -252,28 +299,41 @@ lab/
 - **Algorithm benchmarking**: Performance comparison frameworks
 - **Data quality assessment**: Embedding validation and statistics
 - **Cost optimization**: Token usage and API cost analysis
+- **Workflow automation**: n8n-based RAG system prototyping
+- **A/B testing**: Statistical method comparison and evaluation
 
 ## 🔧 Configuration
 
 ### Environment Variables
+Copy `lab/01_setup/.env.template` to `.env` and configure:
+
 ```bash
 # Database
 DATABASE_URL="postgresql://user:pass@localhost/db"
+PG_POOL_SIZE=20
 
 # OpenAI
 OPENAI_API_KEY="your_openai_api_key"
+OPENAI_MODEL_EMB="text-embedding-3-small"
+OPENAI_MODEL_CHAT="gpt-4-mini"
 
-# Models
-OPENAI_EMBEDDING_MODEL="text-embedding-3-small"
+# SPLADE
 SPLADE_MODEL="naver/splade-cocondenser-ensembledistil"
+SPLADE_DEVICE="cuda"  # or "cpu"
 
 # Search weights
-DENSE_WEIGHT=0.5
-SPARSE_WEIGHT=0.5
+HYBRID_ALPHA=0.5
+TOPK_RETRIEVAL=50
+FINAL_K=10
 
-# API
+# API Configuration
 API_HOST="0.0.0.0"
 API_PORT=8000
+STREAMLIT_PORT=8501
+
+# Docker settings
+COMPOSE_PROJECT_NAME="pgvector_lab"
+PG_PASSWORD="postgres"
 ```
 
 ### Configuration File (JSON)
@@ -298,6 +358,35 @@ API_PORT=8000
 }
 ```
 
+## 🧪 Evaluation & Benchmarking
+
+### Quality Evaluation
+```bash
+# Run comprehensive evaluation
+python lab/07_evaluation/evaluator.py --test-file test_cases.json --methods hybrid adaptive --output results.json
+
+# Compare methods
+python lab/07_evaluation/evaluator.py --compare --test-file test_cases.json
+```
+
+### Performance Benchmarking
+```bash
+# Run full benchmark suite
+python lab/07_evaluation/benchmark.py --benchmark full --num-queries 100 --output benchmark.json
+
+# Test specific aspect
+python lab/07_evaluation/benchmark.py --benchmark latency --queries-file queries.txt
+python lab/07_evaluation/benchmark.py --benchmark scalability --num-queries 50
+```
+
+### Evaluation Metrics
+- **Precision@k**: Accuracy of retrieved results
+- **Recall@k**: Completeness of retrieval
+- **F1@k**: Balanced precision/recall metric
+- **MRR**: Mean Reciprocal Rank
+- **NDCG@k**: Normalized Discounted Cumulative Gain
+- **Answer Quality**: LLM-based relevance and faithfulness scores
+
 ## 📈 Performance
 
 ### Benchmarks (Approximate)
@@ -305,12 +394,15 @@ API_PORT=8000
 - **Embedding generation**: 100-200 items/minute (dense), 20-50 items/minute (sparse)
 - **Memory usage**: <2GB for standard operations
 - **Cost**: ~$0.002-0.005 per query (including embeddings and generation)
+- **Throughput**: 10-50 queries/second depending on method and hardware
 
 ### Optimization Tips
 - Use connection pooling for concurrent operations
 - Batch embedding generation for efficiency
 - Cache frequently accessed embeddings
 - Monitor token usage for cost control
+- Use Docker for consistent deployment environments
+- Implement proper indexes after embedding population
 
 ## 🤝 Contributing
 
