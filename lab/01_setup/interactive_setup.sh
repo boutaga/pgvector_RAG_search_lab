@@ -264,7 +264,8 @@ setup_docker_postgresql() {
     PG_DATABASE=$(ask_input "Database name" "pgvector_lab")
     
     # Create docker-compose for PostgreSQL
-    cat > lab/01_setup/docker-compose-db.yml << EOF
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    cat > "${SCRIPT_DIR}/docker-compose-db.yml" << EOF
 version: '3.8'
 
 services:
@@ -289,9 +290,9 @@ services:
 EOF
     
     if ask_yes_no "Start PostgreSQL container now?" "y"; then
-        cd lab/01_setup
+        cd "${SCRIPT_DIR}"
         docker-compose -f docker-compose-db.yml up -d
-        cd ../..
+        cd - > /dev/null
         print_status "PostgreSQL container started"
     fi
     
@@ -376,26 +377,26 @@ install_all_dependencies() {
     print_info "Installing all dependencies..."
     
     # Core dependencies
-    pip install psycopg[binary]>=3.2
-    pip install openai>=1.30
-    pip install langchain>=0.1.0
+    pip install 'psycopg[binary]>=3.2'
+    pip install 'openai>=1.30'
+    pip install 'langchain>=0.1.0'
     pip install langchain-community
     pip install langchain-openai
     pip install langchain-postgres
-    pip install streamlit>=1.28
-    pip install fastapi>=0.111
-    pip install uvicorn>=0.30
+    pip install 'streamlit>=1.28'
+    pip install 'fastapi>=0.111'
+    pip install 'uvicorn>=0.30'
     
     # ML/AI dependencies
     if ask_yes_no "Install PyTorch (large download)?" "y"; then
         if ask_yes_no "Do you have CUDA-capable GPU?" "n"; then
-            pip install torch>=2.0
+            pip install 'torch>=2.0'
         else
-            pip install torch>=2.0 --index-url https://download.pytorch.org/whl/cpu
+            pip install 'torch>=2.0' --index-url https://download.pytorch.org/whl/cpu
         fi
     fi
     
-    pip install transformers>=4.30
+    pip install 'transformers>=4.30'
     pip install sentencepiece
     pip install tiktoken
     
@@ -414,8 +415,8 @@ install_all_dependencies() {
 install_core_dependencies() {
     print_info "Installing core dependencies only..."
     
-    pip install psycopg[binary]>=3.2
-    pip install openai>=1.30
+    pip install 'psycopg[binary]>=3.2'
+    pip install 'openai>=1.30'
     pip install python-dotenv
     pip install tqdm
     pip install numpy
@@ -425,7 +426,8 @@ install_core_dependencies() {
 
 # Install from requirements.txt
 install_from_requirements() {
-    local req_file=$(ask_input "Path to requirements.txt" "lab/01_setup/requirements.txt")
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local req_file=$(ask_input "Path to requirements.txt" "${SCRIPT_DIR}/requirements.txt")
     
     if [ -f "$req_file" ]; then
         pip install -r "$req_file"
@@ -440,32 +442,32 @@ install_custom_dependencies() {
     print_info "Select dependencies to install:"
     
     if ask_yes_no "Install psycopg (PostgreSQL driver)?" "y"; then
-        pip install psycopg[binary]>=3.2
+        pip install 'psycopg[binary]>=3.2'
     fi
     
     if ask_yes_no "Install OpenAI SDK?" "y"; then
-        pip install openai>=1.30
+        pip install 'openai>=1.30'
     fi
     
     if ask_yes_no "Install LangChain framework?" "y"; then
-        pip install langchain>=0.1.0 langchain-community langchain-openai langchain-postgres
+        pip install 'langchain>=0.1.0' langchain-community langchain-openai langchain-postgres
     fi
     
     if ask_yes_no "Install Streamlit (UI framework)?" "y"; then
-        pip install streamlit>=1.28
+        pip install 'streamlit>=1.28'
     fi
     
     if ask_yes_no "Install FastAPI (API framework)?" "y"; then
-        pip install fastapi>=0.111 uvicorn>=0.30
+        pip install 'fastapi>=0.111' uvicorn>=0.30
     fi
     
     if ask_yes_no "Install ML libraries (PyTorch, Transformers)?" "y"; then
         if ask_yes_no "Do you have CUDA-capable GPU?" "n"; then
-            pip install torch>=2.0
+            pip install 'torch>=2.0'
         else
-            pip install torch>=2.0 --index-url https://download.pytorch.org/whl/cpu
+            pip install 'torch>=2.0' --index-url https://download.pytorch.org/whl/cpu
         fi
-        pip install transformers>=4.30 sentencepiece
+        pip install 'transformers>=4.30' sentencepiece
     fi
     
     if ask_yes_no "Install data processing libraries?" "y"; then
@@ -510,7 +512,10 @@ create_config_files() {
 create_requirements_file() {
     print_info "Creating requirements.txt..."
     
-    cat > lab/01_setup/requirements.txt << 'EOF'
+    # Ensure we're in the correct directory
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    
+    cat > "${SCRIPT_DIR}/requirements.txt" << 'EOF'
 # Core Database and API
 psycopg[binary]>=3.2
 openai>=1.30
@@ -551,7 +556,10 @@ create_env_template() {
     # Use configured PostgreSQL connection if available
     local db_url="${PG_CONNECTION:-postgresql://user:password@localhost:5432/pgvector_lab}"
     
-    cat > lab/01_setup/.env.template << EOF
+    # Ensure we're in the correct directory
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    
+    cat > "${SCRIPT_DIR}/.env.template" << EOF
 # PostgreSQL Configuration
 DATABASE_URL=${db_url}
 PG_POOL_SIZE=20
@@ -590,11 +598,11 @@ EOF
     print_status "Environment template created"
     
     if ask_yes_no "Copy .env.template to .env now?" "y"; then
-        cp lab/01_setup/.env.template lab/01_setup/.env
+        cp "${SCRIPT_DIR}/.env.template" "${SCRIPT_DIR}/.env"
         print_info "Created .env file. Please edit it with your API keys."
         
         if ask_yes_no "Open .env file in editor?" "n"; then
-            ${EDITOR:-nano} lab/01_setup/.env
+            ${EDITOR:-nano} "${SCRIPT_DIR}/.env"
         fi
     fi
 }
@@ -603,7 +611,10 @@ EOF
 create_setup_sql() {
     print_info "Creating PostgreSQL setup script..."
     
-    cat > lab/01_setup/setup.sql << 'EOF'
+    # Ensure we're in the correct directory
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    
+    cat > "${SCRIPT_DIR}/setup.sql" << 'EOF'
 -- PostgreSQL pgvector RAG Lab Setup
 -- This script sets up the complete database schema
 
@@ -691,11 +702,11 @@ EOF
     
     if [ "$PG_INSTALL_CHOICE" != "4" ] && ask_yes_no "Run setup.sql on database now?" "y"; then
         if [ -n "$PG_PASSWORD" ]; then
-            PGPASSWORD=$PG_PASSWORD psql "$PG_CONNECTION" -f lab/01_setup/setup.sql
+            PGPASSWORD=$PG_PASSWORD psql "$PG_CONNECTION" -f "${SCRIPT_DIR}/setup.sql"
             print_status "Database schema created"
         else
             print_warning "Database password not set. Please run manually:"
-            echo "  psql \"$PG_CONNECTION\" -f lab/01_setup/setup.sql"
+            echo "  psql \"$PG_CONNECTION\" -f \"${SCRIPT_DIR}/setup.sql\""
         fi
     fi
 }
