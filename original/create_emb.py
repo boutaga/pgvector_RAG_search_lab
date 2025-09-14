@@ -15,8 +15,10 @@ from openai import OpenAI
 from pgvector.psycopg2 import register_vector
 
 # Tune this batch size to optimize throughput.
-# For example, try 10, then 20, then 50 depending on the average token count in your texts.
-BATCH_SIZE = 30
+# For text-embedding-3-large, use smaller batches due to larger embedding size
+BATCH_SIZE = 20
+MODEL_NAME = "text-embedding-3-large"
+EMBEDDING_DIMENSION = 3072
 
 def get_batch_embeddings(client, texts, model, max_retries=5):
     """
@@ -27,7 +29,7 @@ def get_batch_embeddings(client, texts, model, max_retries=5):
     delay = 0.2  # initial delay in seconds
     for attempt in range(max_retries):
         try:
-            response = client.embeddings.create(input=texts, model=model)
+            response = client.embeddings.create(input=texts, model=model, dimensions=EMBEDDING_DIMENSION)
             return [item.embedding for item in response.data]
         except Exception as e:
             error_str = str(e)
@@ -88,8 +90,8 @@ def update_table_embeddings(conn, table_name, id_column, text_column, model):
     cur.close()
 
 def main():
-    # We use text-embedding-ada-002 which returns 1536-dimensional vectors.
-    model = "text-embedding-ada-002"
+    # We use text-embedding-3-large which returns 3072-dimensional vectors.
+    model = MODEL_NAME
 
     # Connect to your PostgreSQL database
     DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres@localhost/dvdrental")

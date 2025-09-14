@@ -18,6 +18,7 @@ class GenerationModel(Enum):
     GPT_4_TURBO = "gpt-4-turbo"
     GPT_4O = "gpt-4o"
     GPT_4O_MINI = "gpt-4o-mini"
+    GPT_5_MINI = "gpt-5-mini"
 
 
 @dataclass
@@ -49,7 +50,8 @@ class GenerationService:
         "gpt-4": 8192,
         "gpt-4-turbo": 128000,
         "gpt-4o": 128000,
-        "gpt-4o-mini": 128000
+        "gpt-4o-mini": 128000,
+        "gpt-5-mini": 400000  # 400k context window
     }
     
     # Model costs per 1K tokens (as of 2024)
@@ -58,12 +60,13 @@ class GenerationService:
         "gpt-4": {"input": 0.03, "output": 0.06},
         "gpt-4-turbo": {"input": 0.01, "output": 0.03},
         "gpt-4o": {"input": 0.0025, "output": 0.01},
-        "gpt-4o-mini": {"input": 0.00015, "output": 0.0006}
+        "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
+        "gpt-5-mini": {"input": 0.00015, "output": 0.0006}  # TBD - estimated pricing
     }
     
     def __init__(
         self,
-        model: str = "gpt-4o",
+        model: str = "gpt-5-mini",
         temperature: float = 0.7,
         max_tokens: int = 1000,
         system_prompt: Optional[str] = None,

@@ -10,8 +10,11 @@ DATABASE_URL = os.getenv("DATABASE_URL")  # e.g., "postgresql://postgres@localho
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_API_KEY
 
-# SPLADE model configuration for sparse embeddings
-MODEL_NAME = "naver/splade-cocondenser-ensembledistil"
+# Model configuration
+DENSE_MODEL = "text-embedding-3-large"
+EMBEDDING_DIMENSION = 3072
+GPT_MODEL = "gpt-5-mini"
+SPLADE_MODEL = "naver/splade-cocondenser-ensembledistil"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Number of results to retrieve from each search before re-ranking
@@ -21,11 +24,12 @@ TOP_K = 10
 DENSE_WEIGHT = 0.5
 SPARSE_WEIGHT = 0.5
 
-def get_dense_embedding(text, model="text-embedding-ada-002"):
+def get_dense_embedding(text, model=DENSE_MODEL):
     """Generate a dense embedding for the given text using OpenAI API."""
     response = openai.embeddings.create(
         input=text,
-        model=model
+        model=model,
+        dimensions=EMBEDDING_DIMENSION
     )
     embedding = response.data[0].embedding
     return embedding
@@ -129,7 +133,7 @@ def generate_answer(query, context):
         {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"}
     ]
     response = openai.chat.completions.create(
-        model="gpt-4o",
+        model=GPT_MODEL,
         messages=messages,
         max_tokens=150,
         temperature=0.2,
@@ -142,7 +146,7 @@ def classify_query(query):
         {"role": "user", "content": query}
     ]
     response = openai.chat.completions.create(
-        model="gpt-4o",
+        model=GPT_MODEL,
         messages=messages,
         max_tokens=1,
         temperature=0
@@ -170,7 +174,7 @@ def structured_query(query):
         {"role": "user", "content": query}
     ]
     response = openai.chat.completions.create(
-        model="gpt-4o",
+        model=GPT_MODEL,
         messages=messages,
         max_tokens=100,
         temperature=0
@@ -203,7 +207,7 @@ def main():
         print("\nAnswer:", answer)
         return
     query_dense_emb = get_dense_embedding(query)
-    tokenizer, model = initialize_sparse_model_and_tokenizer(MODEL_NAME)
+    tokenizer, model = initialize_sparse_model_and_tokenizer(SPLADE_MODEL)
     query_sparse_emb = get_sparse_embedding(tokenizer, model, query)
     dense_results = query_dense_similar_items(query_dense_emb)
     print("\nDense Embedding Results:")

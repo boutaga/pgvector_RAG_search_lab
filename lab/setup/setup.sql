@@ -12,9 +12,9 @@ CREATE TABLE IF NOT EXISTS articles (
     url TEXT,
     content TEXT NOT NULL,
     
-    -- Vector embeddings (pgvector)
-    title_vector vector(1536),
-    content_vector vector(1536),
+    -- Vector embeddings (pgvector) - Updated for text-embedding-3-large
+    title_vector vector(3072),
+    content_vector vector(3072),
     
     -- Full-text search vectors
     content_tsv tsvector,
@@ -203,7 +203,7 @@ CREATE TABLE IF NOT EXISTS film (
     fulltext tsvector,
     
     -- Embeddings
-    embedding vector(1536)
+    embedding vector(3072)
 );
 
 CREATE TABLE IF NOT EXISTS netflix_shows (
@@ -221,7 +221,7 @@ CREATE TABLE IF NOT EXISTS netflix_shows (
     description TEXT,
     
     -- Embeddings
-    embedding vector(1536)
+    embedding vector(3072)
 );
 
 -- Add sparse columns to movie tables if vectorscale is available
@@ -288,7 +288,7 @@ CREATE INDEX IF NOT EXISTS idx_inventory_film ON inventory(film_id);
 
 -- Function to get similar movies
 CREATE OR REPLACE FUNCTION get_similar_movies(
-    query_embedding vector(1536),
+    query_embedding vector(3072),
     limit_count INTEGER DEFAULT 10
 )
 RETURNS TABLE (

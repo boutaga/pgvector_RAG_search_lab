@@ -8,14 +8,20 @@ DATABASE_URL = os.getenv("DATABASE_URL")  # e.g., "postgresql://postgres@localho
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_API_KEY
 
-def get_embedding(text, model="text-embedding-ada-002"):
+# Configuration
+MODEL_NAME = "text-embedding-3-large"
+EMBEDDING_DIMENSION = 3072
+GPT_MODEL = "gpt-5-mini"
+
+def get_embedding(text, model=MODEL_NAME):
     """
     Generate an embedding for the given text using the latest OpenAI API.
     Access attributes using dot notation.
     """
     response = openai.embeddings.create(
         input=text,
-        model=model
+        model=model,
+        dimensions=EMBEDDING_DIMENSION
     )
     embedding = response.data[0].embedding  # dot notation for attribute access
     return embedding
@@ -53,7 +59,7 @@ def generate_answer(query, context):
         {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"}
     ]
     response = openai.chat.completions.create(
-        model="gpt-4o",  # Ensure you have access to GPT-4o
+        model=GPT_MODEL,  # Using GPT-5 mini
         messages=messages,
         max_tokens=150,
         temperature=0.2,

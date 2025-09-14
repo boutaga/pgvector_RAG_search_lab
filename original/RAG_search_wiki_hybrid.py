@@ -19,10 +19,10 @@ from transformers import AutoTokenizer, AutoModelForMaskedLM
 from pgvector.psycopg2 import register_vector
 
 # Configuration
-DENSE_MODEL = "text-embedding-3-small"
+DENSE_MODEL = "text-embedding-3-large"
 SPARSE_MODEL = "naver/splade-cocondenser-ensembledistil"
-GPT_MODEL = "gpt-3.5-turbo"
-EMBEDDING_DIMENSION = 1536
+GPT_MODEL = "gpt-5-mini"
+EMBEDDING_DIMENSION = 3072
 
 TOP_K = 8  # Results per search type before re-ranking
 FINAL_K = 5  # Final results after re-ranking
@@ -105,7 +105,7 @@ Respond with only the category name (factual, conceptual, or exploratory):"""
 
     try:
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=GPT_MODEL,
             messages=[{"role": "user", "content": classification_prompt}],
             max_tokens=10,
             temperature=0

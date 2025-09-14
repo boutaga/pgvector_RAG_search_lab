@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 @dataclass
 class EmbeddingConfig:
     """Configuration for embedding generation."""
-    openai_model: str = "text-embedding-3-small"
-    openai_dimensions: int = 1536
+    openai_model: str = "text-embedding-3-large"
+    openai_dimensions: int = 3072
     splade_model: str = "naver/splade-cocondenser-ensembledistil"
     splade_dimensions: int = 30522
     batch_size_dense: int = 50
@@ -46,7 +46,7 @@ class SearchConfig:
 @dataclass
 class GenerationConfig:
     """Configuration for text generation."""
-    model: str = "gpt-4o"
+    model: str = "gpt-5-mini"
     temperature: float = 0.7
     max_tokens: int = 1000
     system_prompt: str = "You are a helpful AI assistant specializing in information retrieval."

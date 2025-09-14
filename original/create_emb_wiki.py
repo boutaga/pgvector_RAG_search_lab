@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# This script generates embeddings for Wikipedia articles using OpenAI's text-embedding-3-small model
+# This script generates embeddings for Wikipedia articles using OpenAI's text-embedding-3-large model
 # and updates the PostgreSQL database with both title and content embeddings.
 # 
 # Required environment variables:
@@ -11,7 +11,7 @@
 #
 # The script processes the articles table with columns:
 # - id, title, content, title_vector, content_vector
-# - Uses text-embedding-3-small (1536 dimensions) for better performance and cost
+# - Uses text-embedding-3-large (3072 dimensions) for superior semantic understanding
 
 import os
 import time
@@ -21,9 +21,9 @@ from openai import OpenAI
 from pgvector.psycopg2 import register_vector
 
 # Configuration
-BATCH_SIZE = 50  # Increased for text-embedding-3-small efficiency
-MODEL_NAME = "text-embedding-3-small"  # Updated to newer model
-EMBEDDING_DIMENSION = 1536
+BATCH_SIZE = 30  # Reduced for text-embedding-3-large (larger embeddings)
+MODEL_NAME = "text-embedding-3-large"  # Using large model for better quality
+EMBEDDING_DIMENSION = 3072
 
 def get_batch_embeddings(client, texts, model, max_retries=5):
     """

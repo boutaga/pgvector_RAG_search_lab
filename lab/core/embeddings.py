@@ -70,8 +70,8 @@ class OpenAIEmbedder(EmbeddingService):
     
     def __init__(
         self,
-        model: str = "text-embedding-3-small",
-        dimensions: int = 1536,
+        model: str = "text-embedding-3-large",
+        dimensions: int = 3072,
         batch_size: int = 50,
         max_retries: int = 3,
         retry_delay: float = 1.0

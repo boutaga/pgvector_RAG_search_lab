@@ -2,7 +2,7 @@
 
 # Wikipedia RAG Search using dense embeddings
 # This script performs retrieval-augmented generation on Wikipedia articles
-# using OpenAI's text-embedding-3-small for retrieval and GPT for generation.
+# using OpenAI's text-embedding-3-large for retrieval and GPT-5 mini for generation.
 #
 # Required environment variables:
 # export DATABASE_URL="postgresql://postgres@localhost/wikipedia"
@@ -17,10 +17,10 @@ from openai import OpenAI
 from pgvector.psycopg2 import register_vector
 
 # Configuration
-MODEL_NAME = "text-embedding-3-small"
-EMBEDDING_DIMENSION = 1536
+MODEL_NAME = "text-embedding-3-large"
+EMBEDDING_DIMENSION = 3072
 TOP_K = 5  # Number of articles to retrieve
-GPT_MODEL = "gpt-3.5-turbo"  # For answer generation
+GPT_MODEL = "gpt-5-mini"  # For answer generation
 
 def get_embedding(client, text, model=MODEL_NAME):
     """Generate embedding for query text."""
