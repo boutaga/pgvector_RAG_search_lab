@@ -10,7 +10,7 @@ from enum import Enum
 from ..core.database import DatabaseService
 from ..core.embeddings import EmbeddingService, OpenAIEmbedder, SPLADEEmbedder
 from ..core.config import ConfigService
-from ..02_data.loaders import UniversalDataLoader, Document
+from ..data.loaders import UniversalDataLoader, Document
 
 logger = logging.getLogger(__name__)
 
@@ -344,13 +344,13 @@ class EmbeddingManager:
         update_existing: bool = False,
         limit: Optional[int] = None
     ) -> EmbeddingJob:
-        """Create job for Wikipedia dense embeddings."""
+        """Create job for Wikipedia dense embeddings (3072-dimension)."""
         return EmbeddingJob(
             source="wikipedia",
             embedding_type=EmbeddingType.DENSE,
             table_name="articles",
             content_columns=["title", "content"],
-            embedding_columns=["title_vector", "content_vector"],
+            embedding_columns=["title_vector_3072", "content_vector_3072"],
             update_existing=update_existing,
             limit=limit
         )
