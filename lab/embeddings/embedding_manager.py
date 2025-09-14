@@ -428,60 +428,28 @@ class EmbeddingManager:
         
         return jobs
     
-    def verify_embeddings(self, job: EmbeddingJob) -> Dict[str, Any]:
-        """
-        Verify embedding generation results.
-        
-        Args:
-            job: Embedding job to verify
-            
-        Returns:
-            Verification results
-        """
-        results = {}
-        
-        for col in job.embedding_columns:
-            # Count total rows
-            total_query = f"SELECT COUNT(*) FROM {job.table_name}"
-            total_count = self.db.execute_query(total_query)[0][0]
-            
-            # Count rows with embeddings
-            embed_query = f"SELECT COUNT(*) FROM {job.table_name} WHERE {col} IS NOT NULL"
-            embed_count = self.db.execute_query(embed_query)[0][0]
-            
-            results[col] = {
-                'total_rows': total_count,
-                'with_embeddings': embed_count,
-                'missing_embeddings': total_count - embed_count,
-                'completion_rate': (embed_count / total_count * 100) if total_count > 0 else 0
-            }
-        
-        return results
-    
     def get_embedding_statistics(self, table_name: str, embedding_column: str) -> Dict[str, Any]:
-        """
-        Get statistics about embeddings in a table.
-        
-        Args:
-            table_name: Table name
-            embedding_column: Embedding column name
-            
-        Returns:
-            Statistics dictionary
-        """
-        stats = {}
-        
-        # Basic counts
+        """Return counts and completion % for one embedding column."""
+        stats: Dict[str, Any] = {}
+
         total_query = f"SELECT COUNT(*) FROM {table_name}"
         embed_query = f"SELECT COUNT(*) FROM {table_name} WHERE {embedding_column} IS NOT NULL"
-        
-        stats['total_rows'] = self.db.execute_query(total_query)[0][0]
-        stats['rows_with_embeddings'] = self.db.execute_query(embed_query)[0][0]
-        stats['rows_missing_embeddings'] = stats['total_rows'] - stats['rows_with_embeddings']
-        
-        if stats['total_rows'] > 0:
-            stats['completion_percentage'] = (stats['rows_with_embeddings'] / stats['total_rows']) * 100
-        else:
-            stats['completion_percentage'] = 0
-        
+
+        total_rows = self.db.execute_query(total_query)[0][0]
+        rows_with = self.db.execute_query(embed_query)[0][0]
+
+        stats["total_rows"] = total_rows
+        stats["rows_with_embeddings"] = rows_with
+        stats["rows_missing_embeddings"] = total_rows - rows_with
+        stats["completion_percentage"] = (rows_with / total_rows * 100) if total_rows > 0 else 0.0
         return stats
+
+    def verify_embeddings(self, job: EmbeddingJob) -> Dict[str, Any]:
+        """
+        Verify embedding generation results for all embedding columns in a job.
+        Returns a dict keyed by embedding column name.
+        """
+        results: Dict[str, Any] = {}
+        for col in job.embedding_columns:
+            results[col] = self.get_embedding_statistics(job.table_name, col)
+        return results
