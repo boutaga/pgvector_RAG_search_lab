@@ -297,11 +297,32 @@ class EmbeddingManager:
             progress.errors.append(str(e))
             return False
     
+    def _approx_tokens(self, text: str) -> int:
+        """Approximate token count (4 chars per token)."""
+        return max(1, len(text) // 4)
+
+    def _truncate_text(self, text: str, max_tokens: int = 7900) -> str:
+        """Truncate text to fit within token limit."""
+        if self._approx_tokens(text) <= max_tokens:
+            return text
+        max_chars = max_tokens * 4
+        return text[:max_chars]
+
     def _generate_dense_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Generate dense embeddings."""
+        """Generate dense embeddings with token limit handling."""
         if not self.dense_embedder:
             raise ValueError("Dense embedder not initialized")
-        return self.dense_embedder.generate_embeddings(texts)
+
+        # Truncate overly long texts to prevent token limit errors
+        truncated_texts = []
+        for text in texts:
+            if text and text.strip():
+                truncated_text = self._truncate_text(text.strip())
+                truncated_texts.append(truncated_text)
+            else:
+                truncated_texts.append("")
+
+        return self.dense_embedder.generate_embeddings(truncated_texts)
     
     def _generate_sparse_embeddings(self, texts: List[str]) -> List[str]:
         """Generate sparse embeddings in pgvector format."""
