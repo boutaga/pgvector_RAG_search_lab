@@ -17,6 +17,7 @@ class EmbeddingConfig:
     """Configuration for embedding generation."""
     openai_model: str = "text-embedding-3-large"
     openai_dimensions: int = 3072
+    vector_column: str = "content_vector_3072"  # New configurable vector column
     splade_model: str = "naver/splade-cocondenser-ensembledistil"
     splade_dimensions: int = 30522
     batch_size_dense: int = 50

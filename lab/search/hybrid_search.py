@@ -89,11 +89,12 @@ class HybridSearchEngine:
         """Initialize search services based on data source."""
         if self.source == "wikipedia":
             # Wikipedia searches
+            vector_col = getattr(self.config.embedding, "vector_column", "content_vector")
             self.dense_search = VectorSearch(
                 db_service=self.db,
                 embedding_service=self.dense_embedder,
                 table_name="articles",
-                vector_column="content_vector",
+                vector_column=vector_col,
                 content_columns=["title", "content"],
                 id_column="id"
             )

@@ -268,12 +268,12 @@ class AdaptiveSearchEngine:
         
         # Initialize services
         self._initialize_services()
-        
-        # Initialize searches
-        self._initialize_searches()
-        
-        # Initialize classifier
+
+        # Initialize classifier first (needed by searches)
         self.classifier = EnhancedQueryClassifier()
+
+        # Initialize searches (uses classifier)
+        self._initialize_searches()
     
     def _initialize_services(self):
         """Initialize embedding and generation services."""
@@ -300,11 +300,12 @@ class AdaptiveSearchEngine:
     def _initialize_searches(self):
         """Initialize search services based on data source."""
         if self.source == "wikipedia":
+            vector_col = getattr(self.config.embedding, "vector_column", "content_vector")
             self.dense_search = VectorSearch(
                 db_service=self.db,
                 embedding_service=self.dense_embedder,
                 table_name="articles",
-                vector_column="content_vector",
+                vector_column=vector_col,
                 content_columns=["title", "content"],
                 id_column="id"
             )

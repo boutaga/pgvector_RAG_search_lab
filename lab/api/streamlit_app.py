@@ -73,8 +73,13 @@ def get_source_statistics(db_service: DatabaseService) -> Dict[str, Dict[str, in
                 cur.execute("SELECT COUNT(*) FROM articles")
                 total_articles = cur.fetchone()[0]
                 
-                cur.execute("SELECT COUNT(*) FROM articles WHERE content_vector IS NOT NULL")
+                # Check for new 3072 vectors first, fall back to old columns
+                cur.execute("SELECT COUNT(*) FROM articles WHERE content_vector_3072 IS NOT NULL")
                 with_dense = cur.fetchone()[0]
+                if with_dense == 0:
+                    # Fall back to old column if new one is empty
+                    cur.execute("SELECT COUNT(*) FROM articles WHERE content_vector IS NOT NULL")
+                    with_dense = cur.fetchone()[0]
                 
                 try:
                     cur.execute("SELECT COUNT(*) FROM articles WHERE content_sparse IS NOT NULL")

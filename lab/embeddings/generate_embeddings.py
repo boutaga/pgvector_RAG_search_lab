@@ -184,11 +184,12 @@ def print_job_summary(args, manager: EmbeddingManager):
     # Show current embedding status
     print("\nCURRENT STATUS:")
     if args.source == "wikipedia":
-        stats = manager.get_embedding_statistics("articles", "title_vector")
-        print(f"Wikipedia Articles: {stats['total_rows']} total, {stats['rows_with_embeddings']} with title embeddings")
-        
-        content_stats = manager.get_embedding_statistics("articles", "content_vector")
-        print(f"                   {content_stats['rows_with_embeddings']} with content embeddings")
+        # Check new 3072 columns
+        stats = manager.get_embedding_statistics("articles", "title_vector_3072")
+        print(f"Wikipedia Articles: {stats['total_rows']} total, {stats['rows_with_embeddings']} with title embeddings (3072)")
+
+        content_stats = manager.get_embedding_statistics("articles", "content_vector_3072")
+        print(f"                   {content_stats['rows_with_embeddings']} with content embeddings (3072)")
     
     elif args.source == "movies":
         if args.include_films:
