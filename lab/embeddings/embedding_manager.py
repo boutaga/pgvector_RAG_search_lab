@@ -6,6 +6,7 @@ import logging
 from typing import List, Dict, Any, Optional, Tuple, Iterator
 from dataclasses import dataclass
 from enum import Enum
+import numpy as np
 
 from ..core.database import DatabaseService
 from ..core.embeddings import EmbeddingService, OpenAIEmbedder, SPLADEEmbedder
@@ -308,21 +309,135 @@ class EmbeddingManager:
         max_chars = max_tokens * 4
         return text[:max_chars]
 
+    def _chunk_text(self, text: str, max_tokens: int = 7500) -> List[str]:
+        """Split text into chunks that fit within token limits.
+
+        Args:
+            text: Text to chunk
+            max_tokens: Maximum tokens per chunk (conservative to avoid errors)
+
+        Returns:
+            List of text chunks
+        """
+        # If text fits in one chunk, return as-is
+        if self._approx_tokens(text) <= max_tokens:
+            return [text]
+
+        # Calculate chunk size in characters (conservative estimate)
+        chunk_size_chars = max_tokens * 3  # More conservative: 3 chars per token
+        overlap_chars = 200  # Small overlap to maintain context
+
+        chunks = []
+        position = 0
+        text_length = len(text)
+
+        while position < text_length:
+            # Calculate end position for this chunk
+            end_pos = min(position + chunk_size_chars, text_length)
+
+            # Extract chunk
+            chunk = text[position:end_pos]
+
+            # Try to break at a sentence or word boundary if not at the end
+            if end_pos < text_length:
+                # Look for sentence end (.!?) in the last 100 chars
+                last_sentence = max(
+                    chunk.rfind('. '),
+                    chunk.rfind('! '),
+                    chunk.rfind('? '),
+                    chunk.rfind('\n\n')  # Paragraph break
+                )
+
+                if last_sentence > len(chunk) * 0.8:  # If we found a good break point
+                    chunk = chunk[:last_sentence + 1]
+                    end_pos = position + last_sentence + 1
+                else:
+                    # Fall back to word boundary
+                    last_space = chunk.rfind(' ')
+                    if last_space > len(chunk) * 0.8:
+                        chunk = chunk[:last_space]
+                        end_pos = position + last_space
+
+            chunks.append(chunk.strip())
+
+            # Move position forward with small overlap
+            position = end_pos - overlap_chars if end_pos < text_length else end_pos
+
+        return chunks
+
+    def _average_embeddings(self, embeddings: List[List[float]]) -> List[float]:
+        """Average multiple embeddings into a single vector.
+
+        Args:
+            embeddings: List of embedding vectors
+
+        Returns:
+            Averaged embedding vector
+        """
+        if not embeddings:
+            return []
+
+        if len(embeddings) == 1:
+            return embeddings[0]
+
+        # Convert to numpy array for efficient averaging
+        embedding_array = np.array(embeddings)
+
+        # Average across chunks (axis=0)
+        averaged = np.mean(embedding_array, axis=0)
+
+        # Normalize the averaged vector to maintain semantic properties
+        norm = np.linalg.norm(averaged)
+        if norm > 0:
+            averaged = averaged / norm
+
+        return averaged.tolist()
+
     def _generate_dense_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Generate dense embeddings with token limit handling."""
+        """Generate dense embeddings with chunking and averaging for long texts.
+
+        For texts that exceed token limits, this method:
+        1. Splits the text into manageable chunks
+        2. Generates embeddings for each chunk
+        3. Averages the chunk embeddings into a single vector
+
+        This preserves semantic information from the entire document
+        while respecting API token limits.
+        """
         if not self.dense_embedder:
             raise ValueError("Dense embedder not initialized")
 
-        # Truncate overly long texts to prevent token limit errors
-        truncated_texts = []
-        for text in texts:
-            if text and text.strip():
-                truncated_text = self._truncate_text(text.strip())
-                truncated_texts.append(truncated_text)
-            else:
-                truncated_texts.append("")
+        final_embeddings = []
 
-        return self.dense_embedder.generate_embeddings(truncated_texts)
+        for text in texts:
+            if not text or not text.strip():
+                # Empty text gets zero embedding
+                final_embeddings.append([0.0] * self.config.embeddings.dimensions)
+                continue
+
+            # Check if we need to chunk this text
+            if self._approx_tokens(text) > 7500:
+                # Text is too long, use chunking with averaging
+                chunks = self._chunk_text(text.strip())
+
+                if len(chunks) > 1:
+                    logger.info(f"Chunking long text into {len(chunks)} chunks for embedding")
+
+                # Generate embeddings for all chunks
+                chunk_embeddings = self.dense_embedder.generate_embeddings(chunks)
+
+                # Average the chunk embeddings
+                averaged_embedding = self._average_embeddings(chunk_embeddings)
+                final_embeddings.append(averaged_embedding)
+
+                if len(chunks) > 1:
+                    logger.debug(f"Successfully averaged {len(chunks)} chunk embeddings")
+            else:
+                # Text fits in one chunk, process normally
+                embedding = self.dense_embedder.generate_embeddings([text.strip()])
+                final_embeddings.extend(embedding)
+
+        return final_embeddings
     
     def _generate_sparse_embeddings(self, texts: List[str]) -> List[str]:
         """Generate sparse embeddings in pgvector format."""
