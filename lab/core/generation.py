@@ -283,12 +283,21 @@ class GenerationService:
             Generation response
         """
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens
-            )
+            # GPT-5 mini uses max_completion_tokens instead of max_tokens
+            if self.model == "gpt-5-mini":
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_completion_tokens=max_tokens
+                )
+            else:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
             
             # Extract content
             content = response.choices[0].message.content
@@ -339,13 +348,23 @@ class GenerationService:
             Content chunks
         """
         try:
-            stream = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                stream=True
-            )
+            # GPT-5 mini uses max_completion_tokens instead of max_tokens
+            if self.model == "gpt-5-mini":
+                stream = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_completion_tokens=max_tokens,
+                    stream=True
+                )
+            else:
+                stream = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    stream=True
+                )
             
             for chunk in stream:
                 if chunk.choices[0].delta.content:
