@@ -356,19 +356,29 @@ class SPLADEEmbedder(EmbeddingService):
     def format_for_pgvector(self, sparse_dict: Dict[int, float]) -> str:
         """
         Format sparse embedding for pgvector sparsevec type.
-        
+
         Args:
             sparse_dict: Sparse embedding dictionary
-            
+
         Returns:
             Formatted string for pgvector
         """
         if not sparse_dict:
             return "{}/30522"
-        
+
+        # Filter out any indices that are out of bounds
+        # Ensure indices are within the valid range (0 to dimensions-1)
+        valid_items = [(idx, val) for idx, val in sparse_dict.items()
+                       if 0 <= idx < self.dimensions and val != 0.0]
+
+        if not valid_items:
+            return "{}/30522"
+
         # Sort by index for consistent format
-        sorted_items = sorted(sparse_dict.items())
-        formatted = "{" + ",".join(f"{idx}:{val:.6f}" for idx, val in sorted_items) + f"}}/{self.dimensions}"
+        sorted_items = sorted(valid_items)
+
+        # Format for pgvector sparsevec
+        formatted = "{" + ",".join(f"{idx}:{val:.6f}" for idx, val in sorted_items) + f"}/{self.dimensions}"
         return formatted
     
     def get_dimensions(self) -> int:
