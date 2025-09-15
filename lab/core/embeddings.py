@@ -357,17 +357,20 @@ class SPLADEEmbedder(EmbeddingService):
         """
         Format sparse embedding for pgvector sparsevec type.
 
+        IMPORTANT: pgvector sparsevec uses 1-based indexing!
+        We receive 0-based indices from the model and convert to 1-based.
+
         Args:
-            sparse_dict: Sparse embedding dictionary
+            sparse_dict: Sparse embedding dictionary (0-based indices)
 
         Returns:
-            Formatted string for pgvector
+            Formatted string for pgvector (1-based indices)
         """
         if not sparse_dict:
             return "{}/30522"
 
-        # Filter out any indices that are out of bounds
-        # Ensure indices are within the valid range (0 to dimensions-1)
+        # Filter out any indices that are out of bounds and zero values
+        # Input indices are 0-based (0 to dimensions-1)
         valid_items = [(idx, val) for idx, val in sparse_dict.items()
                        if 0 <= idx < self.dimensions and val != 0.0]
 
@@ -377,8 +380,9 @@ class SPLADEEmbedder(EmbeddingService):
         # Sort by index for consistent format
         sorted_items = sorted(valid_items)
 
-        # Format for pgvector sparsevec
-        formatted = "{" + ",".join(f"{idx}:{val:.6f}" for idx, val in sorted_items) + "}/" + str(self.dimensions)
+        # Format for pgvector sparsevec with 1-based indexing
+        # Add 1 to each index to convert from 0-based to 1-based
+        formatted = "{" + ",".join(f"{idx+1}:{val:.6f}" for idx, val in sorted_items) + "}/" + str(self.dimensions)
         return formatted
     
     def get_dimensions(self) -> int:
