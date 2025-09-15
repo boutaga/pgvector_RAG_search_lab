@@ -378,7 +378,7 @@ class SPLADEEmbedder(EmbeddingService):
         sorted_items = sorted(valid_items)
 
         # Format for pgvector sparsevec
-        formatted = "{" + ",".join(f"{idx}:{val:.6f}" for idx, val in sorted_items) + f"}/{self.dimensions}"
+        formatted = "{" + ",".join(f"{idx}:{val:.6f}" for idx, val in sorted_items) + "}/" + str(self.dimensions)
         return formatted
     
     def get_dimensions(self) -> int:
