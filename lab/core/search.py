@@ -474,9 +474,20 @@ class AdaptiveSearch(SearchService):
         Returns:
             List of search results
         """
-        # Classify query
-        query_type = self.classifier.classify(query)
-        dense_weight, sparse_weight = self.weight_profiles[query_type]
+        # Classify query - handle both old and new classifier interfaces
+        if hasattr(self.classifier, 'analyze_query'):
+            # EnhancedQueryClassifier
+            analysis = self.classifier.analyze_query(query)
+            query_type = analysis.query_type
+            dense_weight, sparse_weight = analysis.recommended_weights
+        elif hasattr(self.classifier, 'classify'):
+            # Original QueryClassifier
+            query_type = self.classifier.classify(query)
+            dense_weight, sparse_weight = self.weight_profiles[query_type]
+        else:
+            # Fallback to balanced weights
+            query_type = QueryType.EXPLORATORY
+            dense_weight, sparse_weight = 0.5, 0.5
         
         logger.info(f"Query classified as {query_type.value}: using weights dense={dense_weight}, sparse={sparse_weight}")
         
