@@ -299,33 +299,46 @@ class EmbeddingManager:
             return False
     
     def _approx_tokens(self, text: str) -> int:
-        """Approximate token count (4 chars per token)."""
-        return max(1, len(text) // 4)
+        """Approximate token count (conservative estimate).
 
-    def _truncate_text(self, text: str, max_tokens: int = 7900) -> str:
-        """Truncate text to fit within token limit."""
+        Using 3 chars per token for a more conservative estimate
+        to avoid hitting token limits.
+        """
+        return max(1, len(text) // 3)
+
+    def _truncate_text(self, text: str, max_tokens: int = 5000) -> str:
+        """Truncate text to fit within token limit.
+
+        Uses conservative estimates to ensure we don't exceed API limits.
+        """
         if self._approx_tokens(text) <= max_tokens:
             return text
-        max_chars = max_tokens * 4
-        return text[:max_chars]
+        # Very conservative: 2 chars per token for safety
+        max_chars = max_tokens * 2
+        return text[:max_chars] + "...[truncated]"
 
-    def _chunk_text(self, text: str, max_tokens: int = 7500) -> List[str]:
+    def _chunk_text(self, text: str, max_tokens: int = 5000) -> List[str]:
         """Split text into chunks that fit within token limits.
 
         Args:
             text: Text to chunk
-            max_tokens: Maximum tokens per chunk (conservative to avoid errors)
+            max_tokens: Maximum tokens per chunk (very conservative to avoid errors)
 
         Returns:
             List of text chunks
         """
+        # Log the input size
+        input_tokens = self._approx_tokens(text)
+        logger.debug(f"Chunking text with approximately {input_tokens} tokens")
+
         # If text fits in one chunk, return as-is
-        if self._approx_tokens(text) <= max_tokens:
+        if input_tokens <= max_tokens:
             return [text]
 
-        # Calculate chunk size in characters (conservative estimate)
-        chunk_size_chars = max_tokens * 3  # More conservative: 3 chars per token
-        overlap_chars = 200  # Small overlap to maintain context
+        # Calculate chunk size in characters (very conservative estimate)
+        # Using 2 chars per token for extra safety with complex/technical text
+        chunk_size_chars = max_tokens * 2
+        overlap_chars = 100  # Smaller overlap to save tokens
 
         chunks = []
         position = 0
@@ -415,26 +428,40 @@ class EmbeddingManager:
                 final_embeddings.append([0.0] * self.config.embeddings.dimensions)
                 continue
 
-            # Check if we need to chunk this text
-            if self._approx_tokens(text) > 7500:
+            # Calculate approximate tokens for this text
+            text_clean = text.strip()
+            approx_tokens = self._approx_tokens(text_clean)
+
+            # Use very conservative threshold to ensure we chunk before hitting limits
+            # The API limit is 8192, but we use 5000 to be extra safe
+            if approx_tokens > 5000 or len(text_clean) > 15000:  # Also check character count
                 # Text is too long, use chunking with averaging
-                chunks = self._chunk_text(text.strip())
+                logger.info(f"Text with ~{approx_tokens} tokens ({len(text_clean)} chars) exceeds limit, chunking...")
+                chunks = self._chunk_text(text_clean)
 
                 if len(chunks) > 1:
-                    logger.info(f"Chunking long text into {len(chunks)} chunks for embedding")
+                    logger.info(f"Split into {len(chunks)} chunks for embedding generation")
 
                 # Generate embeddings for all chunks
-                chunk_embeddings = self.dense_embedder.generate_embeddings(chunks)
+                try:
+                    chunk_embeddings = self.dense_embedder.generate_embeddings(chunks)
 
-                # Average the chunk embeddings
-                averaged_embedding = self._average_embeddings(chunk_embeddings)
-                final_embeddings.append(averaged_embedding)
+                    # Average the chunk embeddings
+                    averaged_embedding = self._average_embeddings(chunk_embeddings)
+                    final_embeddings.append(averaged_embedding)
 
-                if len(chunks) > 1:
-                    logger.debug(f"Successfully averaged {len(chunks)} chunk embeddings")
+                    if len(chunks) > 1:
+                        logger.debug(f"Successfully averaged {len(chunks)} chunk embeddings")
+                except Exception as e:
+                    logger.error(f"Error generating chunk embeddings: {e}")
+                    # If chunking fails, try with truncation as fallback
+                    truncated = self._truncate_text(text_clean, max_tokens=5000)
+                    logger.warning("Falling back to truncation due to chunking error")
+                    embedding = self.dense_embedder.generate_embeddings([truncated])
+                    final_embeddings.extend(embedding)
             else:
                 # Text fits in one chunk, process normally
-                embedding = self.dense_embedder.generate_embeddings([text.strip()])
+                embedding = self.dense_embedder.generate_embeddings([text_clean])
                 final_embeddings.extend(embedding)
 
         return final_embeddings
