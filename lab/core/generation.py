@@ -283,12 +283,14 @@ class GenerationService:
             Generation response
         """
         try:
-            # GPT-5 mini uses max_completion_tokens instead of max_tokens
+            # GPT-5 mini has specific requirements:
+            # - Uses max_completion_tokens instead of max_tokens
+            # - Only supports temperature=1
             if self.model == "gpt-5-mini":
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
-                    temperature=temperature,
+                    temperature=1,  # GPT-5 mini only supports temperature=1
                     max_completion_tokens=max_tokens
                 )
             else:
@@ -318,12 +320,15 @@ class GenerationService:
                     (usage["completion_tokens"] / 1000) * costs["output"]
                 )
             
+            # For GPT-5 mini, temperature is always 1
+            actual_temperature = 1 if self.model == "gpt-5-mini" else temperature
+
             return GenerationResponse(
                 content=content,
                 model=self.model,
                 usage=usage,
                 cost=cost,
-                metadata={"temperature": temperature, "max_tokens": max_tokens}
+                metadata={"temperature": actual_temperature, "max_tokens": max_tokens}
             )
             
         except Exception as e:
@@ -348,12 +353,14 @@ class GenerationService:
             Content chunks
         """
         try:
-            # GPT-5 mini uses max_completion_tokens instead of max_tokens
+            # GPT-5 mini has specific requirements:
+            # - Uses max_completion_tokens instead of max_tokens
+            # - Only supports temperature=1
             if self.model == "gpt-5-mini":
                 stream = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
-                    temperature=temperature,
+                    temperature=1,  # GPT-5 mini only supports temperature=1
                     max_completion_tokens=max_tokens,
                     stream=True
                 )
