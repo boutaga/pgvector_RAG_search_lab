@@ -133,31 +133,45 @@ def display_search_results(results: List[Any], show_scores: bool = True):
     if not results:
         st.info("No results found.")
         return
-    
+
     for i, result in enumerate(results, 1):
-        with st.expander(f"Result {i} {f'(Score: {result.score:.4f})' if show_scores else ''}", 
+        # Handle both dict and object formats
+        if isinstance(result, dict):
+            score = result.get('score', 0.0)
+            content = result.get('content', '')
+            metadata = result.get('metadata', {})
+            result_id = result.get('id', 'N/A')
+            source = result.get('source', '')
+        else:
+            score = getattr(result, 'score', 0.0)
+            content = getattr(result, 'content', '')
+            metadata = getattr(result, 'metadata', {})
+            result_id = getattr(result, 'id', 'N/A')
+            source = getattr(result, 'source', '')
+
+        with st.expander(f"Result {i} {f'(Score: {score:.4f})' if show_scores else ''}",
                         expanded=i <= 3):
-            
+
             # Content
             st.markdown("**Content:**")
-            st.write(result.content)
-            
+            st.write(content)
+
             # Metadata
-            if hasattr(result, 'metadata') and result.metadata:
+            if metadata:
                 st.markdown("**Metadata:**")
-                metadata_df = pd.DataFrame([result.metadata])
+                metadata_df = pd.DataFrame([metadata])
                 st.dataframe(metadata_df, use_container_width=True)
-            
+
             # Additional info
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("ID", result.id)
+                st.metric("ID", result_id)
             with col2:
                 if show_scores:
-                    st.metric("Score", f"{result.score:.4f}")
+                    st.metric("Score", f"{score:.4f}")
             with col3:
-                if hasattr(result, 'source') and result.source:
-                    st.metric("Source", result.source)
+                if source:
+                    st.metric("Source", source)
 
 
 def create_comparison_chart(comparison_results: Dict[str, List[Any]]):
@@ -171,7 +185,14 @@ def create_comparison_chart(comparison_results: Dict[str, List[Any]]):
         methods.append(method.title())
         num_results.append(len(results))
         if results:
-            avg_scores.append(sum(r.score for r in results) / len(results))
+            # Handle both dict and object formats
+            scores = []
+            for r in results:
+                if isinstance(r, dict):
+                    scores.append(r.get('score', 0.0))
+                else:
+                    scores.append(getattr(r, 'score', 0.0))
+            avg_scores.append(sum(scores) / len(scores) if scores else 0)
         else:
             avg_scores.append(0)
     
