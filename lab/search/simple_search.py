@@ -81,8 +81,12 @@ class SimpleSearchEngine:
     
     def _initialize_searches(self):
         """Initialize search services based on data source."""
+        title_vector_column = getattr(self.config.embedding, "title_vector_column", None)
+        default_title_weight = getattr(self.config.embedding, "title_weight", 0.4)
+        combined_fetch_multiplier = getattr(self.config.embedding, "combined_fetch_multiplier", 2)
+        max_combined_fetch = getattr(self.config.embedding, "max_combined_fetch", 50)
+
         if self.source == "wikipedia":
-            # Wikipedia dense search (content)
             vector_col = getattr(self.config.embedding, "vector_column", "content_vector")
             self.dense_search = VectorSearch(
                 db_service=self.db,
@@ -90,10 +94,13 @@ class SimpleSearchEngine:
                 table_name="articles",
                 vector_column=vector_col,
                 content_columns=["title", "content"],
-                id_column="id"
+                id_column="id",
+                title_vector_column=title_vector_column,
+                default_title_weight=default_title_weight,
+                combined_fetch_multiplier=combined_fetch_multiplier,
+                max_combined_fetch=max_combined_fetch
             )
-            
-            # Wikipedia sparse search (content)
+
             self.sparse_search = SparseSearch(
                 db_service=self.db,
                 embedding_service=self.sparse_embedder,
@@ -102,19 +109,21 @@ class SimpleSearchEngine:
                 content_columns=["title", "content"],
                 id_column="id"
             )
-            
+
         elif self.source == "movies":
-            # Netflix shows dense search
             self.dense_search = VectorSearch(
                 db_service=self.db,
                 embedding_service=self.dense_embedder,
                 table_name="netflix_shows",
                 vector_column="embedding",
                 content_columns=["title", "description"],
-                id_column="show_id"
+                id_column="show_id",
+                title_vector_column=None,
+                default_title_weight=default_title_weight,
+                combined_fetch_multiplier=combined_fetch_multiplier,
+                max_combined_fetch=max_combined_fetch
             )
-            
-            # Netflix shows sparse search
+
             self.sparse_search = SparseSearch(
                 db_service=self.db,
                 embedding_service=self.sparse_embedder,
@@ -123,24 +132,43 @@ class SimpleSearchEngine:
                 content_columns=["title", "description"],
                 id_column="show_id"
             )
-        
+
         else:
             raise ValueError(f"Unknown source: {self.source}")
-    
-    def search_dense(self, query: str, top_k: int = 10) -> List[SearchResult]:
+
+    def search_dense(
+        self,
+        query: str,
+        top_k: int = 10,
+        search_mode: str = "content",
+        title_weight: Optional[float] = None,
+        combined_fetch_multiplier: Optional[int] = None,
+        max_combined_fetch: Optional[int] = None
+    ) -> List[SearchResult]:
         """
         Perform dense vector search.
         
         Args:
             query: Search query
             top_k: Number of results
-            
+            search_mode: Which vector columns to consult ('content', 'title', 'combined')
+            title_weight: Optional override weight when combining title and content vectors
+            combined_fetch_multiplier: Optional override for fetching extra rows in combined mode
+            max_combined_fetch: Optional override for maximum combined fetch size
+        
         Returns:
             Search results
         """
         logging.info(f"Performing dense search for: {query}")
-        return self.dense_search.search(query, top_k)
-    
+        options = {"search_mode": search_mode}
+        if title_weight is not None:
+            options["title_weight"] = title_weight
+        if combined_fetch_multiplier is not None:
+            options["combined_fetch_multiplier"] = combined_fetch_multiplier
+        if max_combined_fetch is not None:
+            options["max_combined_fetch"] = max_combined_fetch
+        return self.dense_search.search(query, top_k, **options)
+
     def search_sparse(self, query: str, top_k: int = 10) -> List[SearchResult]:
         """
         Perform sparse vector search.
@@ -210,7 +238,11 @@ class SimpleSearchEngine:
         query: str,
         search_type: str = "dense",
         top_k: int = 10,
-        include_sources: bool = True
+        include_sources: bool = True,
+        search_mode: str = "content",
+        title_weight: Optional[float] = None,
+        combined_fetch_multiplier: Optional[int] = None,
+        max_combined_fetch: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Perform search and generate answer.
@@ -220,18 +252,28 @@ class SimpleSearchEngine:
             search_type: Type of search ('dense' or 'sparse')
             top_k: Number of search results
             include_sources: Whether to include source information
-            
+            search_mode: Mode for dense search ('content', 'title', 'combined')
+            title_weight: Optional override for combined title/content weighting
+            combined_fetch_multiplier: Optional override for combined fetch multiplier
+            max_combined_fetch: Optional override for maximum combined fetch size
+        
         Returns:
             Dictionary with answer and metadata
         """
         # Perform search
         if search_type == "dense":
-            results = self.search_dense(query, top_k)
+            results = self.search_dense(
+                query,
+                top_k,
+                search_mode=search_mode,
+                title_weight=title_weight,
+                combined_fetch_multiplier=combined_fetch_multiplier,
+                max_combined_fetch=max_combined_fetch
+            )
         elif search_type == "sparse":
             results = self.search_sparse(query, top_k)
         else:
             raise ValueError(f"Unknown search type: {search_type}")
-        
         if not results:
             return {
                 'query': query,
@@ -240,18 +282,16 @@ class SimpleSearchEngine:
                 'num_results': 0,
                 'sources': [] if include_sources else None
             }
-        
-        # Generate answer
+
         answer = self.generate_answer(query, results)
-        
-        # Prepare response
+
         response = {
             'query': query,
             'answer': answer,
             'search_type': search_type,
             'num_results': len(results)
         }
-        
+
         if include_sources:
             response['sources'] = [
                 {
@@ -262,9 +302,8 @@ class SimpleSearchEngine:
                 }
                 for result in results
             ]
-        
-        return response
 
+        return response
 
 def create_argument_parser():
     """Create command line argument parser."""

@@ -87,8 +87,12 @@ class HybridSearchEngine:
     
     def _initialize_searches(self):
         """Initialize search services based on data source."""
+        title_vector_column = getattr(self.config.embedding, "title_vector_column", None)
+        default_title_weight = getattr(self.config.embedding, "title_weight", 0.4)
+        combined_fetch_multiplier = getattr(self.config.embedding, "combined_fetch_multiplier", 2)
+        max_combined_fetch = getattr(self.config.embedding, "max_combined_fetch", 50)
+
         if self.source == "wikipedia":
-            # Wikipedia searches
             vector_col = getattr(self.config.embedding, "vector_column", "content_vector")
             self.dense_search = VectorSearch(
                 db_service=self.db,
@@ -96,9 +100,13 @@ class HybridSearchEngine:
                 table_name="articles",
                 vector_column=vector_col,
                 content_columns=["title", "content"],
-                id_column="id"
+                id_column="id",
+                title_vector_column=title_vector_column,
+                default_title_weight=default_title_weight,
+                combined_fetch_multiplier=combined_fetch_multiplier,
+                max_combined_fetch=max_combined_fetch
             )
-            
+
             self.sparse_search = SparseSearch(
                 db_service=self.db,
                 embedding_service=self.sparse_embedder,
@@ -107,18 +115,21 @@ class HybridSearchEngine:
                 content_columns=["title", "content"],
                 id_column="id"
             )
-            
+
         elif self.source == "movies":
-            # Netflix shows searches
             self.dense_search = VectorSearch(
                 db_service=self.db,
                 embedding_service=self.dense_embedder,
                 table_name="netflix_shows",
                 vector_column="embedding",
                 content_columns=["title", "description"],
-                id_column="show_id"
+                id_column="show_id",
+                title_vector_column=None,
+                default_title_weight=default_title_weight,
+                combined_fetch_multiplier=combined_fetch_multiplier,
+                max_combined_fetch=max_combined_fetch
             )
-            
+
             self.sparse_search = SparseSearch(
                 db_service=self.db,
                 embedding_service=self.sparse_embedder,
@@ -127,21 +138,27 @@ class HybridSearchEngine:
                 content_columns=["title", "description"],
                 id_column="show_id"
             )
-        
-        # Create hybrid search
+
+        else:
+            raise ValueError(f"Unknown source: {self.source}")
+
         self.hybrid_search = HybridSearch(
             self.dense_search,
             self.sparse_search,
             self.dense_weight,
             self.sparse_weight
         )
-    
     def search_hybrid(
         self,
         query: str,
         top_k: int = 10,
         rerank: bool = True,
-        show_individual_results: bool = False
+        show_individual_results: bool = False,
+        search_mode: str = "content",
+        title_weight: Optional[float] = None,
+        title_fts_rerank: bool = False,
+        title_fts_weight: float = 0.2,
+        title_fts_max_candidates: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Perform hybrid search combining dense and sparse results.
@@ -151,21 +168,47 @@ class HybridSearchEngine:
             top_k: Number of results to return
             rerank: Whether to rerank combined results
             show_individual_results: Whether to include individual search results
-            
+            search_mode: Mode for dense search ('content', 'title', 'combined')
+            title_weight: Optional override for combined dense/title weighting
+            title_fts_rerank: Apply PostgreSQL title FTS reranking to hybrid results
+            title_fts_weight: Weight for title FTS when blending scores
+            title_fts_max_candidates: Optional cap on candidates considered for FTS rerank
+        
         Returns:
             Dictionary with hybrid results and optional individual results
         """
         logging.info(f"Performing hybrid search for: {query}")
-        
-        # Get individual results if requested
-        individual_results = {}
+
+        effective_title_weight = (
+            title_weight if title_weight is not None else getattr(self.config.embedding, "title_weight", 0.4)
+        )
+
+        hybrid_kwargs: Dict[str, Any] = {
+            "search_mode": search_mode,
+            "title_weight": effective_title_weight,
+            "title_fts_rerank": title_fts_rerank,
+            "title_fts_weight": title_fts_weight,
+        }
+        if title_fts_max_candidates is not None:
+            hybrid_kwargs["title_fts_max_candidates"] = title_fts_max_candidates
+
+        individual_results: Dict[str, List[SearchResult]] = {}
         if show_individual_results:
-            individual_results['dense'] = self.dense_search.search(query, top_k * 2)
+            individual_results['dense'] = self.dense_search.search(
+                query,
+                top_k * 2,
+                search_mode=search_mode,
+                title_weight=effective_title_weight
+            )
             individual_results['sparse'] = self.sparse_search.search(query, top_k * 2)
-        
-        # Perform hybrid search
-        hybrid_results = self.hybrid_search.search(query, top_k, rerank=rerank)
-        
+
+        hybrid_results = self.hybrid_search.search(
+            query,
+            top_k,
+            rerank=rerank,
+            **hybrid_kwargs
+        )
+
         return {
             'query': query,
             'hybrid_results': hybrid_results,
@@ -175,13 +218,18 @@ class HybridSearchEngine:
                 'sparse': self.sparse_weight
             },
             'reranked': rerank,
+            'title_fts_rerank': title_fts_rerank,
             'num_results': len(hybrid_results)
         }
-    
     def compare_search_methods(
         self,
         query: str,
-        top_k: int = 10
+        top_k: int = 10,
+        search_mode: str = "content",
+        title_weight: Optional[float] = None,
+        title_fts_rerank: bool = False,
+        title_fts_weight: float = 0.2,
+        title_fts_max_candidates: Optional[int] = None
     ) -> Dict[str, List[SearchResult]]:
         """
         Compare different search methods side by side.
@@ -189,26 +237,53 @@ class HybridSearchEngine:
         Args:
             query: Search query
             top_k: Number of results for each method
-            
+            search_mode: Mode for dense search ('content', 'title', 'combined')
+            title_weight: Optional override for combined dense/title weighting
+            title_fts_rerank: Apply PostgreSQL title FTS reranking to hybrid results
+            title_fts_weight: Weight for FTS when blending scores
+            title_fts_max_candidates: Optional cap on candidates considered for FTS rerank
+        
         Returns:
             Dictionary with results from each method
         """
         logging.info(f"Comparing search methods for: {query}")
-        
-        results = {
-            'dense': self.dense_search.search(query, top_k),
-            'sparse': self.sparse_search.search(query, top_k),
-            'hybrid_reranked': self.hybrid_search.search(query, top_k, rerank=True),
-            'hybrid_interleaved': self.hybrid_search.search(query, top_k, rerank=False)
+
+        effective_title_weight = (
+            title_weight if title_weight is not None else getattr(self.config.embedding, "title_weight", 0.4)
+        )
+
+        hybrid_kwargs: Dict[str, Any] = {
+            "search_mode": search_mode,
+            "title_weight": effective_title_weight,
+            "title_fts_rerank": title_fts_rerank,
+            "title_fts_weight": title_fts_weight,
         }
-        
+        if title_fts_max_candidates is not None:
+            hybrid_kwargs["title_fts_max_candidates"] = title_fts_max_candidates
+
+        results = {
+            'dense': self.dense_search.search(
+                query,
+                top_k,
+                search_mode=search_mode,
+                title_weight=effective_title_weight
+            ),
+            'sparse': self.sparse_search.search(query, top_k),
+            'hybrid_reranked': self.hybrid_search.search(query, top_k, rerank=True, **hybrid_kwargs),
+            'hybrid_interleaved': self.hybrid_search.search(query, top_k, rerank=False, **hybrid_kwargs)
+        }
+
         return results
-    
     def search_with_different_weights(
         self,
         query: str,
         weight_combinations: List[Tuple[float, float]] = None,
-        top_k: int = 10
+        top_k: int = 10,
+        search_mode: str = "content",
+        title_weight: Optional[float] = None,
+        title_fts_rerank: bool = False,
+        title_fts_weight: float = 0.2,
+        title_fts_max_candidates: Optional[int] = None
     ) -> Dict[str, List[SearchResult]]:
         """
         Search with different weight combinations.
@@ -217,7 +292,12 @@ class HybridSearchEngine:
             query: Search query
             weight_combinations: List of (dense_weight, sparse_weight) tuples
             top_k: Number of results
-            
+            search_mode: Mode for dense search ('content', 'title', 'combined')
+            title_weight: Optional override for combined dense/title weighting
+            title_fts_rerank: Apply PostgreSQL title FTS reranking to hybrid results
+            title_fts_weight: Weight for FTS when blending scores
+            title_fts_max_candidates: Optional cap on candidates considered for FTS rerank
+        
         Returns:
             Results for each weight combination
         """
@@ -229,29 +309,50 @@ class HybridSearchEngine:
                 (0.3, 0.7),  # Sparse heavy
                 (0.0, 1.0)   # Sparse only
             ]
-        
-        results = {}
-        
+
+        effective_title_weight = (
+            title_weight if title_weight is not None else getattr(self.config.embedding, "title_weight", 0.4)
+        )
+
+        hybrid_kwargs: Dict[str, Any] = {
+            "search_mode": search_mode,
+            "title_weight": effective_title_weight,
+            "title_fts_rerank": title_fts_rerank,
+            "title_fts_weight": title_fts_weight,
+        }
+        if title_fts_max_candidates is not None:
+            hybrid_kwargs["title_fts_max_candidates"] = title_fts_max_candidates
+
+        results: Dict[str, List[SearchResult]] = {}
+
         for dense_w, sparse_w in weight_combinations:
-            # Create temporary hybrid search with these weights
             temp_hybrid = HybridSearch(
                 self.dense_search,
                 self.sparse_search,
                 dense_w,
                 sparse_w
             )
-            
-            search_results = temp_hybrid.search(query, top_k, rerank=True)
+
+            search_results = temp_hybrid.search(
+                query,
+                top_k,
+                rerank=True,
+                **hybrid_kwargs
+            )
             weight_key = f"dense_{dense_w:.1f}_sparse_{sparse_w:.1f}"
             results[weight_key] = search_results
-        
+
         return results
-    
     def generate_answer_from_hybrid(
         self,
         query: str,
         top_k: int = 10,
-        max_context_length: int = 8000
+        max_context_length: int = 8000,
+        search_mode: str = "content",
+        title_weight: Optional[float] = None,
+        title_fts_rerank: bool = False,
+        title_fts_weight: float = 0.2,
+        title_fts_max_candidates: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Generate answer using hybrid search results.
@@ -260,14 +361,28 @@ class HybridSearchEngine:
             query: Search query
             top_k: Number of search results
             max_context_length: Maximum context length
-            
+            search_mode: Mode for dense search ('content', 'title', 'combined')
+            title_weight: Optional override for combined dense/title weighting
+            title_fts_rerank: Apply PostgreSQL title FTS reranking to hybrid results
+            title_fts_weight: Weight for FTS when blending scores
+            title_fts_max_candidates: Optional cap on candidates considered for FTS rerank
+        
         Returns:
             Answer and metadata
         """
-        # Perform hybrid search
-        search_data = self.search_hybrid(query, top_k, rerank=True)
+        search_data = self.search_hybrid(
+            query,
+            top_k,
+            rerank=True,
+            show_individual_results=False,
+            search_mode=search_mode,
+            title_weight=title_weight,
+            title_fts_rerank=title_fts_rerank,
+            title_fts_weight=title_fts_weight,
+            title_fts_max_candidates=title_fts_max_candidates
+        )
         results = search_data['hybrid_results']
-        
+
         if not results:
             return {
                 'query': query,
@@ -277,14 +392,13 @@ class HybridSearchEngine:
                 'num_results': 0,
                 'sources': []
             }
-        
-        # Generate answer
+
         response = self.generator.generate_rag_response(
             query=query,
             search_results=results,
             max_context_length=max_context_length
         )
-        
+
         return {
             'query': query,
             'answer': response.content,
@@ -293,6 +407,7 @@ class HybridSearchEngine:
             'num_results': len(results),
             'cost': response.cost,
             'usage': response.usage,
+            'title_fts_rerank': title_fts_rerank,
             'sources': [
                 {
                     'id': result.id,
@@ -303,7 +418,6 @@ class HybridSearchEngine:
                 for result in results
             ]
         }
-    
     def update_weights(self, dense_weight: float, sparse_weight: float):
         """
         Update search weights.

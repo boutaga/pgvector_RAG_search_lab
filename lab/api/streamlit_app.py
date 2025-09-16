@@ -267,7 +267,92 @@ def search_page():
         top_k = st.slider("Number of Results", 1, 20, 10)
         generate_answer = st.checkbox("Generate Answer", value=True)
         show_metadata = st.checkbox("Show Metadata", value=False)
+        default_title_weight = getattr(config.embedding, 'title_weight', 0.4)
+        title_search_mode = 'content'
+        title_weight_value = default_title_weight
+        title_vectors_enabled = False
+        title_fts_rerank = False
+        title_fts_weight = 0.2
+        title_fts_max_candidates = None
+
+        st.subheader("Title Search Options")
+        if source == "wikipedia":
+            title_vectors_enabled = st.toggle(
+                "Enable Title Vector Search",
+                value=False,
+                help="Search article titles in addition to content vectors."
+            )
+            if title_vectors_enabled:
+                title_only_mode = st.toggle(
+                    "Title-only Mode",
+                    value=False,
+                    help="When enabled, only title embeddings are queried."
+                )
+                if title_only_mode:
+                    title_search_mode = 'title'
+                else:
+                    title_search_mode = 'combined'
+                    title_weight_value = st.slider(
+                        "Title Vector Weight",
+                        0.0,
+                        1.0,
+                        default_title_weight,
+                        0.05,
+                        help="Blend ratio between title and content vectors when combining results."
+                    )
+        else:
+            st.toggle(
+                "Enable Title Vector Search",
+                value=False,
+                disabled=True,
+                help="Title vector search is only available for the Wikipedia dataset."
+            )
+
+        if method in ("hybrid", "adaptive"):
+            if source == "wikipedia":
+                title_fts_rerank = st.toggle(
+                    "Boost titles with PostgreSQL FTS",
+                    value=False,
+                    help="Re-rank results using PostgreSQL full-text search scores over article titles."
+                )
+                if title_fts_rerank:
+                    title_fts_weight = st.slider(
+                        "Title FTS Weight",
+                        0.0,
+                        1.0,
+                        0.2,
+                        0.05,
+                        help="How strongly the FTS score influences the final ranking."
+                    )
+                    title_fts_max_candidates = st.slider(
+                        "Title FTS Candidate Count",
+                        max(top_k, 10),
+                        100,
+                        min(max(top_k * 2, top_k), 50),
+                        help="How many candidates to consider when applying title FTS reranking."
+                    )
+            else:
+                st.toggle(
+                    "Boost titles with PostgreSQL FTS",
+                    value=False,
+                    disabled=True,
+                    help="Title FTS reranking is only available for the Wikipedia dataset."
+                )
+
     
+    effective_title_weight = title_weight_value if title_search_mode != 'content' else default_title_weight
+    dense_search_kwargs = {'search_mode': title_search_mode}
+    if title_search_mode != 'content':
+        dense_search_kwargs['title_weight'] = title_weight_value
+
+    hybrid_search_kwargs = {
+        'search_mode': title_search_mode,
+        'title_weight': effective_title_weight,
+        'title_fts_rerank': title_fts_rerank,
+        'title_fts_weight': title_fts_weight,
+    }
+    if title_fts_max_candidates is not None:
+        hybrid_search_kwargs['title_fts_max_candidates'] = title_fts_max_candidates
     # Main search interface
     query = st.text_input(
         "Enter your search query:",
@@ -294,13 +379,15 @@ def search_page():
                         response = engine.search_and_answer(
                             query=query,
                             search_type=search_type,
-                            top_k=top_k
+                            top_k=top_k,
+                            search_mode=dense_search_kwargs['search_mode'],
+                            title_weight=dense_search_kwargs.get('title_weight')
                         )
                         results = response.get('sources', [])
                         answer = response.get('answer')
                     else:
                         if search_type == "dense":
-                            results = engine.search_dense(query, top_k)
+                            results = engine.search_dense(query, top_k, **dense_search_kwargs)
                         else:
                             results = engine.search_sparse(query, top_k)
                         answer = None
@@ -308,20 +395,36 @@ def search_page():
                 elif method == "hybrid":
                     engine.update_weights(dense_weight, sparse_weight)
                     if generate_answer:
-                        response = engine.generate_answer_from_hybrid(query, top_k)
+                        response = engine.generate_answer_from_hybrid(
+                            query,
+                            top_k,
+                            **hybrid_search_kwargs
+                        )
                         results = response.get('sources', [])
                         answer = response.get('answer')
                     else:
-                        search_data = engine.search_hybrid(query, top_k)
+                        search_data = engine.search_hybrid(
+                            query,
+                            top_k,
+                            **hybrid_search_kwargs
+                        )
                         results = search_data['hybrid_results']
                         answer = None
                 
                 elif method == "adaptive":
                     if generate_answer:
-                        response = engine.generate_adaptive_answer(query, top_k)
+                        response = engine.generate_adaptive_answer(
+                            query,
+                            top_k,
+                            search_mode=title_search_mode,
+                            title_weight=effective_title_weight,
+                            title_fts_rerank=title_fts_rerank,
+                            title_fts_weight=title_fts_weight,
+                            title_fts_max_candidates=title_fts_max_candidates
+                        )
                         results = response.get('sources', [])
                         answer = response.get('answer')
-                        
+
                         # Show query analysis
                         analysis = response.get('query_analysis', {})
                         if analysis:
@@ -332,10 +435,19 @@ def search_page():
                                 f"Sparse {analysis.get('weights', {}).get('sparse', 0):.2f}"
                             )
                     else:
-                        search_data = engine.search_adaptive(query, top_k)
+                        search_data = engine.search_adaptive(
+                            query,
+                            top_k,
+                            show_analysis=True,
+                            search_mode=title_search_mode,
+                            title_weight=effective_title_weight,
+                            title_fts_rerank=title_fts_rerank,
+                            title_fts_weight=title_fts_weight,
+                            title_fts_max_candidates=title_fts_max_candidates
+                        )
                         results = search_data['results']
                         answer = None
-                        
+
                         # Show query analysis
                         st.info(
                             f"**Query Analysis:** {search_data.get('query_type', 'Unknown').title()} "
@@ -382,17 +494,30 @@ def search_page():
                 comparison_results = {}
                 
                 # Simple dense
-                comparison_results['Dense'] = simple_engine.search_dense(query, top_k)
+                comparison_results['Dense'] = simple_engine.search_dense(query, top_k, **dense_search_kwargs)
                 
                 # Simple sparse
                 comparison_results['Sparse'] = simple_engine.search_sparse(query, top_k)
                 
                 # Hybrid
-                hybrid_data = hybrid_engine.search_hybrid(query, top_k)
+                hybrid_data = hybrid_engine.search_hybrid(
+                    query,
+                    top_k,
+                    **hybrid_search_kwargs
+                )
                 comparison_results['Hybrid'] = hybrid_data['hybrid_results']
                 
                 # Adaptive
-                adaptive_data = adaptive_engine.search_adaptive(query, top_k)
+                adaptive_data = adaptive_engine.search_adaptive(
+                    query,
+                    top_k,
+                    show_analysis=True,
+                    search_mode=title_search_mode,
+                    title_weight=effective_title_weight,
+                    title_fts_rerank=title_fts_rerank,
+                    title_fts_weight=title_fts_weight,
+                    title_fts_max_candidates=title_fts_max_candidates
+                )
                 comparison_results['Adaptive'] = adaptive_data['results']
                 
                 st.subheader("📊 Method Comparison")

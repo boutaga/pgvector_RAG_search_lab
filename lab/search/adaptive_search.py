@@ -299,6 +299,11 @@ class AdaptiveSearchEngine:
     
     def _initialize_searches(self):
         """Initialize search services based on data source."""
+        title_vector_column = getattr(self.config.embedding, "title_vector_column", None)
+        default_title_weight = getattr(self.config.embedding, "title_weight", 0.4)
+        combined_fetch_multiplier = getattr(self.config.embedding, "combined_fetch_multiplier", 2)
+        max_combined_fetch = getattr(self.config.embedding, "max_combined_fetch", 50)
+
         if self.source == "wikipedia":
             vector_col = getattr(self.config.embedding, "vector_column", "content_vector")
             self.dense_search = VectorSearch(
@@ -307,9 +312,13 @@ class AdaptiveSearchEngine:
                 table_name="articles",
                 vector_column=vector_col,
                 content_columns=["title", "content"],
-                id_column="id"
+                id_column="id",
+                title_vector_column=title_vector_column,
+                default_title_weight=default_title_weight,
+                combined_fetch_multiplier=combined_fetch_multiplier,
+                max_combined_fetch=max_combined_fetch
             )
-            
+
             self.sparse_search = SparseSearch(
                 db_service=self.db,
                 embedding_service=self.sparse_embedder,
@@ -318,7 +327,7 @@ class AdaptiveSearchEngine:
                 content_columns=["title", "content"],
                 id_column="id"
             )
-            
+
         elif self.source == "movies":
             self.dense_search = VectorSearch(
                 db_service=self.db,
@@ -326,9 +335,13 @@ class AdaptiveSearchEngine:
                 table_name="netflix_shows",
                 vector_column="embedding",
                 content_columns=["title", "description"],
-                id_column="show_id"
+                id_column="show_id",
+                title_vector_column=None,
+                default_title_weight=default_title_weight,
+                combined_fetch_multiplier=combined_fetch_multiplier,
+                max_combined_fetch=max_combined_fetch
             )
-            
+
             self.sparse_search = SparseSearch(
                 db_service=self.db,
                 embedding_service=self.sparse_embedder,
@@ -337,19 +350,25 @@ class AdaptiveSearchEngine:
                 content_columns=["title", "description"],
                 id_column="show_id"
             )
-        
-        # Create adaptive search
+
+        else:
+            raise ValueError(f"Unknown source: {self.source}")
+
         self.adaptive_search = AdaptiveSearch(
             self.dense_search,
             self.sparse_search,
             self.classifier
         )
-    
     def search_adaptive(
         self,
         query: str,
         top_k: int = 10,
-        show_analysis: bool = True
+        show_analysis: bool = True,
+        search_mode: str = "content",
+        title_weight: Optional[float] = None,
+        title_fts_rerank: bool = False,
+        title_fts_weight: float = 0.2,
+        title_fts_max_candidates: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Perform adaptive search with query analysis.
@@ -358,18 +377,33 @@ class AdaptiveSearchEngine:
             query: Search query
             top_k: Number of results
             show_analysis: Whether to include analysis details
-            
+            search_mode: Mode for dense search ('content', 'title', 'combined')
+            title_weight: Optional override for combined dense/title weighting
+            title_fts_rerank: Apply PostgreSQL title FTS reranking to hybrid results
+            title_fts_weight: Weight for FTS when blending scores
+            title_fts_max_candidates: Optional cap on candidates considered for FTS rerank
+        
         Returns:
             Search results with analysis
         """
         logging.info(f"Performing adaptive search for: {query}")
         
-        # Analyze query
         analysis = self.classifier.analyze_query(query)
-        
-        # Perform adaptive search
-        results = self.adaptive_search.search(query, top_k)
-        
+
+        effective_title_weight = (
+            title_weight if title_weight is not None else getattr(self.config.embedding, "title_weight", 0.4)
+        )
+
+        results = self.adaptive_search.search(
+            query,
+            top_k,
+            search_mode=search_mode,
+            title_weight=effective_title_weight,
+            title_fts_rerank=title_fts_rerank,
+            title_fts_weight=title_fts_weight,
+            title_fts_max_candidates=title_fts_max_candidates
+        )
+
         response = {
             'query': query,
             'results': results,
@@ -388,12 +422,16 @@ class AdaptiveSearchEngine:
             })
         
         return response
-    
     def compare_adaptive_vs_fixed(
         self,
         query: str,
         fixed_weights: List[Tuple[float, float]] = None,
-        top_k: int = 10
+        top_k: int = 10,
+        search_mode: str = "content",
+        title_weight: Optional[float] = None,
+        title_fts_rerank: bool = False,
+        title_fts_weight: float = 0.2,
+        title_fts_max_candidates: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Compare adaptive search against fixed weight combinations.
@@ -402,23 +440,46 @@ class AdaptiveSearchEngine:
             query: Search query
             fixed_weights: List of fixed weight combinations
             top_k: Number of results
-            
+            search_mode: Mode for dense search ('content', 'title', 'combined')
+            title_weight: Optional override for combined dense/title weighting
+            title_fts_rerank: Apply PostgreSQL title FTS reranking to hybrid results
+            title_fts_weight: Weight for FTS when blending scores
+            title_fts_max_candidates: Optional cap on candidates considered for FTS rerank
+        
         Returns:
             Comparison results
         """
         if fixed_weights is None:
             fixed_weights = [(0.5, 0.5), (0.7, 0.3), (0.3, 0.7)]
         
-        # Analyze query first
         analysis = self.classifier.analyze_query(query)
+
+        adaptive_results = self.search_adaptive(
+            query,
+            top_k,
+            show_analysis=True,
+            search_mode=search_mode,
+            title_weight=title_weight,
+            title_fts_rerank=title_fts_rerank,
+            title_fts_weight=title_fts_weight,
+            title_fts_max_candidates=title_fts_max_candidates
+        )
         
-        # Adaptive search
-        adaptive_results = self.search_adaptive(query, top_k, show_analysis=True)
-        
-        # Fixed weight searches
         from lab.core.search import HybridSearch
         
         fixed_results = {}
+        effective_title_weight = (
+            title_weight if title_weight is not None else getattr(self.config.embedding, "title_weight", 0.4)
+        )
+        hybrid_kwargs: Dict[str, Any] = {
+            "search_mode": search_mode,
+            "title_weight": effective_title_weight,
+            "title_fts_rerank": title_fts_rerank,
+            "title_fts_weight": title_fts_weight,
+        }
+        if title_fts_max_candidates is not None:
+            hybrid_kwargs["title_fts_max_candidates"] = title_fts_max_candidates
+        
         for dense_w, sparse_w in fixed_weights:
             hybrid_search = HybridSearch(
                 self.dense_search,
@@ -426,7 +487,7 @@ class AdaptiveSearchEngine:
                 dense_w,
                 sparse_w
             )
-            results = hybrid_search.search(query, top_k)
+            results = hybrid_search.search(query, top_k, **hybrid_kwargs)
             fixed_results[f"fixed_{dense_w:.1f}_{sparse_w:.1f}"] = results
         
         return {
@@ -443,7 +504,6 @@ class AdaptiveSearchEngine:
                 **{k: len(v) for k, v in fixed_results.items()}
             }
         }
-    
     def batch_analyze_queries(
         self,
         queries: List[str]
@@ -463,7 +523,12 @@ class AdaptiveSearchEngine:
         self,
         query: str,
         top_k: int = 10,
-        max_context_length: int = 8000
+        max_context_length: int = 8000,
+        search_mode: str = "content",
+        title_weight: Optional[float] = None,
+        title_fts_rerank: bool = False,
+        title_fts_weight: float = 0.2,
+        title_fts_max_candidates: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Generate answer using adaptive search.
@@ -472,12 +537,25 @@ class AdaptiveSearchEngine:
             query: Search query
             top_k: Number of search results
             max_context_length: Maximum context length
-            
+            search_mode: Mode for dense search ('content', 'title', 'combined')
+            title_weight: Optional override for combined dense/title weighting
+            title_fts_rerank: Apply PostgreSQL title FTS reranking to hybrid results
+            title_fts_weight: Weight for FTS when blending scores
+            title_fts_max_candidates: Optional cap on candidates considered for FTS rerank
+        
         Returns:
             Answer with adaptive search metadata
         """
-        # Perform adaptive search
-        search_data = self.search_adaptive(query, top_k, show_analysis=True)
+        search_data = self.search_adaptive(
+            query,
+            top_k,
+            show_analysis=True,
+            search_mode=search_mode,
+            title_weight=title_weight,
+            title_fts_rerank=title_fts_rerank,
+            title_fts_weight=title_fts_weight,
+            title_fts_max_candidates=title_fts_max_candidates
+        )
         results = search_data['results']
         
         if not results:
@@ -493,7 +571,6 @@ class AdaptiveSearchEngine:
                 'num_results': 0
             }
         
-        # Generate answer
         response = self.generator.generate_rag_response(
             query=query,
             search_results=results,
@@ -523,8 +600,6 @@ class AdaptiveSearchEngine:
                 for result in results
             ]
         }
-
-
 def create_argument_parser():
     """Create command line argument parser."""
     parser = argparse.ArgumentParser(

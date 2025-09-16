@@ -18,6 +18,10 @@ class EmbeddingConfig:
     openai_model: str = "text-embedding-3-large"
     openai_dimensions: int = 3072
     vector_column: str = "content_vector_3072"  # New configurable vector column
+    title_vector_column: Optional[str] = "title_vector_3072"
+    title_weight: float = 0.4
+    combined_fetch_multiplier: int = 2
+    max_combined_fetch: int = 50
     splade_model: str = "naver/splade-cocondenser-ensembledistil"
     splade_dimensions: int = 30522
     batch_size_dense: int = 50
@@ -145,6 +149,16 @@ class ConfigService:
             self.config.embedding.batch_size_dense = int(batch)
         if batch := os.getenv('BATCH_SIZE_SPARSE'):
             self.config.embedding.batch_size_sparse = int(batch)
+        if column := os.getenv('CONTENT_VECTOR_COLUMN'):
+            self.config.embedding.vector_column = column
+        if column := os.getenv('TITLE_VECTOR_COLUMN'):
+            self.config.embedding.title_vector_column = column
+        if weight := os.getenv('TITLE_VECTOR_WEIGHT'):
+            self.config.embedding.title_weight = float(weight)
+        if multiplier := os.getenv('TITLE_COMBINED_FETCH_MULTIPLIER'):
+            self.config.embedding.combined_fetch_multiplier = int(multiplier)
+        if limit := os.getenv('TITLE_MAX_COMBINED_FETCH'):
+            self.config.embedding.max_combined_fetch = int(limit)
         
         # Search configuration
         if top_k := os.getenv('SEARCH_TOP_K'):

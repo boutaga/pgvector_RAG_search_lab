@@ -65,7 +65,7 @@ class VectorSearch(SearchService):
     """
     Dense vector similarity search using pgvector.
     """
-    
+
     def __init__(
         self,
         db_service: DatabaseService,
@@ -74,11 +74,15 @@ class VectorSearch(SearchService):
         vector_column: str,
         content_columns: List[str],
         id_column: str = "id",
-        distance_metric: str = "cosine"
+        distance_metric: str = "cosine",
+        title_vector_column: Optional[str] = None,
+        default_title_weight: float = 0.4,
+        combined_fetch_multiplier: int = 2,
+        max_combined_fetch: int = 50,
     ):
         """
         Initialize vector search service.
-        
+
         Args:
             db_service: Database service instance
             embedding_service: Embedding service for query encoding
@@ -87,6 +91,10 @@ class VectorSearch(SearchService):
             content_columns: Columns to return as content
             id_column: Name of ID column
             distance_metric: Distance metric ('cosine', 'l2', 'ip')
+            title_vector_column: Optional title vector column for combined search
+            default_title_weight: Default weight for title vectors in combined search
+            combined_fetch_multiplier: Multiplier for fetching additional rows when combining
+            max_combined_fetch: Maximum rows to fetch when combining title and content
         """
         self.db = db_service
         self.embedder = embedding_service
@@ -95,7 +103,11 @@ class VectorSearch(SearchService):
         self.content_columns = content_columns
         self.id_column = id_column
         self.distance_metric = distance_metric
-        
+        self.title_vector_column = title_vector_column
+        self.default_title_weight = default_title_weight
+        self.combined_fetch_multiplier = combined_fetch_multiplier
+        self.max_combined_fetch = max_combined_fetch
+
         # Distance operators for pgvector
         self.distance_ops = {
             'cosine': '<=>',
@@ -103,7 +115,7 @@ class VectorSearch(SearchService):
             'ip': '<#>'  # Inner product (negative for similarity)
         }
         self.distance_op = self.distance_ops.get(distance_metric, '<=>')
-    
+
     def search(
         self,
         query: str,
@@ -113,60 +125,189 @@ class VectorSearch(SearchService):
     ) -> List[SearchResult]:
         """
         Perform dense vector similarity search.
-        
+
         Args:
             query: Search query text
             top_k: Number of results
             filter_conditions: Optional SQL WHERE conditions
-            
+
         Returns:
             List of search results
         """
-        # Generate query embedding
         query_embedding = self.embedder.generate_embeddings([query])[0]
-        
-        # Build SQL query
+
+        search_mode = kwargs.get("search_mode", "content")
+        title_weight = kwargs.get("title_weight", self.default_title_weight)
+        fetch_multiplier = kwargs.get(
+            "combined_fetch_multiplier", self.combined_fetch_multiplier
+        )
+        max_fetch = kwargs.get("max_combined_fetch", self.max_combined_fetch)
+
+        if search_mode not in {"content", "title", "combined"}:
+            logger.warning(
+                "Unknown search_mode '%s' provided to VectorSearch; defaulting to content",
+                search_mode
+            )
+            search_mode = "content"
+
+        if search_mode != "content" and not self.title_vector_column:
+            logger.warning(
+                "Title vector column not configured; falling back to content-only search"
+            )
+            search_mode = "content"
+
+        if search_mode == "content":
+            return self._execute_vector_query(
+                query_embedding,
+                self.vector_column,
+                top_k,
+                filter_conditions,
+                "dense"
+            )
+
+        if search_mode == "title":
+            return self._execute_vector_query(
+                query_embedding,
+                self.title_vector_column,
+                top_k,
+                filter_conditions,
+                "dense_title"
+            )
+
+        fetch_k = max(top_k, min(top_k * fetch_multiplier, max_fetch))
+        content_results = self._execute_vector_query(
+            query_embedding,
+            self.vector_column,
+            fetch_k,
+            filter_conditions,
+            "dense"
+        )
+        title_results = self._execute_vector_query(
+            query_embedding,
+            self.title_vector_column,
+            fetch_k,
+            filter_conditions,
+            "dense_title"
+        )
+        return self._merge_title_content(content_results, title_results, top_k, title_weight)
+
+    def _execute_vector_query(
+        self,
+        query_embedding: List[float],
+        vector_column: Optional[str],
+        top_k: int,
+        filter_conditions: Optional[str],
+        source_label: str
+    ) -> List[SearchResult]:
+        """Execute a vector similarity query for a specific column."""
+        if not vector_column:
+            return []
+
         content_select = ", ".join(self.content_columns)
-        
         base_query = f"""
-            SELECT 
+            SELECT
                 {self.id_column},
                 {content_select},
-                1 - ({self.vector_column} {self.distance_op} %s::vector) as score
+                1 - ({vector_column} {self.distance_op} %s::vector) as score
             FROM {self.table_name}
         """
-        
+
         if filter_conditions:
             base_query += f" WHERE {filter_conditions}"
-        
+
         base_query += f"""
-            ORDER BY {self.vector_column} {self.distance_op} %s::vector
+            ORDER BY {vector_column} {self.distance_op} %s::vector
             LIMIT %s
         """
-        
-        # Execute search
+
         params = (query_embedding, query_embedding, top_k)
-        results = self.db.execute_query(base_query, params, dict_cursor=True)
-        
-        # Format results
-        search_results = []
-        for row in results:
+        rows = self.db.execute_query(base_query, params, dict_cursor=True) or []
+
+        results: List[SearchResult] = []
+        for row in rows:
             content = " ".join(str(row.get(col, "")) for col in self.content_columns)
-            result = SearchResult(
-                id=row[self.id_column],
-                content=content,
-                score=row['score'],
-                metadata={k: v for k, v in row.items() if k not in [self.id_column, 'score'] + self.content_columns},
-                source='dense'
+            metadata = {
+                k: v
+                for k, v in row.items()
+                if k not in [self.id_column, 'score'] + self.content_columns
+            }
+            results.append(
+                SearchResult(
+                    id=row[self.id_column],
+                    content=content,
+                    score=row['score'],
+                    metadata=metadata,
+                    source=source_label
+                )
             )
-            search_results.append(result)
-        
-        return search_results
-    
+
+        return results
+
+    def _merge_title_content(
+        self,
+        content_results: List[SearchResult],
+        title_results: List[SearchResult],
+        top_k: int,
+        title_weight: float
+    ) -> List[SearchResult]:
+        """Merge content and title search results with configurable weighting."""
+        if not content_results and not title_results:
+            return []
+
+        weight = max(0.0, min(1.0, float(title_weight)))
+
+        aggregated: Dict[Any, Dict[str, Any]] = {}
+
+        for result in content_results:
+            aggregated[result.id] = {
+                'content': result,
+                'title': None,
+                'content_score': result.score,
+                'title_score': 0.0
+            }
+
+        for result in title_results:
+            entry = aggregated.setdefault(
+                result.id,
+                {
+                    'content': None,
+                    'title': None,
+                    'content_score': 0.0,
+                    'title_score': 0.0
+                }
+            )
+            if result.score > entry['title_score']:
+                entry['title'] = result
+                entry['title_score'] = result.score
+
+        merged: List[SearchResult] = []
+        for entry in aggregated.values():
+            base_result = entry['content'] or entry['title']
+            if not base_result:
+                continue
+
+            combined_score = (1 - weight) * entry['content_score'] + weight * entry['title_score']
+
+            metadata = dict(base_result.metadata or {})
+            metadata.setdefault('content_score', entry['content_score'])
+            metadata.setdefault('title_score', entry['title_score'])
+
+            merged.append(
+                SearchResult(
+                    id=base_result.id,
+                    content=base_result.content,
+                    score=combined_score,
+                    metadata=metadata,
+                    source='dense_combined'
+                )
+            )
+
+        merged.sort(key=lambda r: r.score, reverse=True)
+        return merged[:top_k]
+
     def get_search_type(self) -> str:
         """Get search type."""
         return "dense_vector"
-
 
 class SparseSearch(SearchService):
     """
@@ -315,15 +456,39 @@ class HybridSearch(SearchService):
         Returns:
             List of search results
         """
-        # Get results from both searches (fetch more for merging)
-        fetch_k = min(top_k * 2, 50)
+        title_weight = kwargs.get(
+            "title_weight",
+            getattr(self.dense_search, "default_title_weight", 0.4)
+        )
+        kwargs.setdefault("title_weight", title_weight)
+
+        title_fts_rerank = kwargs.get("title_fts_rerank", False)
+        title_fts_weight = kwargs.get("title_fts_weight", 0.2)
+        candidate_limit = kwargs.get("title_fts_max_candidates", 50)
+
+        candidate_k = top_k
+        if title_fts_rerank:
+            candidate_k = min(max(top_k * 2, top_k), candidate_limit)
+
+        fetch_k = min(max(candidate_k, top_k) * 2, 50)
         dense_results = self.dense_search.search(query, top_k=fetch_k, **kwargs)
         sparse_results = self.sparse_search.search(query, top_k=fetch_k, **kwargs)
-        
+
         if rerank:
-            return self._merge_and_rerank(dense_results, sparse_results, top_k)
+            combined = self._merge_and_rerank(dense_results, sparse_results, candidate_k)
         else:
-            return self._simple_merge(dense_results, sparse_results, top_k)
+            combined = self._simple_merge(dense_results, sparse_results, candidate_k)
+
+        if title_fts_rerank:
+            return self._rerank_with_title_fts(
+                query,
+                combined,
+                top_k,
+                title_fts_weight,
+                kwargs
+            )
+
+        return combined[:top_k]
     
     def _merge_and_rerank(
         self,
@@ -421,7 +586,72 @@ class HybridSearch(SearchService):
                 seen_ids.add(r.id)
         
         return merged[:top_k]
-    
+
+    def _rerank_with_title_fts(
+        self,
+        query: str,
+        results: List[SearchResult],
+        top_k: int,
+        weight: float,
+        options: Dict[str, Any]
+    ) -> List[SearchResult]:
+        """Apply PostgreSQL title FTS-based reranking to hybrid results."""
+        if not results:
+            return []
+
+        table_name = options.get("fts_table") or getattr(self.dense_search, "table_name", None)
+        id_column = options.get("fts_id_column") or getattr(self.dense_search, "id_column", "id")
+        title_column = options.get("fts_title_column", "title")
+
+        if not table_name or weight <= 0:
+            return results[:top_k]
+
+        ids = [r.id for r in results]
+        if not ids:
+            return results[:top_k]
+
+        sql = f"""
+            SELECT {id_column} AS id,
+                   ts_rank_cd(
+                       to_tsvector('english', COALESCE({title_column}, '')),
+                       plainto_tsquery('english', %s)
+                   ) AS rank
+            FROM {table_name}
+            WHERE {id_column} = ANY(%s)
+        """
+
+        rows = self.dense_search.db.execute_query(sql, (query, ids), dict_cursor=True) or []
+        ranks = {row['id']: row['rank'] for row in rows if row.get('rank') is not None}
+
+        if not ranks:
+            return results[:top_k]
+
+        max_rank = max(ranks.values() or [0])
+        if max_rank <= 0:
+            return results[:top_k]
+
+        normalized_weight = max(0.0, min(1.0, float(weight)))
+        reranked: List[SearchResult] = []
+
+        for res in results:
+            normalized_rank = ranks.get(res.id, 0.0) / max_rank
+            blended_score = (1 - normalized_weight) * res.score + normalized_weight * normalized_rank
+            metadata = dict(res.metadata or {})
+            metadata['title_fts_rank'] = ranks.get(res.id, 0.0)
+            metadata['title_fts_weight'] = normalized_weight
+            reranked.append(
+                SearchResult(
+                    id=res.id,
+                    content=res.content,
+                    score=blended_score,
+                    metadata=metadata,
+                    source=res.source or 'hybrid'
+                )
+            )
+
+        reranked.sort(key=lambda r: r.score, reverse=True)
+        return reranked[:top_k]
+
     def get_search_type(self) -> str:
         """Get search type."""
         return "hybrid"
