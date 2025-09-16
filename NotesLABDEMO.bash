@@ -49,5 +49,5 @@ Collecting usage statistics. To deactivate, set browser.gatherUsageStats to fals
 
   
 
-export OPENAI_API_KEY="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"
+export OPENAI_API_KEY="secret"
 export DATABASE_URL="postgresql://postgres@localhost:5435/wikipedia"
