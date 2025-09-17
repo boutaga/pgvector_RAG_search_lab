@@ -657,6 +657,56 @@ class HybridSearch(SearchService):
         return "hybrid"
 
 
+class QueryClassifier:
+    """
+    Classify queries to determine optimal search strategy.
+    """
+
+    def __init__(self):
+        """Initialize query classifier."""
+        # Keywords for different query types
+        self.factual_keywords = [
+            'when', 'where', 'who', 'how many', 'how much', 'date', 'year',
+            'name', 'list', 'number', 'count', 'specific', 'exact'
+        ]
+        self.conceptual_keywords = [
+            'why', 'how', 'explain', 'describe', 'understand', 'concept',
+            'theory', 'idea', 'meaning', 'significance', 'relationship'
+        ]
+        self.structured_keywords = [
+            'table', 'column', 'row', 'database', 'sql', 'select',
+            'filter', 'sort', 'group', 'aggregate', 'join'
+        ]
+
+    def classify(self, query: str) -> QueryType:
+        """
+        Classify a query into a type.
+
+        Args:
+            query: Query text to classify
+
+        Returns:
+            QueryType enum value
+        """
+        query_lower = query.lower()
+
+        # Check for structured query patterns
+        if any(keyword in query_lower for keyword in self.structured_keywords):
+            return QueryType.STRUCTURED
+
+        # Count keyword matches
+        factual_score = sum(1 for kw in self.factual_keywords if kw in query_lower)
+        conceptual_score = sum(1 for kw in self.conceptual_keywords if kw in query_lower)
+
+        # Classify based on scores
+        if factual_score > conceptual_score:
+            return QueryType.FACTUAL
+        elif conceptual_score > factual_score:
+            return QueryType.CONCEPTUAL
+        else:
+            return QueryType.EXPLORATORY
+
+
 class AdaptiveSearch(SearchService):
     """
     Adaptive search that adjusts weights based on query classification.
@@ -734,53 +784,3 @@ class AdaptiveSearch(SearchService):
     def get_search_type(self) -> str:
         """Get search type."""
         return "adaptive"
-
-
-class QueryClassifier:
-    """
-    Classify queries to determine optimal search strategy.
-    """
-    
-    def __init__(self):
-        """Initialize query classifier."""
-        # Keywords for different query types
-        self.factual_keywords = [
-            'when', 'where', 'who', 'how many', 'how much', 'date', 'year',
-            'name', 'list', 'number', 'count', 'specific', 'exact'
-        ]
-        self.conceptual_keywords = [
-            'why', 'how', 'explain', 'describe', 'understand', 'concept',
-            'theory', 'idea', 'meaning', 'significance', 'relationship'
-        ]
-        self.structured_keywords = [
-            'table', 'column', 'row', 'database', 'sql', 'select',
-            'filter', 'sort', 'group', 'aggregate', 'join'
-        ]
-    
-    def classify(self, query: str) -> QueryType:
-        """
-        Classify a query into a type.
-        
-        Args:
-            query: Query text to classify
-            
-        Returns:
-            QueryType enum value
-        """
-        query_lower = query.lower()
-        
-        # Check for structured query patterns
-        if any(keyword in query_lower for keyword in self.structured_keywords):
-            return QueryType.STRUCTURED
-        
-        # Count keyword matches
-        factual_score = sum(1 for kw in self.factual_keywords if kw in query_lower)
-        conceptual_score = sum(1 for kw in self.conceptual_keywords if kw in query_lower)
-        
-        # Classify based on scores
-        if factual_score > conceptual_score:
-            return QueryType.FACTUAL
-        elif conceptual_score > factual_score:
-            return QueryType.CONCEPTUAL
-        else:
-            return QueryType.EXPLORATORY
