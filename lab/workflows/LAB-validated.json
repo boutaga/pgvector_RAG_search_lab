@@ -1,0 +1,979 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "81721c69-317c-49be-b8f4-25e2cb3424f8",
+      "name": "Demo Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1744,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "query_factual",
+              "value": "What is WAL in PostgreSQL?"
+            },
+            {
+              "name": "query_conceptual",
+              "value": "How does MVCC reduce locking?"
+            },
+            {
+              "name": "query_procedural",
+              "value": "Steps to configure WAL archiving"
+            },
+            {
+              "name": "active_query",
+              "value": "What is WAL in PostgreSQL?"
+            },
+            {
+              "name": "method",
+              "value": "adaptive"
+            }
+          ],
+          "number": [
+            {
+              "name": "top_k",
+              "value": 5
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "23701f0f-c17e-4070-9cfe-46da97fb7619",
+      "name": "Query Selection",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        -1520,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Query type detection for demonstration\nconst items_data = items[0].json;\nconst query = items_data.active_query;\n\n// Simple query classification logic\nfunction classifyQuery(query) {\n  const queryLower = query.toLowerCase();\n  \n  // Factual queries - benefit from sparse (exact terms)\n  if (queryLower.includes('what is') || queryLower.includes('define') || queryLower.includes('meaning')) {\n    return {\n      type: 'factual',\n      description: 'Definition/factual query → sparse-heavy weights',\n      expected_routing: 'Sparse-heavy (exact term matching)',\n      predicted_alpha: 0.3\n    };\n  }\n  \n  // Conceptual queries - benefit from dense (semantic)\n  if (queryLower.includes('how does') || queryLower.includes('explain') || queryLower.includes('why')) {\n    return {\n      type: 'conceptual',\n      description: 'Conceptual query → dense-heavy weights', \n      expected_routing: 'Dense-heavy (semantic understanding)',\n      predicted_alpha: 0.7\n    };\n  }\n  \n  // Procedural queries - need exact steps (sparse)\n  if (queryLower.includes('how to') || queryLower.includes('steps') || queryLower.includes('procedure')) {\n    return {\n      type: 'procedural',\n      description: 'Procedural query → sparse-heavy weights',\n      expected_routing: 'Sparse-heavy (step-by-step matching)',\n      predicted_alpha: 0.4\n    };\n  }\n  \n  // Default - exploratory queries\n  return {\n    type: 'exploratory',\n    description: 'Exploratory query → balanced weights',\n    expected_routing: 'Balanced approach',\n    predicted_alpha: 0.5\n  };\n}\n\nconst classification = classifyQuery(query);\n\nconst output = {\n  ...items_data,\n  query_analysis: {\n    query: query,\n    detected_type: classification.type,\n    description: classification.description,\n    expected_routing: classification.expected_routing,\n    predicted_alpha: classification.predicted_alpha,\n    reasoning: `The system detected \"${query}\" as a ${classification.type} query and will route accordingly.`\n  }\n};\n\nreturn [{ json: output }];"
+      },
+      "id": "0cf56ccc-9e62-4072-b0fa-68ec64a423fe",
+      "name": "Query Analysis",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1296,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"{{ $json.active_query || $json.query || $json.query_factual }}\",\n  \"source\": \"wikipedia\",\n  \"method\": \"adaptive\",\n  \"top_k\": 5,\n  \"generate_answer\": true\n}\n",
+        "options": {}
+      },
+      "id": "df1e02fe-167b-448c-8633-1fa41dda5470",
+      "name": "Adaptive RAG API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        -1072,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Read the API response from the previous node\nconst api = items[0].json;\n\n// Pull query-analysis from the API metadata (or default to empty object)\nconst qa = api?.metadata?.query_analysis ?? {};\n\n// Build a clean, uniform payload for the rest of the flow\nconst out = {\n  query: api.query,\n  method: 'adaptive',\n\n  // what we think the query is + why\n  predicted_analysis: {\n    query_type: qa.detected_type ?? qa.type ?? 'unknown',\n    predicted_alpha: qa.predicted_alpha ?? null,\n    reasoning: qa.reasoning ?? ''\n  },\n\n  // keep the raw results for downstream formatting\n  raw_response: {\n    query: api.query,\n    method: api.method ?? 'adaptive',\n    source: api.source ?? 'wikipedia',\n    results: api.results ?? []\n  },\n\n  // convenience fields\n  num_results: api.num_results ?? (api.results?.length ?? 0),\n  answer: api.answer ?? '',\n  timing_ms: api.timing_ms ?? 0,\n  top_contexts: api.top_contexts ?? [],\n  metadata: api.metadata ?? {}\n};\n\nreturn [{ json: out }];\n"
+      },
+      "id": "e392f228-f88b-4bf0-a9e0-7e355459a3f5",
+      "name": "Analyze Adaptive Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -864,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.predicted_analysis.query_type }}",
+              "value2": "factual"
+            }
+          ]
+        }
+      },
+      "id": "513a9f6b-aed8-4759-b0d3-d9ebdd55ed8f",
+      "name": "Route by Query Type",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -640,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "routing_explanation",
+              "value": "📚 FACTUAL QUERY DETECTED\\n\\nThe system identified this as a definition/factual query.\\n\\nOptimal strategy: Sparse-heavy weights\\nReason: Factual queries benefit from exact term matching\\n\\n💡 Try changing to 'query_conceptual' or 'query_procedural' in Query Selection!"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "21f91312-de82-4ce4-8833-e4bc2933ada1",
+      "name": "Factual Query Routing",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        -416,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "routing_explanation",
+              "value": "🧠 CONCEPTUAL/PROCEDURAL QUERY\\n\\nThe system identified this as requiring semantic understanding or procedural knowledge.\\n\\nOptimal strategy: Dense-heavy or balanced weights\\nReason: These queries benefit from conceptual matching\\n\\n💡 Notice how the system adapts automatically!"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "65821448-5e6c-4ead-8f5a-a0c9f23f5942",
+      "name": "Other Query Types",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        -416,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"{{ $json.query }}\",\n  \"source\": \"wikipedia\",\n  \"method\": \"simple\",\n  \"search_type\": \"dense\",\n  \"top_k\": 5,\n  \"generate_answer\": true\n}\n",
+        "options": {}
+      },
+      "id": "5304c9d7-2f6d-4368-9e62-ff599f8eaa22",
+      "name": "RAG Search API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        -1488,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract and format the API response\nconst response = items[0].json;\n\n// Create formatted output\nconst output = {\n  query: response.query,\n  method: response.method_used,\n  answer: response.answer,\n  timing_ms: response.timing?.total_ms || 0,\n  context_count: response.contexts?.length || 0,\n  top_contexts: (response.contexts || []).slice(0, 3).map(ctx => ({\n    title: ctx.title,\n    similarity: ctx.sim_dense || ctx.similarity || 0,\n    snippet: (ctx.content || '').substring(0, 200) + '...'\n  })),\n  success: response.success,\n  raw_response: response\n};\n\n// Add success indicator\nif (response.success) {\n  output.status = '✅ SUCCESS';\n} else {\n  output.status = '❌ ERROR';\n}\n\nreturn [{ json: output }];"
+      },
+      "id": "02e7569e-8255-436e-9d57-db828f0c1e42",
+      "name": "Format Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1280,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.success }}",
+              "value2": "true"
+            }
+          ]
+        },
+        "combineOperation": "any"
+      },
+      "id": "3be8f21f-7e2f-46ac-823e-39bbaadc2f4f",
+      "name": "Success Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -1072,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"{{ $json.query }}\",\n  \"source\": \"wikipedia\",\n  \"method\": \"hybrid\",\n  \"top_k\": 5,\n  \"generate_answer\": true\n}\n",
+        "options": {}
+      },
+      "id": "f6999e9e-90be-45b9-bba8-6ba530524054",
+      "name": "Hybrid RAG API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        -1504,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract and format the hybrid search response\nconst response = items[0].json;\n\n// Create detailed output for hybrid method\nconst output = {\n  query: response.query,\n  method: response.method_used,\n  alpha_used: response.alpha || 0.5,\n  answer: response.answer,\n  timing_ms: response.timing?.total_ms || 0,\n  context_count: response.contexts?.length || 0,\n  \n  // Enhanced context information for hybrid\n  contexts_detailed: (response.contexts || []).slice(0, 3).map(ctx => ({\n    title: ctx.title,\n    dense_score: ctx.sd || ctx.sim_dense || 0,\n    sparse_score: ctx.ss || ctx.sim_sparse || 0,\n    hybrid_score: ctx.hybrid || 0,\n    snippet: (ctx.content || '').substring(0, 150) + '...'\n  })),\n  \n  // Performance metrics\n  performance: {\n    total_time: response.timing?.total_ms || 0,\n    method: 'hybrid',\n    alpha: response.alpha || 0.5,\n    dense_weight: response.alpha || 0.5,\n    sparse_weight: 1 - (response.alpha || 0.5)\n  },\n  \n  success: response.success,\n  raw_response: response\n};\n\n// Add visual indicators\nif (response.success) {\n  output.status = '🎯 HYBRID SUCCESS';\n  output.improvement_note = 'Check context scores - hybrid combines semantic + lexical!';\n} else {\n  output.status = '❌ ERROR';\n}\n\nreturn [{ json: output }];"
+      },
+      "id": "ae7c80b1-0356-43d9-bf4f-5f42cf2c03bb",
+      "name": "Format Hybrid Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1280,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "demo_note",
+              "value": "🔧 DEMO TIP: Change alpha in 'Hybrid Parameters' node to see different results!\\n- alpha=0.3 → More sparse (exact terms)\\n- alpha=0.7 → More dense (semantic)\\n- alpha=0.5 → Balanced"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "da52b924-5c14-40b1-94aa-86f88e01afa1",
+      "name": "Demo Instructions",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        -1072,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.alpha_used }}",
+              "value2": 0.4
+            }
+          ]
+        }
+      },
+      "id": "93b0ad50-61ba-41a5-ad48-72dbbdb450ab",
+      "name": "Alpha Analysis",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -848,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "alpha_interpretation",
+              "value": "🎯 SPARSE-HEAVY: This query benefits from exact term matching!"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a07eb956-18d8-48ee-85ec-7b847ba88d90",
+      "name": "Sparse Heavy Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "alpha_interpretation",
+              "value": "🧠 DENSE-HEAVY: This query benefits from semantic understanding!"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f1b329c2-a6a1-4005-85f0-655e414354fd",
+      "name": "Dense Heavy Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        1056
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "showText",
+        "responseText": "={{\n(() => {\n  const esc = s => String(s ?? '')\n    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\n\n  const cards = (($json.results ?? []).slice(0,5)).map((r,i) => `\n    <div class=\"card\">\n      <div class=\"rank\">${i+1}</div>\n      <div class=\"score\">relevance ${(r.score ?? 0).toFixed(3)}</div>\n      <p class=\"snippet\">${esc((r.content ?? '').replace(/\\n+/g,' ').slice(0,400))}${(r.content||'').length>400?'…':''}</p>\n    </div>\n  `).join('');\n\n  return `\n    <style>\n      :root{color-scheme:dark light}\n      body{margin:0;background:#0b1020;color:#e7e8ea;font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,Inter,Helvetica,Arial;}\n      .wrap{max-width:980px;margin:0 auto;padding:28px 18px 56px;}\n      .pill{display:inline-block;padding:4px 10px;border:1px solid #2a3146;border-radius:999px;background:#151a2a;font-size:12px;opacity:.9}\n      h1{font-size:24px;margin:4px 0 8px}\n      h2{font-size:18px;margin:24px 0 10px;color:#cbd2ff}\n      .answer{background:#11162a;border:1px solid #28314a;border-radius:12px;padding:16px;margin:12px 0 18px}\n      .grid{display:grid;gap:12px}\n      .card{position:relative;background:#12182b;border:1px solid #27324b;border-radius:14px;padding:14px 16px 16px}\n      .rank{position:absolute;left:-10px;top:-10px;background:#4b5bd7;border:2px solid #0b1020;border-radius:999px;\n            width:28px;height:28px;display:grid;place-items:center;font-weight:700;color:white;font-size:13px}\n      .score{position:absolute;right:12px;top:12px;font-size:12px;opacity:.8}\n      .snippet{margin:0;white-space:pre-wrap}\n      .meta{margin-top:18px;font-size:12px;opacity:.75}\n      @media (prefers-color-scheme: light){\n        body{background:#fff;color:#0e1220}\n        .answer{background:#f6f8ff;border-color:#dbe2ff}\n        .card{background:#f8f9fe;border-color:#e3e7ff}\n        .rank{border-color:#fff}\n      }\n    </style>\n\n    <div class=\"wrap\">\n      <span class=\"pill\">Naïve RAG • ${esc($json.source)} • ${esc($json.search_type ?? 'dense')}</span>\n      <h1>${esc($json.query)}</h1>\n\n      <div class=\"answer\">${esc($json.answer)}</div>\n\n      <h2>Top passages</h2>\n      <div class=\"grid\">\n        ${cards || '<div class=\"card\"><p class=\"snippet\">No passages returned.</p></div>'}\n      </div>\n\n      <div class=\"meta\">\n        Method: ${esc($json.method)} • Results: ${$json.num_results ?? 0}\n      </div>\n    </div>\n  `;\n})()\n}}\n",
+        "limitWaitTime": "="
+      },
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.3,
+      "position": [
+        -752,
+        512
+      ],
+      "id": "43394aba-fcc5-4596-8476-2a9cf531d0cc",
+      "name": "Form1",
+      "webhookId": "876d9491-eaa2-4633-8732-a0858dc75a2c"
+    },
+    {
+      "parameters": {
+        "formTitle": "Naive RAG",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "query",
+              "placeholder": "What is your question ?",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [
+        -1760,
+        496
+      ],
+      "id": "6188fd59-e06a-41b6-8b5b-abe1089f86db",
+      "name": "On form submission",
+      "webhookId": "87f91701-a4d3-4c60-b8e2-f9bced39a803",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "formTitle": "Naive RAG",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "query",
+              "placeholder": "What is your question ?",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [
+        -1712,
+        960
+      ],
+      "id": "a4fdae57-ac72-4f3d-b6ad-c73741c5a0fd",
+      "name": "On form submission1",
+      "webhookId": "a5791203-6d63-4b6b-9703-9e4545d2a453",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "formTitle": "Compare RAG: Custom vs LangChain",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "query",
+              "placeholder": "Ask something (e.g., What is WAL in PostgreSQL?)",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "68d7dc84-38ed-43e1-8651-f736ed9eb700",
+      "name": "Compare Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [
+        -1856,
+        1520
+      ],
+      "webhookId": "cmp-rag-form-01",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "method",
+              "value": "simple"
+            },
+            {
+              "name": "search_type",
+              "value": "dense"
+            }
+          ],
+          "number": [
+            {
+              "name": "top_k",
+              "value": 5
+            }
+          ],
+          "boolean": []
+        },
+        "options": {}
+      },
+      "id": "426288ce-42f5-42d8-bdf6-5806138e882b",
+      "name": "Custom Params",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        -1632,
+        1424
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"{{ $json.query }}\",\n  \"source\": \"wikipedia\",\n  \"method\": \"{{ $json.method }}\",\n  \"search_type\": \"{{ $json.search_type }}\",\n  \"top_k\": {{ $json.top_k }},\n  \"generate_answer\": true\n}",
+        "options": {}
+      },
+      "id": "74f44e1c-c8ca-4a3c-ba0c-c2e5e6fb00a6",
+      "name": "Custom RAG API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        -1392,
+        1424
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Normalize your custom API output into a namespaced object { custom: {...} }\nconst r = items[0].json || {};\nconst out = {\n  custom: {\n    method: r.method_used || r.method || 'simple/dense',\n    answer: r.answer || '',\n    timing_ms: (r.timing && (r.timing.total_ms || r.timing_ms)) || 0,\n    context_count: (r.contexts || []).length || (r.results || []).length || r.num_results || 0,\n    top_contexts: (r.contexts || r.results || []).slice(0,3).map((c, i) => ({\n      rank: i+1,\n      title: c.title || c.metadata?.title || '',\n      score: c.sim_dense || c.similarity || c.score || 0,\n      snippet: (c.content || '').slice(0,220)\n    })),\n    raw: r\n  }\n};\nreturn [{ json: out }];"
+      },
+      "id": "9b778249-e920-4c4e-aed8-bfc139913899",
+      "name": "Format Custom",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1168,
+        1424
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8001/lc/rag",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"{{ $json.query }}\",\n  \"top_k\": {{ $json.top_k }},\n  \"use_router\": {{ $json.use_router }},\n  \"use_multiquery\": {{ $json.use_multiquery }},\n  \"multiquery_n\": {{ $json.multiquery_n }},\n  \"use_compression\": {{ $json.use_compression }},\n  \"use_llm_rerank\": {{ $json.use_llm_rerank }},\n  \"answer_strategy\": \"{{ $json.answer_strategy }}\"\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "58e54e70-0611-4f82-9e13-7ab401aebd2d",
+      "name": "LangChain RAG API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        -1392,
+        1664
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Normalize LC output, compute cost, and namespace as { lc: {...} }\nconst j = items[0].json || {};\nconst m = j.metrics || {};\n// rough cost model for gpt-5-mini (input $0.25/M, output $2/M)\nconst cost = (m.tokens_input || 0) * 0.25e-6 + (m.tokens_output || 0) * 2.0e-6;\nreturn [{\n  json: {\n    lc: {\n      answer: j.answer || '',\n      contexts: (j.contexts || []).slice(0,3).map((c,i)=>({\n        rank: i+1,\n        title: c.title || '',\n        snippet: (c.content || '').slice(0,220)\n      })),\n      metrics: {\n        llm_calls: m.llm_calls || 0,\n        retriever_queries: m.retriever_queries || 0,\n        db_round_trips: m.db_round_trips || 0,\n        tokens_input: m.tokens_input || 0,\n        tokens_output: m.tokens_output || 0,\n        latency_ms: m.latency_ms || 0,\n        approx_cost_usd: Number(cost.toFixed(6)),\n        stages: m.stages || {}\n      }\n    }\n  }\n}];"
+      },
+      "id": "546c483f-86d2-444b-998c-58d70020ef9a",
+      "name": "Parse LC Result",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1168,
+        1664
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Add theoretical explosion math for LC path and keep namespaced under lc.expected\nconst x = items[0].json || {};\nconst lc = x.lc || {}; const st = lc.metrics || {};\n// Pull the toggles that flowed from params through HTTP body (they're not in response),\n// so we pass them along inside the request in real setups. For demo, approximate from observed data.\n// We'll accept defaults matching the params node.\nconst cfg = {\n  use_router: true,\n  use_multiquery: true,\n  multiquery_n: 4,\n  use_compression: true,\n  use_llm_rerank: true,\n  answer_strategy: 'map_reduce',\n  top_k: 5\n};\nconst expected_retrievals = 1 + (cfg.use_multiquery ? cfg.multiquery_n : 0);\nlet expected_llm_calls = 0;\nif (cfg.use_router) expected_llm_calls += 1;                 // router\nif (cfg.use_multiquery) expected_llm_calls += cfg.multiquery_n; // paraphrases\nif (cfg.use_compression) expected_llm_calls += cfg.top_k;       // per-doc compression\nif (cfg.use_llm_rerank) expected_llm_calls += cfg.top_k;        // per-doc rerank\nif (cfg.answer_strategy === 'map_reduce') expected_llm_calls += cfg.top_k + 1; // map+reduce\nelse if (cfg.answer_strategy === 'refine') expected_llm_calls += cfg.top_k;\nelse expected_llm_calls += 1; // stuff\nx.lc.expected = {\n  expected_retriever_queries: expected_retrievals,\n  expected_llm_calls\n};\nreturn [{ json: x }];"
+      },
+      "id": "ede28aa7-207c-4b39-961b-094b95b5a8a9",
+      "name": "Expected LC Math",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -976,
+        1664
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {
+          "includeUnpaired": true
+        }
+      },
+      "id": "bdcfb243-8ccb-410e-b27b-1e261c337139",
+      "name": "Merge Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        -752,
+        1520
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "returnBinary",
+        "completionTitle": "report",
+        "inputDataFieldName": "report",
+        "options": {}
+      },
+      "id": "3d4ab25b-18e6-4359-881d-160181f966f1",
+      "name": "Comparison View",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.3,
+      "position": [
+        -240,
+        1520
+      ],
+      "webhookId": "cmp-rag-view-01",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "values": {
+          "boolean": [
+            {
+              "name": "use_router",
+              "value": true
+            },
+            {
+              "name": "use_multiquery",
+              "value": true
+            },
+            {
+              "name": "use_compression",
+              "value": true
+            },
+            {
+              "name": "use_llm_rerank",
+              "value": true
+            }
+          ],
+          "number": [
+            {
+              "name": "multiquery_n",
+              "value": 4
+            },
+            {
+              "name": "top_k",
+              "value": 5
+            }
+          ],
+          "string": [
+            {
+              "name": "answer_strategy",
+              "value": "map_reduce"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "af054e69-cf61-45ea-bea3-bac3ccfe4c0c",
+      "name": "LC Experiment Params1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        -1632,
+        1664
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * Builds a side-by-side HTML report (binary file) including token & cost\n * for both Custom and LangChain branches, with fallbacks when metrics are missing.\n * Output: one item with binary { report } -> return via Form Ending (Return Binary File).\n */\n\n// ---------- Tunable assumptions ----------\nconst TOKENS_PER_CHAR = 1 / 4;          // ~4 chars per token\nconst PROMPT_OVERHEAD_TOKENS = 120;     // per LLM call\nconst PRICING = {                       // $ per 1M tokens\n  input_per_million: 0.25,\n  output_per_million: 2.00,\n};\n// ---------------------------------------\n\nconst data   = (items[0] && items[0].json) || {};\nconst custom = data.custom || {};\nconst lc     = data.lc || {};\nconst m      = lc.metrics || {};\nconst e      = lc.expected || {};\n\nconst esc = (s) => String(s ?? \"\")\n  .replace(/&/g, \"&amp;\")\n  .replace(/</g, \"&lt;\")\n  .replace(/>/g, \"&gt;\");\n\nconst n0 = (x) => Number(x || 0);\nconst nf = (x) => n0(x).toLocaleString(\"en-US\");\nconst money = (usd) => `$${(Number(usd || 0)).toFixed(6)}`;\n\nconst tokensFromText = (t) => Math.max(0, Math.ceil(String(t || \"\").length * TOKENS_PER_CHAR));\nconst costUSD = (inTok, outTok) =>\n  (inTok / 1e6) * PRICING.input_per_million + (outTok / 1e6) * PRICING.output_per_million;\n\n// ---- Estimate tokens/cost for CUSTOM ----\nconst cCtxTokens = (custom.top_contexts || []).reduce((s, c) => s + tokensFromText(c.snippet || \"\"), 0);\nconst cAnsTokens = tokensFromText(custom.answer || \"\");\nconst cInTokens  = PROMPT_OVERHEAD_TOKENS + cCtxTokens;     // single generation\nconst cOutTokens = cAnsTokens;\nconst cCostUSD   = costUSD(cInTokens, cOutTokens);\n\n// ---- Use LC metrics if available; otherwise estimate ----\nconst lcCalls     = m.llm_calls || e.expected_llm_calls || 1;\nconst lcCtxTokens = (lc.contexts || []).reduce((s, c) => s + tokensFromText(c.snippet || \"\"), 0);\nconst lcAnsTokens = tokensFromText(lc.answer || \"\");\n\n// If LC service provided tokens/cost, take them; else fallback\nconst lcInTokens  = (m.tokens_input  && m.tokens_input  > 0) ? m.tokens_input  :\n  (PROMPT_OVERHEAD_TOKENS * lcCalls) + (lcCtxTokens * Math.max(1, lcCalls - 1)); // map/reduce-ish reuse\nconst lcOutTokens = (m.tokens_output && m.tokens_output > 0) ? m.tokens_output : lcAnsTokens;\nconst lcCostUSD   = (m.approx_cost_usd && m.approx_cost_usd > 0) ? m.approx_cost_usd :\n  costUSD(lcInTokens, lcOutTokens);\n\n// ---------- UI helpers ----------\nfunction barRow(label, c, l, fmt = (v)=>String(v)) {\n  const max = Math.max(n0(c), n0(l), 1);\n  const wC = n0(c) > 0 ? Math.max((n0(c)/max)*100, 2) : 0;\n  const wL = n0(l) > 0 ? Math.max((n0(l)/max)*100, 2) : 0;\n  return `\n    <div class=\"row\">\n      <div class=\"label\">${esc(label)}</div>\n      <div class=\"bars\">\n        <div class=\"bar custom\" style=\"width:${wC}%\"><span>${fmt(c)}</span></div>\n        <div class=\"bar lc\"     style=\"width:${wL}%\"><span>${fmt(l)}</span></div>\n      </div>\n      <div class=\"legend\"><span class=\"dot custom\"></span>Custom <span class=\"dot lc\"></span>LangChain</div>\n    </div>`;\n}\n\nfunction mkCards(list, withScore=false) {\n  if (!Array.isArray(list) || list.length === 0) return `<div class=\"card\">No contexts.</div>`;\n  return list.slice(0,3).map((c,i)=>`\n    <div class=\"card\">\n      <div class=\"rank\">${c.rank ?? (i+1)}</div>\n      ${withScore ? `<div class=\"score\">${(n0(c.score)).toFixed(3)}</div>` : \"\"}\n      <h4>${esc(c.title || \"\")}</h4>\n      <p>${esc(String(c.snippet || \"\").replace(/\\n+/g,\" \"))}</p>\n    </div>\n  `).join(\"\");\n}\n\n// ---------- Chart rows ----------\nconst chart = [\n  barRow(\"LLM calls\",            1,                 lcCalls,                     (v)=>nf(v)),\n  barRow(\"Retriever queries\",    1,                 m.retriever_queries || 0,    (v)=>nf(v)),\n  barRow(\"DB round trips\",       1,                 m.db_round_trips || 0,       (v)=>nf(v)),\n  barRow(\"Latency (ms)\",         custom.timing_ms||0, m.latency_ms || 0,         (v)=>nf(v)),\n  barRow(\"Tokens in\",            cInTokens,         lcInTokens,                  (v)=>nf(v)),\n  barRow(\"Tokens out\",           cOutTokens,        lcOutTokens,                 (v)=>nf(v)),\n  barRow(\"Approx cost ($)\",      cCostUSD,          lcCostUSD,                   (v)=>money(v)),\n].join(\"\");\n\n// ---------- Cards ----------\nconst leftCards  = mkCards(custom.top_contexts || [], true);\nconst rightCards = mkCards(lc.contexts || [], false);\n\n// ---------- HTML ----------\nconst html = `\n<!doctype html><meta charset=\"utf-8\">\n<title>Custom vs LangChain — RAG Comparison</title>\n<style>\n:root{color-scheme:dark light}\nbody{margin:0;background:#0b1020;color:#e7e8ea;font:16px/1.55 system-ui,-apple-system,Segoe UI,Inter,Roboto}\n.wrap{max-width:1180px;margin:0 auto;padding:28px 18px 56px}\n.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}\n.panel{background:#12182b;border:1px solid #27324b;border-radius:14px;padding:18px}\nh1{margin:0 0 8px;font-size:22px}\nh2{margin:10px 0 10px;font-size:18px;color:#cbd2ff}\n.sub{opacity:.8;margin:0 0 16px;font-size:12px}\n.pill{display:inline-block;padding:4px 10px;border:1px solid #2a3146;border-radius:999px;background:#151a2a;font-size:12px;opacity:.9}\n.answer{background:#11162a;border:1px solid #28314a;border-radius:12px;padding:12px;margin:10px 0 16px;white-space:pre-wrap}\n.cards{display:grid;gap:10px}\n.card{position:relative;background:#0f1527;border:1px solid #27324b;border-radius:12px;padding:12px}\n.rank{position:absolute;left:-10px;top:-10px;background:#4b5bd7;border:2px solid #0b1020;border-radius:999px;width:28px;height:28px;display:grid;place-items:center;font-weight:700;color:white;font-size:13px}\n.score{position:absolute;right:12px;top:12px;font-size:12px;opacity:.8}\n.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:14px}\n.kv div:nth-child(odd){opacity:.75}\n.callouts{display:grid;gap:6px;font-size:14px}\n.warn{color:#ffcf6d}\n/* chart */\n.chart{background:#0e1426;border:1px solid #27324b;border-radius:14px;padding:16px;margin:0 0 18px}\n.chart h2{margin:0 0 6px}\n.chart .row{display:grid;grid-template-columns:180px 1fr 160px;gap:10px;align-items:center;margin:12px 0}\n.chart .label{opacity:.85}\n.chart .bars{display:grid;grid-template-rows:16px 16px;gap:6px;background:#0b1020;border:1px solid #26304a;border-radius:10px;padding:10px}\n.chart .bar{height:16px;border-radius:6px;position:relative;overflow:hidden}\n.chart .bar span{position:absolute;right:8px;top:-1px;font-size:12px;opacity:.95}\n.chart .bar.custom{background:#00d4a340;border:1px solid #00d4a3}\n.chart .bar.lc{background:#6a7cff40;border:1px solid #6a7cff}\n.chart .legend{font-size:12px;opacity:.9;display:flex;gap:10px;justify-content:flex-start}\n.chart .dot{display:inline-block;width:10px;height:10px;border-radius:999px;margin-right:6px;vertical-align:middle}\n.chart .dot.custom{background:#00d4a3}\n.chart .dot.lc{background:#6a7cff}\n.banner{margin:0 0 14px;padding:10px;border-radius:10px;border:1px solid #33405f;background:#0e1a36;color:#cbd2ff}\n</style>\n\n<div class=\"wrap\">\n  <h1>Custom vs LangChain — RAG Comparison</h1>\n  <div class=\"sub\">Token & cost shown below. If your LC service didn't return tokens, values are <em>estimated</em> using ${Math.round(1/TOKENS_PER_CHAR)} chars/token, ${PROMPT_OVERHEAD_TOKENS} prompt-overhead tokens per call, and pricing of $${PRICING.input_per_million}/M input, $${PRICING.output_per_million}/M output.</div>\n\n  <div class=\"chart\">\n    <h2>At a glance</h2>\n    ${chart}\n  </div>\n\n  <div class=\"grid2\">\n    <div class=\"panel\">\n      <span class=\"pill\">Custom API</span>\n      <div class=\"answer\">${esc(custom.answer || \"—\")}</div>\n      <div class=\"kv\">\n        <div>Latency</div><div>${nf(custom.timing_ms)} ms</div>\n        <div>Contexts</div><div>${nf(custom.context_count)}</div>\n        <div>Method</div><div>${esc(custom.method || \"simple/dense\")}</div>\n        <div>Tokens in/out</div><div>${nf(cInTokens)} / ${nf(cOutTokens)}</div>\n        <div>Approx LLM cost</div><div>${money(cCostUSD)}</div>\n        <div>Calls</div><div>~1 HTTP (server handles internals)</div>\n      </div>\n      <h2>Top Passages</h2>\n      <div class=\"cards\">${leftCards}</div>\n    </div>\n\n    <div class=\"panel\">\n      <span class=\"pill\">LangChain Path</span>\n      <div class=\"answer\">${esc(lc.answer || \"—\")}</div>\n      <div class=\"kv\">\n        <div>Latency</div><div>${nf(m.latency_ms)}</div>\n        <div>LLM calls (actual)</div><div>${nf(lcCalls)}</div>\n        <div>Retriever queries (actual)</div><div>${nf(m.retriever_queries || 0)}</div>\n        <div>DB round trips (actual)</div><div>${nf(m.db_round_trips || 0)}</div>\n        <div>Tokens in/out</div><div>${nf(lcInTokens)} / ${nf(lcOutTokens)}</div>\n        <div>Approx LLM cost</div><div>${money(lcCostUSD)}</div>\n        <div>Expected fan-out</div><div>${nf(e.expected_retriever_queries || 0)} queries • ${nf(e.expected_llm_calls || 0)} LLM calls</div>\n      </div>\n      <h2>Top Passages</h2>\n      <div class=\"cards\">${rightCards}</div>\n      <h2>Why this can hurt</h2>\n      <div class=\"callouts\">\n        <div class=\"warn\">• MultiQuery fan-out → N× DB searches before answering</div>\n        <div class=\"warn\">• Per-doc compression & rerank → up to 2×k extra LLM calls</div>\n        <div class=\"warn\">• Map-Reduce answering → k+1 more LLM calls</div>\n      </div>\n    </div>\n  </div>\n</div>\n`;\n\n// Return as binary HTML file\nconst base64 = Buffer.from(html, 'utf8').toString('base64');\nreturn [{\n  json: {},\n  binary: {\n    report: {\n      data: base64,\n      fileName: 'rag-compare.html',\n      mimeType: 'text/html'\n    }\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -544,
+        1520
+      ],
+      "id": "0c9617aa-c59d-4ada-97e9-0c053b22a4e4",
+      "name": "Code in JavaScript",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node (JavaScript) — Run Once for All Items\n// Builds the 2-column comparison PLUS a compact bar-chart section (SVG/CSS-free, pure HTML/CSS).\n\nconst item = items[0] ?? { json: {} };\nconst data = item.json ?? {};\nconst custom = data.custom ?? {};\nconst lc     = data.lc     ?? {};\nconst m      = lc.metrics  ?? {};\nconst e      = lc.expected ?? {};\n\nconst esc = (s) => String(s ?? '')\n  .replace(/&/g,'&amp;')\n  .replace(/</g,'&lt;')\n  .replace(/>/g,'&gt;');\n\nconst nf  = new Intl.NumberFormat('en-US');\nconst nfx = (x, d=0) => Number(x ?? 0).toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });\nconst money = (x) => `$${Number(x ?? 0).toFixed(6)}`;\n\nconst leftCards = (custom.top_contexts ?? []).map(c => `\n  <div class=\"card\">\n    <div class=\"rank\">${c.rank ?? ''}</div>\n    <div class=\"score\">${Number(c.score ?? 0).toFixed(3)}</div>\n    <h4>${esc(c.title ?? '')}</h4>\n    <p>${esc((c.snippet ?? '').replace(/\\n+/g,' '))}</p>\n  </div>\n`).join('') || '<div class=\"card\">No contexts.</div>';\n\nconst rightCards = (lc.contexts ?? []).map((c,i) => `\n  <div class=\"card\">\n    <div class=\"rank\">${i+1}</div>\n    <h4>${esc(c.title ?? '')}</h4>\n    <p>${esc((c.snippet ?? '').replace(/\\n+/g,' '))}</p>\n  </div>\n`).join('') || '<div class=\"card\">No contexts.</div>';\n\nconst lcDown = !lc.answer && !m.latency_ms;\n\n// === Small comparative bar chart ===========================================\nconst metrics = [\n  { key: 'llm',    label: 'LLM calls',             c: 1,                 l: m.llm_calls ?? 0,                fmt: v => nf.format(v) },\n  { key: 'rq',     label: 'Retriever queries',     c: 1,                 l: m.retriever_queries ?? 0,         fmt: v => nf.format(v) },\n  { key: 'db',     label: 'DB round trips',        c: 1,                 l: m.db_round_trips ?? 0,            fmt: v => nf.format(v) },\n  { key: 'lat',    label: 'Latency (ms)',          c: custom.timing_ms ?? 0, l: m.latency_ms ?? 0,            fmt: v => nf.format(v) },\n  { key: 'tokin',  label: 'Tokens in',             c: 0,                 l: m.tokens_input ?? 0,              fmt: v => nf.format(v) },\n  { key: 'tokout', label: 'Tokens out',            c: 0,                 l: m.tokens_output ?? 0,             fmt: v => nf.format(v) },\n  { key: 'cost',   label: 'Approx cost ($)',       c: 0,                 l: m.approx_cost_usd ?? 0,           fmt: v => money(v) },\n];\n\nfunction barRow({label, c, l, fmt}) {\n  const maxVal = Math.max(c, l, 1);\n  const wC = c > 0 ? Math.max( (c/maxVal)*100, 2) : 0;\n  const wL = l > 0 ? Math.max( (l/maxVal)*100, 2) : 0;\n  return `\n    <div class=\"row\">\n      <div class=\"label\">${esc(label)}</div>\n      <div class=\"bars\">\n        <div class=\"bar custom\" style=\"width:${wC}%\"><span>${c ? esc(fmt(c)) : '0'}</span></div>\n        <div class=\"bar lc\"     style=\"width:${wL}%\"><span>${l ? esc(fmt(l)) : '0'}</span></div>\n      </div>\n      <div class=\"legend\">\n        <span class=\"dot custom\"></span>Custom\n        <span class=\"dot lc\"></span>LangChain\n      </div>\n    </div>`;\n}\n\nconst chartRows = metrics.map(barRow).join('');\n\n// === HTML ===================================================================\nconst html = `\n<style>\n:root{color-scheme:dark light}\nbody{margin:0;background:#0b1020;color:#e7e8ea;font:16px/1.55 system-ui,-apple-system,Segoe UI,Inter,Roboto}\n.wrap{max-width:1180px;margin:0 auto;padding:28px 18px 56px}\n.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}\n.panel{background:#12182b;border:1px solid #27324b;border-radius:14px;padding:18px}\nh1{margin:0 0 16px;font-size:22px}\nh2{margin:10px 0 10px;font-size:18px;color:#cbd2ff}\n.pill{display:inline-block;padding:4px 10px;border:1px solid #2a3146;border-radius:999px;background:#151a2a;font-size:12px;opacity:.9}\n.answer{background:#11162a;border:1px solid #28314a;border-radius:12px;padding:12px;margin:10px 0 16px;white-space:pre-wrap}\n.cards{display:grid;gap:10px}\n.card{position:relative;background:#0f1527;border:1px solid #27324b;border-radius:12px;padding:12px}\n.rank{position:absolute;left:-10px;top:-10px;background:#4b5bd7;border:2px solid #0b1020;border-radius:999px;width:28px;height:28px;display:grid;place-items:center;font-weight:700;color:white;font-size:13px}\n.score{position:absolute;right:12px;top:12px;font-size:12px;opacity:.8}\n.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:14px}\n.kv div:nth-child(odd){opacity:.75}\n.callouts{display:grid;gap:6px;font-size:14px}\n.warn{color:#ffcf6d}\n.good{color:#90ee90}\n.banner{margin:0 0 14px;padding:10px;border-radius:10px;border:1px solid #5f4b00;background:#2a2200;color:#ffd87a}\n\n/* chart */\n.chart{background:#0e1426;border:1px solid #27324b;border-radius:14px;padding:16px;margin:0 0 18px}\n.chart h2{margin-top:0}\n.chart .row{display:grid;grid-template-columns:180px 1fr 160px;gap:10px;align-items:center;margin:12px 0}\n.chart .label{opacity:.85}\n.chart .bars{display:grid;grid-template-rows:16px 16px;gap:6px;background:#0b1020;border:1px solid #26304a;border-radius:10px;padding:10px}\n.chart .bar{height:16px;border-radius:6px;position:relative;overflow:hidden}\n.chart .bar span{position:absolute;right:8px;top:-1px;font-size:12px;opacity:.95}\n.chart .bar.custom{background:#00d4a340;border:1px solid #00d4a3}\n.chart .bar.lc{background:#6a7cff40;border:1px solid #6a7cff}\n.chart .legend{font-size:12px;opacity:.9;display:flex;gap:10px;justify-content:flex-start}\n.chart .dot{display:inline-block;width:10px;height:10px;border-radius:999px;margin-right:6px;vertical-align:middle}\n.chart .dot.custom{background:#00d4a3}\n.chart .dot.lc{background:#6a7cff}\n</style>\n\n<div class=\"wrap\">\n  <h1>Custom vs LangChain — RAG Comparison</h1>\n  ${lcDown ? '<div class=\"banner\">LangChain branch not available — showing Custom API only.</div>' : ''}\n\n  <div class=\"chart\">\n    <h2>At a glance</h2>\n    ${chartRows}\n  </div>\n\n  <div class=\"grid2\">\n    <div class=\"panel\">\n      <span class=\"pill\">Custom API</span>\n      <div class=\"answer\">${esc(custom.answer ?? '')}</div>\n      <div class=\"kv\">\n        <div>Latency</div><div>${custom.timing_ms ?? 0} ms</div>\n        <div>Contexts</div><div>${custom.context_count ?? 0}</div>\n        <div>Method</div><div>${esc(custom.method ?? 'simple/dense')}</div>\n        <div>Calls</div><div>~1 HTTP (server handles internals)</div>\n      </div>\n      <h2>Top Passages</h2>\n      <div class=\"cards\">${leftCards}</div>\n    </div>\n\n    <div class=\"panel\">\n      <span class=\"pill\">LangChain Path</span>\n      <div class=\"answer\">${esc(lc.answer ?? (lcDown ? '—' : ''))}</div>\n      <div class=\"kv\">\n        <div>Latency</div><div>${nfx(m.latency_ms,0)} ms</div>\n        <div>LLM calls (actual)</div><div>${nfx(m.llm_calls,0)}</div>\n        <div>Retriever queries (actual)</div><div>${nfx(m.retriever_queries,0)}</div>\n        <div>DB round trips (actual)</div><div>${nfx(m.db_round_trips,0)}</div>\n        <div>Tokens in/out</div><div>${nfx(m.tokens_input,0)} / ${nfx(m.tokens_output,0)}</div>\n        <div>Approx LLM cost</div><div>${money(m.approx_cost_usd)}</div>\n        <div>Expected fan-out</div><div>${e.expected_retriever_queries ?? 0} queries • ${e.expected_llm_calls ?? 0} LLM calls</div>\n      </div>\n      <h2>Top Passages</h2>\n      <div class=\"cards\">${rightCards}</div>\n      <h2>Why this can hurt</h2>\n      <div class=\"callouts\">\n        <div class=\"warn\">• MultiQuery fan-out → N× DB searches before answering</div>\n        <div class=\"warn\">• Per-doc compression & rerank → up to 2×k extra LLM calls</div>\n        <div class=\"warn\">• Map-Reduce answering → k+1 more LLM calls</div>\n      </div>\n    </div>\n  </div>\n</div>\n`;\n\nreturn [{ json: { html, custom, lc } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1264,
+        2128
+      ],
+      "id": "1e76c8ff-e4dc-401e-b00e-078de82ac4bb",
+      "name": "Code in JavaScript1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Demo Start": {
+      "main": [
+        [
+          {
+            "node": "Query Selection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Selection": {
+      "main": [
+        [
+          {
+            "node": "Query Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Analysis": {
+      "main": [
+        [
+          {
+            "node": "Adaptive RAG API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Adaptive RAG API": {
+      "main": [
+        [
+          {
+            "node": "Analyze Adaptive Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Adaptive Results": {
+      "main": [
+        [
+          {
+            "node": "Route by Query Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Query Type": {
+      "main": [
+        [
+          {
+            "node": "Factual Query Routing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Other Query Types",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG Search API": {
+      "main": [
+        [
+          {
+            "node": "Format Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Results": {
+      "main": [
+        [
+          {
+            "node": "Success Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hybrid RAG API": {
+      "main": [
+        [
+          {
+            "node": "Format Hybrid Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Hybrid Results": {
+      "main": [
+        [
+          {
+            "node": "Demo Instructions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Instructions": {
+      "main": [
+        [
+          {
+            "node": "Alpha Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alpha Analysis": {
+      "main": [
+        [
+          {
+            "node": "Sparse Heavy Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dense Heavy Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Success Check": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Form1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "RAG Search API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission1": {
+      "main": [
+        [
+          {
+            "node": "Hybrid RAG API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compare Form": {
+      "main": [
+        [
+          {
+            "node": "Custom Params",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "LC Experiment Params1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Custom Params": {
+      "main": [
+        [
+          {
+            "node": "Custom RAG API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Custom RAG API": {
+      "main": [
+        [
+          {
+            "node": "Format Custom",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Custom": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LangChain RAG API": {
+      "main": [
+        [
+          {
+            "node": "Parse LC Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse LC Result": {
+      "main": [
+        [
+          {
+            "node": "Expected LC Math",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expected LC Math": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Results": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LC Experiment Params1": {
+      "main": [
+        [
+          {
+            "node": "LangChain RAG API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Comparison View",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "bc847388-79a2-4586-baa7-ceb9c5318fd0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8ff349446f8a3e0693d1ffe32ca4f9a7f04ec1aa1dcdebd7b6acc6de88faffe5"
+  },
+  "id": "w7Pi7M7gwqhdA0bB",
+  "tags": [
+    {
+      "createdAt": "2025-09-13T15:27:56.816Z",
+      "updatedAt": "2025-09-13T15:27:56.816Z",
+      "id": "2mKtYyuTxJnakBsH",
+      "name": "Hybrid Search"
+    },
+    {
+      "createdAt": "2025-09-13T15:27:25.021Z",
+      "updatedAt": "2025-09-13T15:27:25.021Z",
+      "id": "TgHfGClGpuCQ9vrF",
+      "name": "RAG Demo"
+    },
+    {
+      "createdAt": "2025-09-13T15:27:25.107Z",
+      "updatedAt": "2025-09-13T15:27:25.107Z",
+      "id": "uyTA7PAKzjujsGLm",
+      "name": "Intelligent Routing"
+    },
+    {
+      "createdAt": "2025-09-13T15:27:25.062Z",
+      "updatedAt": "2025-09-13T15:27:25.062Z",
+      "id": "zuOTkfXPu6WbXwNG",
+      "name": "Adaptive Search"
+    }
+  ]
+}

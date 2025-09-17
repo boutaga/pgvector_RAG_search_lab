@@ -1,0 +1,617 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "81721c69-317c-49be-b8f4-25e2cb3424f8",
+      "name": "Demo Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1744,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "query_factual",
+              "value": "What is WAL in PostgreSQL?"
+            },
+            {
+              "name": "query_conceptual",
+              "value": "How does MVCC reduce locking?"
+            },
+            {
+              "name": "query_procedural",
+              "value": "Steps to configure WAL archiving"
+            },
+            {
+              "name": "active_query",
+              "value": "What is WAL in PostgreSQL?"
+            },
+            {
+              "name": "method",
+              "value": "adaptive"
+            }
+          ],
+          "number": [
+            {
+              "name": "top_k",
+              "value": 5
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "23701f0f-c17e-4070-9cfe-46da97fb7619",
+      "name": "Query Selection",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        -1520,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Query type detection for demonstration\nconst items_data = items[0].json;\nconst query = items_data.active_query;\n\n// Simple query classification logic\nfunction classifyQuery(query) {\n  const queryLower = query.toLowerCase();\n  \n  // Factual queries - benefit from sparse (exact terms)\n  if (queryLower.includes('what is') || queryLower.includes('define') || queryLower.includes('meaning')) {\n    return {\n      type: 'factual',\n      description: 'Definition/factual query → sparse-heavy weights',\n      expected_routing: 'Sparse-heavy (exact term matching)',\n      predicted_alpha: 0.3\n    };\n  }\n  \n  // Conceptual queries - benefit from dense (semantic)\n  if (queryLower.includes('how does') || queryLower.includes('explain') || queryLower.includes('why')) {\n    return {\n      type: 'conceptual',\n      description: 'Conceptual query → dense-heavy weights', \n      expected_routing: 'Dense-heavy (semantic understanding)',\n      predicted_alpha: 0.7\n    };\n  }\n  \n  // Procedural queries - need exact steps (sparse)\n  if (queryLower.includes('how to') || queryLower.includes('steps') || queryLower.includes('procedure')) {\n    return {\n      type: 'procedural',\n      description: 'Procedural query → sparse-heavy weights',\n      expected_routing: 'Sparse-heavy (step-by-step matching)',\n      predicted_alpha: 0.4\n    };\n  }\n  \n  // Default - exploratory queries\n  return {\n    type: 'exploratory',\n    description: 'Exploratory query → balanced weights',\n    expected_routing: 'Balanced approach',\n    predicted_alpha: 0.5\n  };\n}\n\nconst classification = classifyQuery(query);\n\nconst output = {\n  ...items_data,\n  query_analysis: {\n    query: query,\n    detected_type: classification.type,\n    description: classification.description,\n    expected_routing: classification.expected_routing,\n    predicted_alpha: classification.predicted_alpha,\n    reasoning: `The system detected \"${query}\" as a ${classification.type} query and will route accordingly.`\n  }\n};\n\nreturn [{ json: output }];"
+      },
+      "id": "0cf56ccc-9e62-4072-b0fa-68ec64a423fe",
+      "name": "Query Analysis",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1296,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"{{ $json.active_query || $json.query || $json.query_factual }}\",\n  \"source\": \"wikipedia\",\n  \"method\": \"adaptive\",\n  \"top_k\": 5,\n  \"generate_answer\": true\n}\n",
+        "options": {}
+      },
+      "id": "df1e02fe-167b-448c-8633-1fa41dda5470",
+      "name": "Adaptive RAG API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        -1072,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Read the API response from the previous node\nconst api = items[0].json;\n\n// Pull query-analysis from the API metadata (or default to empty object)\nconst qa = api?.metadata?.query_analysis ?? {};\n\n// Build a clean, uniform payload for the rest of the flow\nconst out = {\n  query: api.query,\n  method: 'adaptive',\n\n  // what we think the query is + why\n  predicted_analysis: {\n    query_type: qa.detected_type ?? qa.type ?? 'unknown',\n    predicted_alpha: qa.predicted_alpha ?? null,\n    reasoning: qa.reasoning ?? ''\n  },\n\n  // keep the raw results for downstream formatting\n  raw_response: {\n    query: api.query,\n    method: api.method ?? 'adaptive',\n    source: api.source ?? 'wikipedia',\n    results: api.results ?? []\n  },\n\n  // convenience fields\n  num_results: api.num_results ?? (api.results?.length ?? 0),\n  answer: api.answer ?? '',\n  timing_ms: api.timing_ms ?? 0,\n  top_contexts: api.top_contexts ?? [],\n  metadata: api.metadata ?? {}\n};\n\nreturn [{ json: out }];\n"
+      },
+      "id": "e392f228-f88b-4bf0-a9e0-7e355459a3f5",
+      "name": "Analyze Adaptive Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -864,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.predicted_analysis.query_type }}",
+              "value2": "factual"
+            }
+          ]
+        }
+      },
+      "id": "513a9f6b-aed8-4759-b0d3-d9ebdd55ed8f",
+      "name": "Route by Query Type",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -640,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "routing_explanation",
+              "value": "📚 FACTUAL QUERY DETECTED\\n\\nThe system identified this as a definition/factual query.\\n\\nOptimal strategy: Sparse-heavy weights\\nReason: Factual queries benefit from exact term matching\\n\\n💡 Try changing to 'query_conceptual' or 'query_procedural' in Query Selection!"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "21f91312-de82-4ce4-8833-e4bc2933ada1",
+      "name": "Factual Query Routing",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        -416,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "routing_explanation",
+              "value": "🧠 CONCEPTUAL/PROCEDURAL QUERY\\n\\nThe system identified this as requiring semantic understanding or procedural knowledge.\\n\\nOptimal strategy: Dense-heavy or balanced weights\\nReason: These queries benefit from conceptual matching\\n\\n💡 Notice how the system adapts automatically!"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "65821448-5e6c-4ead-8f5a-a0c9f23f5942",
+      "name": "Other Query Types",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        -416,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"{{ $json.query }}\",\n  \"source\": \"wikipedia\",\n  \"method\": \"simple\",\n  \"search_type\": \"dense\",\n  \"top_k\": 5,\n  \"generate_answer\": true\n}\n",
+        "options": {}
+      },
+      "id": "5304c9d7-2f6d-4368-9e62-ff599f8eaa22",
+      "name": "RAG Search API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        -1488,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract and format the API response\nconst response = items[0].json;\n\n// Create formatted output\nconst output = {\n  query: response.query,\n  method: response.method_used,\n  answer: response.answer,\n  timing_ms: response.timing?.total_ms || 0,\n  context_count: response.contexts?.length || 0,\n  top_contexts: (response.contexts || []).slice(0, 3).map(ctx => ({\n    title: ctx.title,\n    similarity: ctx.sim_dense || ctx.similarity || 0,\n    snippet: (ctx.content || '').substring(0, 200) + '...'\n  })),\n  success: response.success,\n  raw_response: response\n};\n\n// Add success indicator\nif (response.success) {\n  output.status = '✅ SUCCESS';\n} else {\n  output.status = '❌ ERROR';\n}\n\nreturn [{ json: output }];"
+      },
+      "id": "02e7569e-8255-436e-9d57-db828f0c1e42",
+      "name": "Format Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1280,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.success }}",
+              "value2": "true"
+            }
+          ]
+        },
+        "combineOperation": "any"
+      },
+      "id": "3be8f21f-7e2f-46ac-823e-39bbaadc2f4f",
+      "name": "Success Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -1072,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"{{ $json.query }}\",\n  \"source\": \"wikipedia\",\n  \"method\": \"hybrid\",\n  \"top_k\": 5,\n  \"generate_answer\": true\n}\n",
+        "options": {}
+      },
+      "id": "f6999e9e-90be-45b9-bba8-6ba530524054",
+      "name": "Hybrid RAG API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        -1504,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract and format the hybrid search response\nconst response = items[0].json;\n\n// Create detailed output for hybrid method\nconst output = {\n  query: response.query,\n  method: response.method_used,\n  alpha_used: response.alpha || 0.5,\n  answer: response.answer,\n  timing_ms: response.timing?.total_ms || 0,\n  context_count: response.contexts?.length || 0,\n  \n  // Enhanced context information for hybrid\n  contexts_detailed: (response.contexts || []).slice(0, 3).map(ctx => ({\n    title: ctx.title,\n    dense_score: ctx.sd || ctx.sim_dense || 0,\n    sparse_score: ctx.ss || ctx.sim_sparse || 0,\n    hybrid_score: ctx.hybrid || 0,\n    snippet: (ctx.content || '').substring(0, 150) + '...'\n  })),\n  \n  // Performance metrics\n  performance: {\n    total_time: response.timing?.total_ms || 0,\n    method: 'hybrid',\n    alpha: response.alpha || 0.5,\n    dense_weight: response.alpha || 0.5,\n    sparse_weight: 1 - (response.alpha || 0.5)\n  },\n  \n  success: response.success,\n  raw_response: response\n};\n\n// Add visual indicators\nif (response.success) {\n  output.status = '🎯 HYBRID SUCCESS';\n  output.improvement_note = 'Check context scores - hybrid combines semantic + lexical!';\n} else {\n  output.status = '❌ ERROR';\n}\n\nreturn [{ json: output }];"
+      },
+      "id": "ae7c80b1-0356-43d9-bf4f-5f42cf2c03bb",
+      "name": "Format Hybrid Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1280,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "demo_note",
+              "value": "🔧 DEMO TIP: Change alpha in 'Hybrid Parameters' node to see different results!\\n- alpha=0.3 → More sparse (exact terms)\\n- alpha=0.7 → More dense (semantic)\\n- alpha=0.5 → Balanced"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "da52b924-5c14-40b1-94aa-86f88e01afa1",
+      "name": "Demo Instructions",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        -1072,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.alpha_used }}",
+              "value2": 0.4
+            }
+          ]
+        }
+      },
+      "id": "93b0ad50-61ba-41a5-ad48-72dbbdb450ab",
+      "name": "Alpha Analysis",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -848,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "alpha_interpretation",
+              "value": "🎯 SPARSE-HEAVY: This query benefits from exact term matching!"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a07eb956-18d8-48ee-85ec-7b847ba88d90",
+      "name": "Sparse Heavy Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "alpha_interpretation",
+              "value": "🧠 DENSE-HEAVY: This query benefits from semantic understanding!"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f1b329c2-a6a1-4005-85f0-655e414354fd",
+      "name": "Dense Heavy Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        1056
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "showText",
+        "responseText": "={{\n(() => {\n  const esc = s => String(s ?? '')\n    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\n\n  const cards = (($json.results ?? []).slice(0,5)).map((r,i) => `\n    <div class=\"card\">\n      <div class=\"rank\">${i+1}</div>\n      <div class=\"score\">relevance ${(r.score ?? 0).toFixed(3)}</div>\n      <p class=\"snippet\">${esc((r.content ?? '').replace(/\\n+/g,' ').slice(0,400))}${(r.content||'').length>400?'…':''}</p>\n    </div>\n  `).join('');\n\n  return `\n    <style>\n      :root{color-scheme:dark light}\n      body{margin:0;background:#0b1020;color:#e7e8ea;font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,Inter,Helvetica,Arial;}\n      .wrap{max-width:980px;margin:0 auto;padding:28px 18px 56px;}\n      .pill{display:inline-block;padding:4px 10px;border:1px solid #2a3146;border-radius:999px;background:#151a2a;font-size:12px;opacity:.9}\n      h1{font-size:24px;margin:4px 0 8px}\n      h2{font-size:18px;margin:24px 0 10px;color:#cbd2ff}\n      .answer{background:#11162a;border:1px solid #28314a;border-radius:12px;padding:16px;margin:12px 0 18px}\n      .grid{display:grid;gap:12px}\n      .card{position:relative;background:#12182b;border:1px solid #27324b;border-radius:14px;padding:14px 16px 16px}\n      .rank{position:absolute;left:-10px;top:-10px;background:#4b5bd7;border:2px solid #0b1020;border-radius:999px;\n            width:28px;height:28px;display:grid;place-items:center;font-weight:700;color:white;font-size:13px}\n      .score{position:absolute;right:12px;top:12px;font-size:12px;opacity:.8}\n      .snippet{margin:0;white-space:pre-wrap}\n      .meta{margin-top:18px;font-size:12px;opacity:.75}\n      @media (prefers-color-scheme: light){\n        body{background:#fff;color:#0e1220}\n        .answer{background:#f6f8ff;border-color:#dbe2ff}\n        .card{background:#f8f9fe;border-color:#e3e7ff}\n        .rank{border-color:#fff}\n      }\n    </style>\n\n    <div class=\"wrap\">\n      <span class=\"pill\">Naïve RAG • ${esc($json.source)} • ${esc($json.search_type ?? 'dense')}</span>\n      <h1>${esc($json.query)}</h1>\n\n      <div class=\"answer\">${esc($json.answer)}</div>\n\n      <h2>Top passages</h2>\n      <div class=\"grid\">\n        ${cards || '<div class=\"card\"><p class=\"snippet\">No passages returned.</p></div>'}\n      </div>\n\n      <div class=\"meta\">\n        Method: ${esc($json.method)} • Results: ${$json.num_results ?? 0}\n      </div>\n    </div>\n  `;\n})()\n}}\n",
+        "limitWaitTime": "="
+      },
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.3,
+      "position": [
+        -752,
+        512
+      ],
+      "id": "43394aba-fcc5-4596-8476-2a9cf531d0cc",
+      "name": "Form1",
+      "webhookId": "876d9491-eaa2-4633-8732-a0858dc75a2c"
+    },
+    {
+      "parameters": {
+        "formTitle": "Naive RAG",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "query",
+              "placeholder": "What is your question ?",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [
+        -1760,
+        496
+      ],
+      "id": "6188fd59-e06a-41b6-8b5b-abe1089f86db",
+      "name": "On form submission",
+      "webhookId": "87f91701-a4d3-4c60-b8e2-f9bced39a803",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "formTitle": "Naive RAG",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "query",
+              "placeholder": "What is your question ?",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [
+        -1712,
+        960
+      ],
+      "id": "a4fdae57-ac72-4f3d-b6ad-c73741c5a0fd",
+      "name": "On form submission1",
+      "webhookId": "a5791203-6d63-4b6b-9703-9e4545d2a453",
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Demo Start": {
+      "main": [
+        [
+          {
+            "node": "Query Selection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Selection": {
+      "main": [
+        [
+          {
+            "node": "Query Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Analysis": {
+      "main": [
+        [
+          {
+            "node": "Adaptive RAG API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Adaptive RAG API": {
+      "main": [
+        [
+          {
+            "node": "Analyze Adaptive Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Adaptive Results": {
+      "main": [
+        [
+          {
+            "node": "Route by Query Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Query Type": {
+      "main": [
+        [
+          {
+            "node": "Factual Query Routing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Other Query Types",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG Search API": {
+      "main": [
+        [
+          {
+            "node": "Format Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Results": {
+      "main": [
+        [
+          {
+            "node": "Success Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hybrid RAG API": {
+      "main": [
+        [
+          {
+            "node": "Format Hybrid Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Hybrid Results": {
+      "main": [
+        [
+          {
+            "node": "Demo Instructions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Instructions": {
+      "main": [
+        [
+          {
+            "node": "Alpha Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alpha Analysis": {
+      "main": [
+        [
+          {
+            "node": "Sparse Heavy Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dense Heavy Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Success Check": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Form1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "RAG Search API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission1": {
+      "main": [
+        [
+          {
+            "node": "Hybrid RAG API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "96b3474e-2827-4772-a05a-48a2b0e47ef6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8ff349446f8a3e0693d1ffe32ca4f9a7f04ec1aa1dcdebd7b6acc6de88faffe5"
+  },
+  "id": "w7Pi7M7gwqhdA0bB",
+  "tags": [
+    {
+      "createdAt": "2025-09-13T15:27:56.816Z",
+      "updatedAt": "2025-09-13T15:27:56.816Z",
+      "id": "2mKtYyuTxJnakBsH",
+      "name": "Hybrid Search"
+    },
+    {
+      "createdAt": "2025-09-13T15:27:25.021Z",
+      "updatedAt": "2025-09-13T15:27:25.021Z",
+      "id": "TgHfGClGpuCQ9vrF",
+      "name": "RAG Demo"
+    },
+    {
+      "createdAt": "2025-09-13T15:27:25.107Z",
+      "updatedAt": "2025-09-13T15:27:25.107Z",
+      "id": "uyTA7PAKzjujsGLm",
+      "name": "Intelligent Routing"
+    },
+    {
+      "createdAt": "2025-09-13T15:27:25.062Z",
+      "updatedAt": "2025-09-13T15:27:25.062Z",
+      "id": "zuOTkfXPu6WbXwNG",
+      "name": "Adaptive Search"
+    }
+  ]
+}

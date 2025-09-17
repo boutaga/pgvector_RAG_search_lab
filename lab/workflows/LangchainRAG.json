@@ -1,0 +1,329 @@
+{
+  "name": "RAG: Custom vs LangChain (Side-by-Side)",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Compare RAG: Custom vs LangChain",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "query",
+              "placeholder": "Ask something (e.g., What is WAL in PostgreSQL?)",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f3a2f5aa-9a77-4a2e-b4e5-1b5f5cf13200",
+      "name": "Compare Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [
+        -1720,
+        60
+      ],
+      "webhookId": "cmp-rag-form-01",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "method",
+              "value": "simple"
+            },
+            {
+              "name": "search_type",
+              "value": "dense"
+            }
+          ],
+          "number": [
+            {
+              "name": "top_k",
+              "value": 5
+            }
+          ],
+          "boolean": []
+        },
+        "options": {}
+      },
+      "id": "2b59b5c7-4c8c-4d35-9a7e-1a2f1ae69fd0",
+      "name": "Custom Params",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        -1490,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"{{ $json.query }}\",\n  \"source\": \"wikipedia\",\n  \"method\": \"{{ $json.method }}\",\n  \"search_type\": \"{{ $json.search_type }}\",\n  \"top_k\": {{ $json.top_k }},\n  \"generate_answer\": true\n}",
+        "options": {}
+      },
+      "id": "a9e9b74d-07f7-4e44-9a5d-343f2c20c8cd",
+      "name": "Custom RAG API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        -1260,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Normalize your custom API output into a namespaced object { custom: {...} }\nconst r = items[0].json || {};\nconst out = {\n  custom: {\n    method: r.method_used || r.method || 'simple/dense',\n    answer: r.answer || '',\n    timing_ms: (r.timing && (r.timing.total_ms || r.timing_ms)) || 0,\n    context_count: (r.contexts || []).length || (r.results || []).length || r.num_results || 0,\n    top_contexts: (r.contexts || r.results || []).slice(0,3).map((c, i) => ({\n      rank: i+1,\n      title: c.title || c.metadata?.title || '',\n      score: c.sim_dense || c.similarity || c.score || 0,\n      snippet: (c.content || '').slice(0,220)\n    })),\n    raw: r\n  }\n};\nreturn [{ json: out }];"
+      },
+      "id": "0d0a6fd5-0a65-46d8-8d8c-3a8d6cb0a0e5",
+      "name": "Format Custom",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "boolean": [
+            {
+              "name": "use_router",
+              "value": true
+            },
+            {
+              "name": "use_multiquery",
+              "value": true
+            },
+            {
+              "name": "use_compression",
+              "value": true
+            },
+            {
+              "name": "use_llm_rerank",
+              "value": true
+            }
+          ],
+          "number": [
+            {
+              "name": "multiquery_n",
+              "value": 4
+            },
+            {
+              "name": "top_k",
+              "value": 5
+            }
+          ],
+          "string": [
+            {
+              "name": "answer_strategy",
+              "value": "map_reduce"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f8f1f8ce-3c8f-4a11-a62a-2b95422b9f5a",
+      "name": "LC Experiment Params",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        -1490,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8001/lc/rag",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"{{ $json.query }}\",\n  \"top_k\": {{ $json.top_k }},\n  \"use_router\": {{ $json.use_router }},\n  \"use_multiquery\": {{ $json.use_multiquery }},\n  \"multiquery_n\": {{ $json.multiquery_n }},\n  \"use_compression\": {{ $json.use_compression }},\n  \"use_llm_rerank\": {{ $json.use_llm_rerank }},\n  \"answer_strategy\": \"{{ $json.answer_strategy }}\"\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "e1f72bd6-2b79-4e33-a8be-8b3e5a8e7d1f",
+      "name": "LangChain RAG API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        -1260,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Normalize LC output, compute cost, and namespace as { lc: {...} }\nconst j = items[0].json || {};\nconst m = j.metrics || {};\n// rough cost model for gpt-5-mini (input $0.25/M, output $2/M)\nconst cost = (m.tokens_input || 0) * 0.25e-6 + (m.tokens_output || 0) * 2.0e-6;\nreturn [{\n  json: {\n    lc: {\n      answer: j.answer || '',\n      contexts: (j.contexts || []).slice(0,3).map((c,i)=>({\n        rank: i+1,\n        title: c.title || '',\n        snippet: (c.content || '').slice(0,220)\n      })),\n      metrics: {\n        llm_calls: m.llm_calls || 0,\n        retriever_queries: m.retriever_queries || 0,\n        db_round_trips: m.db_round_trips || 0,\n        tokens_input: m.tokens_input || 0,\n        tokens_output: m.tokens_output || 0,\n        latency_ms: m.latency_ms || 0,\n        approx_cost_usd: Number(cost.toFixed(6)),\n        stages: m.stages || {}\n      }\n    }\n  }\n}];"
+      },
+      "id": "d5afbdcb-9f85-4b2f-9f66-0d1a8a7c2c8b",
+      "name": "Parse LC Result",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Add theoretical explosion math for LC path and keep namespaced under lc.expected\nconst x = items[0].json || {};\nconst lc = x.lc || {}; const st = lc.metrics || {};\n// Pull the toggles that flowed from params through HTTP body (they're not in response),\n// so we pass them along inside the request in real setups. For demo, approximate from observed data.\n// We'll accept defaults matching the params node.\nconst cfg = {\n  use_router: true,\n  use_multiquery: true,\n  multiquery_n: 4,\n  use_compression: true,\n  use_llm_rerank: true,\n  answer_strategy: 'map_reduce',\n  top_k: 5\n};\nconst expected_retrievals = 1 + (cfg.use_multiquery ? cfg.multiquery_n : 0);\nlet expected_llm_calls = 0;\nif (cfg.use_router) expected_llm_calls += 1;                 // router\nif (cfg.use_multiquery) expected_llm_calls += cfg.multiquery_n; // paraphrases\nif (cfg.use_compression) expected_llm_calls += cfg.top_k;       // per-doc compression\nif (cfg.use_llm_rerank) expected_llm_calls += cfg.top_k;        // per-doc rerank\nif (cfg.answer_strategy === 'map_reduce') expected_llm_calls += cfg.top_k + 1; // map+reduce\nelse if (cfg.answer_strategy === 'refine') expected_llm_calls += cfg.top_k;\nelse expected_llm_calls += 1; // stuff\nx.lc.expected = {\n  expected_retriever_queries: expected_retrievals,\n  expected_llm_calls\n};\nreturn [{ json: x }];"
+      },
+      "id": "3b7a95d1-f494-4d3c-8a12-63eacb6a3df4",
+      "name": "Expected LC Math",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -840,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "mergeByPosition"
+      },
+      "id": "7d4cdd2c-3b9b-44f8-bf0e-8a8a2a7f3a7b",
+      "name": "Merge Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        -620,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "showText",
+        "responseText": "={{\n(() => {\n  const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\n  const left = $json.custom || {};\n  const right = $json.lc || {};\n  const lcM = right.metrics || {};\n  const lcE = right.expected || {};\n\n  const leftCards = (left.top_contexts||[]).map(c=>`\n    <div class=\"card\">\n      <div class=\"rank\">${c.rank}</div>\n      <div class=\"score\">score ${(c.score??0).toFixed(3)}</div>\n      <h4>${esc(c.title)}</h4>\n      <p>${esc((c.snippet||'').replace(/\\n+/g,' '))}</p>\n    </div>\n  `).join('');\n\n  const rightCards = (right.contexts||[]).map(c=>`\n    <div class=\"card\">\n      <div class=\"rank\">${c.rank}</div>\n      <h4>${esc(c.title)}</h4>\n      <p>${esc((c.snippet||'').replace(/\\n+/g,' '))}</p>\n    </div>\n  `).join('');\n\n  return `\n  <style>\n    :root{color-scheme:dark light}\n    body{margin:0;background:#0b1020;color:#e7e8ea;font:16px/1.55 system-ui,-apple-system,Segoe UI,Inter,Roboto}\n    .wrap{max-width:1180px;margin:0 auto;padding:28px 18px 56px}\n    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}\n    .panel{background:#12182b;border:1px solid #27324b;border-radius:14px;padding:18px}\n    h1{margin:0 0 16px;font-size:22px}\n    h2{margin:10px 0 10px;font-size:18px;color:#cbd2ff}\n    .pill{display:inline-block;padding:4px 10px;border:1px solid #2a3146;border-radius:999px;background:#151a2a;font-size:12px;opacity:.9}\n    .answer{background:#11162a;border:1px solid #28314a;border-radius:12px;padding:12px;margin:10px 0 16px}\n    .cards{display:grid;gap:10px}\n    .card{position:relative;background:#0f1527;border:1px solid #27324b;border-radius:12px;padding:12px}\n    .rank{position:absolute;left:-10px;top:-10px;background:#4b5bd7;border:2px solid #0b1020;border-radius:999px;width:28px;height:28px;display:grid;place-items:center;font-weight:700;color:white;font-size:13px}\n    .score{position:absolute;right:12px;top:12px;font-size:12px;opacity:.8}\n    .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:14px}\n    .kv div:nth-child(odd){opacity:.75}\n    .callouts{display:grid;gap:6px;font-size:14px}\n    .good{color:#90ee90}\n    .warn{color:#ffcf6d}\n  </style>\n  <div class=\"wrap\">\n    <h1>Custom vs LangChain — RAG Comparison</h1>\n    <div class=\"grid2\">\n      <div class=\"panel\">\n        <span class=\"pill\">Custom API</span>\n        <div class=\"answer\">${esc(left.answer||'')}</div>\n        <div class=\"kv\">\n          <div>Latency</div><div>${(left.timing_ms||0)} ms</div>\n          <div>Contexts</div><div>${left.context_count||0}</div>\n          <div>Method</div><div>${esc(left.method||'simple/dense')}</div>\n          <div>Calls</div><div>~1 HTTP (server does the rest)</div>\n        </div>\n        <h2>Top Passages</h2>\n        <div class=\"cards\">${leftCards||'<div class=\"card\">No contexts.</div>'}</div>\n      </div>\n\n      <div class=\"panel\">\n        <span class=\"pill\">LangChain Path</span>\n        <div class=\"answer\">${esc(right.answer||'')}</div>\n        <div class=\"kv\">\n          <div>Latency</div><div>${lcM.latency_ms||0} ms</div>\n          <div>LLM calls (actual)</div><div>${lcM.llm_calls||0}</div>\n          <div>Retriever queries (actual)</div><div>${lcM.retriever_queries||0}</div>\n          <div>DB round trips (actual)</div><div>${lcM.db_round_trips||0}</div>\n          <div>Tokens in/out</div><div>${lcM.tokens_input||0} / ${lcM.tokens_output||0}</div>\n          <div>Approx LLM cost</div><div>$${(lcM.approx_cost_usd||0).toFixed(6)}</div>\n          <div>Expected LC fan-out</div><div>${(lcE.expected_retriever_queries||0)} queries • ${(lcE.expected_llm_calls||0)} LLM calls</div>\n        </div>\n        <h2>Top Passages</h2>\n        <div class=\"cards\">${rightCards||'<div class=\"card\">No contexts.</div>'}</div>\n        <h2>Why this can hurt</h2>\n        <div class=\"callouts\">\n          <div class=\"warn\">• MultiQuery fan-out → N× DB searches before answering</div>\n          <div class=\"warn\">• Per-doc compression & rerank → up to 2×k extra LLM calls</div>\n          <div class=\"warn\">• Map-Reduce answering → k+1 more LLM calls</div>\n        </div>\n      </div>\n    </div>\n  </div>`;\n})()\n}}"
+      },
+      "id": "6dfb88b0-3bfa-4b84-9b37-7a857f4b9a2f",
+      "name": "Comparison View",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.3,
+      "position": [
+        -360,
+        60
+      ],
+      "webhookId": "cmp-rag-view-01"
+    }
+  ],
+  "connections": {
+    "Compare Form": {
+      "main": [
+        [
+          {
+            "node": "Custom Params",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LC Experiment Params",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Custom Params": {
+      "main": [
+        [
+          {
+            "node": "Custom RAG API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Custom RAG API": {
+      "main": [
+        [
+          {
+            "node": "Format Custom",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Custom": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LC Experiment Params": {
+      "main": [
+        [
+          {
+            "node": "LangChain RAG API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LangChain RAG API": {
+      "main": [
+        [
+          {
+            "node": "Parse LC Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse LC Result": {
+      "main": [
+        [
+          {
+            "node": "Expected LC Math",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expected LC Math": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Results": {
+      "main": [
+        [
+          {
+            "node": "Comparison View",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
