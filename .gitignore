@@ -99,3 +99,8 @@ phase*_plan.md
 *_analysis.md
 original_analysis.md
 phase2_plan.md
+
+# Migration and planning files
+migration*.md
+fix_*.md
+*_plan.md
