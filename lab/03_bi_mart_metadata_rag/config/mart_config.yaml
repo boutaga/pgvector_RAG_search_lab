@@ -1,0 +1,138 @@
+# Configuration for Lab 03: BI Mart Metadata RAG
+
+# Database configuration
+database:
+  source_schema: src_northwind
+  metadata_schema: catalog
+  mart_schema_prefix: mart_
+  connection_timeout: 30
+  query_timeout: 300
+
+# Embedding configuration
+embeddings:
+  model: text-embedding-3-small
+  dimensions: 1536
+  batch_size: 50
+  max_retries: 3
+  retry_delay: 2
+  max_tokens_per_text: 8000
+
+# RAG search configuration
+rag:
+  top_k: 10
+  similarity_threshold: 0.7
+  include_relationships: true
+  boost_primary_keys: true
+  boost_foreign_keys: true
+  boost_measures: true
+
+  # Query type weights for boosting
+  boost_weights:
+    metric_numeric_columns: 0.1
+    primary_key_columns: 0.05
+    foreign_key_columns: 0.05
+    measure_keywords: 0.1
+
+# LLM agent configuration
+agent:
+  # Primary model for complex mart planning
+  primary_model: gpt-5
+  # Fast model for simpler tasks like validation and explanation
+  fast_model: gpt-5-mini
+  # Fallback model if GPT-5 is unavailable
+  fallback_model: gpt-4
+
+  temperature: 0.1
+  max_tokens: 3000  # Increased for GPT-5's enhanced capabilities
+  max_retries: 3
+  response_format: json
+
+  # Model-specific configurations
+  gpt5_config:
+    temperature: 0.1
+    max_tokens: 3000
+    reasoning_depth: "thorough"  # GPT-5 specific parameter
+    structured_output: true
+
+  gpt5_mini_config:
+    temperature: 0.05  # Lower for consistency in fast tasks
+    max_tokens: 1500
+    optimization: "speed"  # Optimize for faster responses
+
+  # Task allocation strategy
+  task_routing:
+    complex_planning: "gpt-5"
+    plan_validation: "gpt-5-mini"
+    plan_explanation: "gpt-5-mini"
+    error_analysis: "gpt-5"
+    optimization_suggestions: "gpt-5"
+
+# Mart generation configuration
+mart_generation:
+  create_indexes: true
+  add_foreign_keys: true
+  add_primary_keys: true
+  materialize_views: false
+  partition_large_facts: false
+  add_table_comments: true
+  add_column_comments: true
+
+  # Performance optimization
+  create_statistics: true
+  analyze_after_load: true
+
+  # Naming conventions
+  fact_table_prefix: fact_
+  dimension_table_prefix: dim_
+  index_suffix: _idx
+
+  # Size thresholds
+  large_fact_threshold: 1000000  # rows
+  partition_threshold: 10000000  # rows
+
+# Demo configuration
+demo:
+  sample_questions:
+    - "What are the fastest-selling products and their revenue contribution?"
+    - "How can I analyze customer purchasing patterns and lifetime value?"
+    - "What metrics should I track for inventory turnover by category?"
+    - "How can I compare sales performance across different regions and time periods?"
+    - "What are the most profitable product categories and their trends?"
+    - "How can I analyze employee sales performance and commission calculations?"
+    - "What shipping costs and delivery performance metrics should I track?"
+    - "How can I identify seasonal trends in product sales?"
+    - "What are the top customers by revenue and order frequency?"
+    - "How can I analyze discount effectiveness and pricing strategies?"
+
+  auto_save_plans: true
+  show_metadata_sources: true
+  explain_plans: true
+
+# Logging configuration
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: null  # Set to file path to enable file logging
+
+# Cache configuration
+cache:
+  enable_query_cache: true
+  cache_ttl_seconds: 3600
+  max_cache_size: 1000
+
+# Security configuration
+security:
+  validate_sql_injection: true
+  allowed_schemas:
+    - src_northwind
+    - catalog
+    - mart_sales
+    - mart_customer
+    - mart_inventory
+    - mart_finance
+
+  blocked_operations:
+    - DROP DATABASE
+    - DROP SCHEMA
+    - TRUNCATE
+    - DELETE FROM pg_

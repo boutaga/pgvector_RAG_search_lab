@@ -1,0 +1,193 @@
+{
+  "plan_id": "example-01",
+  "source_schema": "src_northwind",
+  "target_schema": "mart_sales",
+  "facts": [
+    {
+      "name": "fact_sales",
+      "grain": ["order_id", "product_id"],
+      "measures": [
+        {
+          "name": "gross_sales",
+          "expression": "unit_price * quantity * (1 - discount)",
+          "aggregation": "sum",
+          "description": "Total sales revenue before taxes",
+          "data_type": "numeric"
+        },
+        {
+          "name": "quantity_sold",
+          "expression": "quantity",
+          "aggregation": "sum",
+          "description": "Total units sold",
+          "data_type": "integer"
+        },
+        {
+          "name": "discount_amount",
+          "expression": "unit_price * quantity * discount",
+          "aggregation": "sum",
+          "description": "Total discount amount given",
+          "data_type": "numeric"
+        },
+        {
+          "name": "order_count",
+          "expression": "1",
+          "aggregation": "count",
+          "description": "Number of order line items",
+          "data_type": "integer"
+        }
+      ],
+      "dimension_keys": ["order_date", "product_id", "customer_id", "employee_id"],
+      "source_tables": ["orders", "order_details"],
+      "join_conditions": [
+        "orders.order_id = order_details.order_id"
+      ],
+      "where_conditions": [
+        "orders.order_date IS NOT NULL",
+        "order_details.unit_price > 0"
+      ],
+      "description": "Main sales fact table containing order line item details"
+    }
+  ],
+  "dimensions": [
+    {
+      "name": "dim_product",
+      "source_table": "products",
+      "key_column": "product_id",
+      "attributes": [
+        "product_name",
+        "category_id",
+        "supplier_id",
+        "unit_price",
+        "units_in_stock",
+        "discontinued"
+      ],
+      "description": "Product dimension with catalog information"
+    },
+    {
+      "name": "dim_customer",
+      "source_table": "customers",
+      "key_column": "customer_id",
+      "attributes": [
+        "company_name",
+        "contact_name",
+        "country",
+        "city",
+        "region"
+      ],
+      "description": "Customer dimension with geographic information"
+    },
+    {
+      "name": "dim_employee",
+      "source_table": "employees",
+      "key_column": "employee_id",
+      "attributes": [
+        "first_name",
+        "last_name",
+        "title",
+        "hire_date",
+        "reports_to"
+      ],
+      "description": "Employee dimension for sales attribution"
+    },
+    {
+      "name": "dim_category",
+      "source_table": "categories",
+      "key_column": "category_id",
+      "attributes": [
+        "category_name",
+        "description"
+      ],
+      "description": "Product category dimension"
+    },
+    {
+      "name": "dim_supplier",
+      "source_table": "suppliers",
+      "key_column": "supplier_id",
+      "attributes": [
+        "company_name",
+        "contact_name",
+        "country",
+        "city"
+      ],
+      "description": "Supplier dimension for product sourcing analysis"
+    },
+    {
+      "name": "dim_date",
+      "source_table": "orders",
+      "key_column": "order_date",
+      "attributes": [
+        "order_date",
+        "EXTRACT(year FROM order_date) as year",
+        "EXTRACT(quarter FROM order_date) as quarter",
+        "EXTRACT(month FROM order_date) as month",
+        "EXTRACT(dow FROM order_date) as day_of_week",
+        "TO_CHAR(order_date, 'Month') as month_name",
+        "TO_CHAR(order_date, 'Day') as day_name"
+      ],
+      "description": "Date dimension for time-based analysis"
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_fact_sales_order_date",
+      "table_name": "fact_sales",
+      "columns": ["order_date"],
+      "index_type": "btree",
+      "is_unique": false
+    },
+    {
+      "name": "idx_fact_sales_product",
+      "table_name": "fact_sales",
+      "columns": ["product_id"],
+      "index_type": "btree",
+      "is_unique": false
+    },
+    {
+      "name": "idx_fact_sales_customer",
+      "table_name": "fact_sales",
+      "columns": ["customer_id"],
+      "index_type": "btree",
+      "is_unique": false
+    },
+    {
+      "name": "idx_fact_sales_composite",
+      "table_name": "fact_sales",
+      "columns": ["order_date", "product_id"],
+      "index_type": "btree",
+      "is_unique": false
+    }
+  ],
+  "execution_order": [
+    "dim_category",
+    "dim_supplier",
+    "dim_product",
+    "dim_customer",
+    "dim_employee",
+    "dim_date",
+    "fact_sales"
+  ],
+  "estimated_rows": {
+    "fact_sales": 2155,
+    "dim_product": 77,
+    "dim_customer": 91,
+    "dim_employee": 9,
+    "dim_category": 8,
+    "dim_supplier": 29,
+    "dim_date": 481
+  },
+  "metadata": {
+    "created_by": "mart_planning_agent",
+    "created_at": "2024-01-15T10:30:00Z",
+    "business_question": "What are the fastest-selling products and their revenue contribution?",
+    "estimated_build_time_minutes": 5,
+    "complexity_score": "medium",
+    "recommended_refresh_frequency": "daily",
+    "business_value": "high",
+    "technical_notes": [
+      "Fact table uses order line item grain for maximum flexibility",
+      "Date dimension created from order dates for temporal analysis",
+      "Indexes optimized for common query patterns",
+      "Measures include both revenue and quantity for velocity analysis"
+    ]
+  }
+}

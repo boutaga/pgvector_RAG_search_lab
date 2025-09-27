@@ -1,0 +1,2 @@
+# This directory contains downloaded CSV files tracked by Git LFS
+# Files are automatically downloaded by 00_download_northwind.py
