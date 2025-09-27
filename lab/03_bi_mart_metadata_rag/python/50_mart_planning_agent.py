@@ -104,16 +104,18 @@ def interactive_planning_loop():
     print("🏗️  Interactive Data Mart Planning Agent")
     print("=" * 80)
 
-    # Initialize agent
+    # Initialize agent with GPT-5 configuration
     try:
         config = AgentConfig(
-            model="gpt-4",
+            primary_model="gpt-5",
+            fast_model="gpt-5-mini",
+            fallback_model="gpt-4",
             temperature=0.1,
-            max_tokens=2000,
+            max_tokens=3000,
             max_retries=3
         )
         agent = MartPlanningAgent(config)
-        print("✓ Mart planning agent initialized")
+        print("✓ Mart planning agent initialized with GPT-5 and GPT-5-mini")
     except Exception as e:
         print(f"✗ Error initializing agent: {e}")
         return

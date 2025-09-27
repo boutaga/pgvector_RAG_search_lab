@@ -20,7 +20,7 @@ This lab demonstrates an end-to-end pipeline from CSV ingestion to automated dat
 - **pgvector Extension**: Vector similarity search infrastructure
 - **Metadata Scanner**: PostgreSQL catalog introspection with statistical analysis
 - **RAG Search**: Semantic search across database metadata using embeddings
-- **LLM Agent**: GPT-4 powered mart planning with structured JSON output
+- **LLM Agent**: GPT-5 powered mart planning with GPT-5-mini for fast validation and explanations
 - **Mart Executor**: DDL/DML generation and execution engine
 - **KPI Generator**: Business metrics query generation
 
@@ -266,9 +266,18 @@ Features:
 - **Similarity Threshold**: 0.7 for relevant results
 
 ### LLM Configuration
-- **Model**: GPT-4 for high-quality mart plans
-- **Temperature**: 0.1 for consistent output
-- **Max Tokens**: 2000 for detailed plans
+- **Primary Model**: GPT-5 for complex mart planning with enhanced reasoning
+- **Fast Model**: GPT-5-mini for validation, explanations, and quick tasks
+- **Fallback Model**: GPT-4 for compatibility when GPT-5 unavailable
+- **Temperature**: 0.1 for primary model, 0.05 for fast model
+- **Max Tokens**: 3000 for GPT-5, 1500 for GPT-5-mini
+
+#### Task Routing Strategy
+- **Complex Planning**: GPT-5 (mart schema generation)
+- **Plan Validation**: GPT-5-mini (fast, thorough validation)
+- **Plan Explanation**: GPT-5-mini (business-friendly descriptions)
+- **Error Analysis**: GPT-5 (deep problem diagnosis)
+- **Optimization**: GPT-5 (performance recommendations)
 
 ### Database Configuration
 - **Source Schema**: src_northwind (Northwind tables)
@@ -313,10 +322,11 @@ python3 python/30_embed_metadata.py --status
 
 ### Interactive Demo (90 seconds)
 1. **Ask Business Question**: "What metrics should I track for fastest-selling products?"
-2. **Show RAG Results**: Display top-10 relevant schema elements
-3. **Generate MartPlan**: Show JSON plan with facts/dimensions
-4. **Execute Plan**: Create mart schema and populate (simulation)
-5. **Run KPIs**: Show fastest-selling products analysis
+2. **Show RAG Results**: Display top-10 relevant schema elements (powered by embeddings)
+3. **Generate MartPlan**: GPT-5 creates sophisticated JSON plan with facts/dimensions
+4. **Validate Plan**: GPT-5-mini provides instant validation and suggestions
+5. **Execute Plan**: Create mart schema and populate (simulation)
+6. **Run KPIs**: Show fastest-selling products analysis with GPT-5-mini explanations
 
 ### Performance Comparison (30 seconds)
 - Show query performance: source tables vs. optimized mart
@@ -330,6 +340,32 @@ python3 python/30_embed_metadata.py --status
 3. **Catalog-Driven**: Uses PostgreSQL's system tables as knowledge base
 4. **Business-Oriented**: Focuses on KPIs and business metrics
 5. **Live Schema Evolution**: Real-time database schema creation
+6. **GPT-5 Enhanced Planning**: Leverages advanced reasoning for superior mart designs
+
+## 🧠 GPT-5 Integration Benefits
+
+### Enhanced Capabilities
+- **Deep Analytical Reasoning**: GPT-5's advanced reasoning improves business requirement analysis
+- **Pattern Recognition**: Better identification of optimal dimensional modeling patterns
+- **Performance Optimization**: Sophisticated understanding of query performance implications
+- **Structured Output**: Enhanced JSON generation with better validation
+
+### Intelligent Task Routing
+- **GPT-5 for Complex Tasks**:
+  - Mart schema generation with sophisticated business logic
+  - Complex error analysis and troubleshooting
+  - Performance optimization recommendations
+
+- **GPT-5-mini for Fast Tasks**:
+  - Real-time plan validation (10x faster than GPT-5)
+  - Business-friendly explanations
+  - Quick consistency checks
+  - User interface responses
+
+### Fallback Strategy
+- **Automatic Failover**: Falls back to GPT-4 if GPT-5 models unavailable
+- **Graceful Degradation**: Maintains full functionality with older models
+- **Cost Optimization**: Uses GPT-5-mini for appropriate tasks to reduce costs
 
 ## 🎯 Success Metrics
 

@@ -28,11 +28,41 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AgentConfig:
-    """Configuration for the mart planning agent."""
-    model: str = "gpt-4"
+    """Configuration for the mart planning agent with GPT-5 support."""
+    primary_model: str = "gpt-5"
+    fast_model: str = "gpt-5-mini"
+    fallback_model: str = "gpt-4"
     temperature: float = 0.1
-    max_tokens: int = 2000
+    max_tokens: int = 3000
     max_retries: int = 3
+
+    # GPT-5 specific configurations
+    gpt5_config: Dict[str, Any] = None
+    gpt5_mini_config: Dict[str, Any] = None
+    task_routing: Dict[str, str] = None
+
+    def __post_init__(self):
+        if self.gpt5_config is None:
+            self.gpt5_config = {
+                "temperature": 0.1,
+                "max_tokens": 3000,
+                "reasoning_depth": "thorough",
+                "structured_output": True
+            }
+        if self.gpt5_mini_config is None:
+            self.gpt5_mini_config = {
+                "temperature": 0.05,
+                "max_tokens": 1500,
+                "optimization": "speed"
+            }
+        if self.task_routing is None:
+            self.task_routing = {
+                "complex_planning": "gpt-5",
+                "plan_validation": "gpt-5-mini",
+                "plan_explanation": "gpt-5-mini",
+                "error_analysis": "gpt-5",
+                "optimization_suggestions": "gpt-5"
+            }
 
 class MartPlanningAgent:
     """
@@ -41,7 +71,7 @@ class MartPlanningAgent:
     """
 
     def __init__(self, config: Optional[AgentConfig] = None):
-        """Initialize the mart planning agent."""
+        """Initialize the mart planning agent with GPT-5 support."""
         self.config = config or AgentConfig()
 
         # Initialize OpenAI client
@@ -52,7 +82,108 @@ class MartPlanningAgent:
         self.client = openai.OpenAI(api_key=api_key)
         self.search_service = MetadataSearchService()
 
-        logger.info(f"Initialized mart planning agent with model: {self.config.model}")
+        # Test model availability and set up routing
+        self._test_model_availability()
+
+        logger.info(f"Initialized mart planning agent with primary model: {self.config.primary_model}, fast model: {self.config.fast_model}")
+
+    def _test_model_availability(self):
+        """Test availability of GPT-5 models and adjust configuration if needed."""
+        try:
+            # Test GPT-5 availability with a simple request
+            response = self.client.chat.completions.create(
+                model=self.config.primary_model,
+                messages=[{"role": "user", "content": "Test"}],
+                max_tokens=10
+            )
+            logger.info(f"✓ {self.config.primary_model} is available")
+        except Exception as e:
+            logger.warning(f"⚠ {self.config.primary_model} not available, falling back to {self.config.fallback_model}: {e}")
+            self.config.primary_model = self.config.fallback_model
+            # Update task routing to use fallback model
+            for task in self.config.task_routing:
+                if self.config.task_routing[task] == "gpt-5":
+                    self.config.task_routing[task] = self.config.fallback_model
+
+        try:
+            # Test GPT-5-mini availability
+            response = self.client.chat.completions.create(
+                model=self.config.fast_model,
+                messages=[{"role": "user", "content": "Test"}],
+                max_tokens=10
+            )
+            logger.info(f"✓ {self.config.fast_model} is available")
+        except Exception as e:
+            logger.warning(f"⚠ {self.config.fast_model} not available, using {self.config.fallback_model}: {e}")
+            self.config.fast_model = self.config.fallback_model
+            # Update task routing to use fallback model
+            for task in self.config.task_routing:
+                if self.config.task_routing[task] == "gpt-5-mini":
+                    self.config.task_routing[task] = self.config.fallback_model
+
+    def _get_model_config(self, model_name: str) -> Dict[str, Any]:
+        """Get configuration for a specific model."""
+        if model_name == "gpt-5":
+            return self.config.gpt5_config
+        elif model_name == "gpt-5-mini":
+            return self.config.gpt5_mini_config
+        else:
+            # Fallback configuration
+            return {
+                "temperature": self.config.temperature,
+                "max_tokens": self.config.max_tokens
+            }
+
+    def _call_llm(self, task_type: str, messages: List[Dict[str, str]]) -> str:
+        """
+        Call the appropriate LLM model based on task type.
+
+        Args:
+            task_type: Type of task (complex_planning, plan_validation, etc.)
+            messages: Chat messages for the LLM
+
+        Returns:
+            Response text from the LLM
+        """
+        # Determine which model to use for this task
+        model_name = self.config.task_routing.get(task_type, self.config.primary_model)
+        model_config = self._get_model_config(model_name)
+
+        logger.info(f"Using {model_name} for {task_type}")
+
+        for attempt in range(self.config.max_retries):
+            try:
+                # Prepare request parameters
+                request_params = {
+                    "model": model_name,
+                    "messages": messages,
+                    **model_config
+                }
+
+                # Remove any parameters that the model doesn't support
+                if model_name.startswith("gpt-4"):
+                    # Remove GPT-5 specific parameters
+                    request_params.pop("reasoning_depth", None)
+                    request_params.pop("structured_output", None)
+                    request_params.pop("optimization", None)
+
+                response = self.client.chat.completions.create(**request_params)
+                return response.choices[0].message.content.strip()
+
+            except Exception as e:
+                logger.warning(f"Attempt {attempt + 1} failed with {model_name}: {e}")
+                if attempt == self.config.max_retries - 1:
+                    # Last attempt, try fallback model if not already using it
+                    if model_name != self.config.fallback_model:
+                        logger.info(f"Trying fallback model {self.config.fallback_model}")
+                        model_name = self.config.fallback_model
+                        model_config = self._get_model_config(model_name)
+                        continue
+                    else:
+                        raise
+                continue
+
+        raise RuntimeError(f"Failed to get response from LLM after all retries")
 
     def create_mart_planning_prompt(
         self,
@@ -211,119 +342,109 @@ class MartPlanningAgent:
         query_type: QueryType,
         search_results: List[SearchResult]
     ) -> MartPlan:
-        """Generate a mart plan using the LLM."""
+        """Generate a mart plan using GPT-5 for complex planning."""
 
         # Create the planning prompt
         prompt = self.create_mart_planning_prompt(user_question, query_type, search_results)
 
-        logger.info("Generating mart plan with LLM...")
+        logger.info("Generating mart plan with GPT-5...")
 
-        for attempt in range(self.config.max_retries):
-            try:
-                response = self.client.chat.completions.create(
-                    model=self.config.model,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are a data warehouse architect. Generate optimal data mart schemas in JSON format."
-                        },
-                        {
-                            "role": "user",
-                            "content": prompt
-                        }
-                    ],
-                    temperature=self.config.temperature,
-                    max_tokens=self.config.max_tokens
-                )
+        # Enhanced system prompt for GPT-5
+        system_prompt = """You are an expert data warehouse architect with deep expertise in dimensional modeling and modern BI practices.
 
-                # Extract JSON from response
-                response_text = response.choices[0].message.content.strip()
+Your task is to generate optimal data mart schemas that follow Kimball methodology while leveraging GPT-5's enhanced reasoning capabilities.
 
-                # Try to extract JSON from response (handle code blocks)
-                if "```json" in response_text:
-                    start = response_text.find("```json") + 7
-                    end = response_text.find("```", start)
-                    json_text = response_text[start:end].strip()
-                elif "```" in response_text:
-                    start = response_text.find("```") + 3
-                    end = response_text.find("```", start)
-                    json_text = response_text[start:end].strip()
-                else:
-                    json_text = response_text
+Key capabilities to utilize:
+1. Deep analytical reasoning about business requirements
+2. Advanced pattern recognition for optimal schema design
+3. Sophisticated understanding of performance implications
+4. Enhanced JSON structure generation with validation
 
-                # Parse JSON
-                try:
-                    plan_data = json.loads(json_text)
-                    mart_plan = MartPlan(**plan_data)
-                    logger.info("✓ Successfully generated mart plan")
-                    return mart_plan
-                except json.JSONDecodeError as e:
-                    logger.warning(f"Attempt {attempt + 1}: JSON parsing failed: {e}")
-                    if attempt == self.config.max_retries - 1:
-                        raise ValueError(f"Failed to parse JSON response: {e}\nResponse: {json_text}")
-                    continue
-                except Exception as e:
-                    logger.warning(f"Attempt {attempt + 1}: Plan validation failed: {e}")
-                    if attempt == self.config.max_retries - 1:
-                        raise ValueError(f"Failed to validate mart plan: {e}")
-                    continue
+Generate schemas that are:
+- Optimized for the specific business question
+- Performant for analytical workloads
+- Maintainable and extensible
+- Business-user friendly
 
-            except Exception as e:
-                logger.error(f"Attempt {attempt + 1}: LLM request failed: {e}")
-                if attempt == self.config.max_retries - 1:
-                    raise
-                continue
+Return ONLY valid JSON with no additional text."""
 
-        raise RuntimeError("Failed to generate mart plan after all retries")
+        messages = [
+            {
+                "role": "system",
+                "content": system_prompt
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+
+        # Use complex_planning task routing for GPT-5
+        response_text = self._call_llm("complex_planning", messages)
+
+        # Parse and validate the response
+        return self._parse_mart_plan_response(response_text)
+
+    def _parse_mart_plan_response(self, response_text: str) -> MartPlan:
+        """Parse and validate the mart plan response from LLM."""
+        # Try to extract JSON from response (handle code blocks)
+        if "```json" in response_text:
+            start = response_text.find("```json") + 7
+            end = response_text.find("```", start)
+            json_text = response_text[start:end].strip()
+        elif "```" in response_text:
+            start = response_text.find("```") + 3
+            end = response_text.find("```", start)
+            json_text = response_text[start:end].strip()
+        else:
+            json_text = response_text
+
+        # Parse JSON
+        try:
+            plan_data = json.loads(json_text)
+            mart_plan = MartPlan(**plan_data)
+            logger.info("✓ Successfully generated mart plan with GPT-5")
+            return mart_plan
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parsing failed: {e}\nResponse: {json_text}")
+            raise ValueError(f"Failed to parse JSON response: {e}")
+        except Exception as e:
+            logger.error(f"Plan validation failed: {e}")
+            raise ValueError(f"Failed to validate mart plan: {e}")
 
     def validate_mart_plan(self, plan: MartPlan) -> PlanValidationResult:
-        """Validate a mart plan for consistency and completeness."""
+        """Validate a mart plan using GPT-5-mini for fast and thorough validation."""
+        # First do basic structural validation
         errors = []
         warnings = []
         suggestions = []
 
-        # Check if plan has at least one fact table
+        # Basic structural checks
         if not plan.facts:
             errors.append("Mart plan must have at least one fact table")
-
-        # Validate fact tables
-        for fact in plan.facts:
-            # Check if grain is defined
-            if not fact.grain:
-                errors.append(f"Fact table {fact.name} must have a defined grain")
-
-            # Check if measures are defined
-            if not fact.measures:
-                warnings.append(f"Fact table {fact.name} has no measures defined")
-
-            # Check if source tables are specified
-            if not fact.source_tables:
-                errors.append(f"Fact table {fact.name} must specify source tables")
-
-            # Validate measure expressions
-            for measure in fact.measures:
-                if not measure.expression:
-                    errors.append(f"Measure {measure.name} in {fact.name} must have an expression")
-
-        # Validate dimension tables
-        for dimension in plan.dimensions:
-            if not dimension.key_column:
-                errors.append(f"Dimension {dimension.name} must have a key column")
-
-            if not dimension.attributes:
-                warnings.append(f"Dimension {dimension.name} has no attributes defined")
 
         # Check for naming conflicts
         all_table_names = [f.name for f in plan.facts] + [d.name for d in plan.dimensions]
         if len(all_table_names) != len(set(all_table_names)):
             errors.append("Duplicate table names found in mart plan")
 
-        # Add suggestions
-        if len(plan.facts) > 3:
-            suggestions.append("Consider if all fact tables are necessary - simpler marts are often more effective")
+        # If basic validation fails, return immediately
+        if errors:
+            return PlanValidationResult(
+                is_valid=False,
+                errors=errors,
+                warnings=warnings,
+                suggestions=suggestions
+            )
 
-        if not plan.dimensions:
-            suggestions.append("Consider adding dimension tables for better query performance and usability")
+        # Use GPT-5-mini for advanced validation
+        try:
+            advanced_validation = self._validate_with_llm(plan)
+            errors.extend(advanced_validation.get('errors', []))
+            warnings.extend(advanced_validation.get('warnings', []))
+            suggestions.extend(advanced_validation.get('suggestions', []))
+        except Exception as e:
+            warnings.append(f"Advanced validation failed: {str(e)}")
 
         return PlanValidationResult(
             is_valid=len(errors) == 0,
@@ -331,6 +452,57 @@ class MartPlanningAgent:
             warnings=warnings,
             suggestions=suggestions
         )
+
+    def _validate_with_llm(self, plan: MartPlan) -> Dict[str, List[str]]:
+        """Use GPT-5-mini for advanced plan validation."""
+        validation_prompt = f"""Analyze this data mart plan for potential issues and improvements:
+
+{json.dumps(plan.dict(), indent=2)}
+
+Check for:
+1. Dimensional modeling best practices
+2. Naming consistency and conventions
+3. Fact table grain appropriateness
+4. Measure expression validity
+5. Dimension design quality
+6. Performance considerations
+7. Business usability
+
+Return a JSON object with three arrays:
+{{
+  "errors": ["critical issues that must be fixed"],
+  "warnings": ["potential issues to consider"],
+  "suggestions": ["improvement recommendations"]
+}}
+
+Focus on practical, actionable feedback. Be concise but thorough."""
+
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a data warehouse validation expert. Analyze mart plans and provide structured feedback."
+            },
+            {
+                "role": "user",
+                "content": validation_prompt
+            }
+        ]
+
+        response_text = self._call_llm("plan_validation", messages)
+
+        try:
+            # Parse the validation response
+            if "```json" in response_text:
+                start = response_text.find("```json") + 7
+                end = response_text.find("```", start)
+                json_text = response_text[start:end].strip()
+            else:
+                json_text = response_text.strip()
+
+            return json.loads(json_text)
+        except Exception as e:
+            logger.warning(f"Failed to parse validation response: {e}")
+            return {"errors": [], "warnings": [], "suggestions": []}
 
     def plan_mart_from_question(self, user_question: str) -> Tuple[MartPlan, List[SearchResult]]:
         """
@@ -367,7 +539,48 @@ class MartPlanningAgent:
         return mart_plan, search_results
 
     def explain_mart_plan(self, plan: MartPlan, user_question: str) -> str:
-        """Generate a human-readable explanation of the mart plan."""
+        """Generate a human-readable explanation using GPT-5-mini for enhanced clarity."""
+
+        # Create prompt for GPT-5-mini to generate explanation
+        explanation_prompt = f"""Create a clear, business-friendly explanation of this data mart plan:
+
+**Business Question:** {user_question}
+
+**Mart Plan:**
+{json.dumps(plan.dict(), indent=2)}
+
+Generate an explanation that covers:
+1. Overview of the mart design
+2. How it answers the business question
+3. Key fact tables and their purpose
+4. Important dimensions for analysis
+5. Business benefits and use cases
+
+Write in markdown format, use business-friendly language, and focus on value to business users.
+Keep it concise but comprehensive."""
+
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a BI consultant explaining data mart designs to business users. Make technical concepts accessible and focus on business value."
+            },
+            {
+                "role": "user",
+                "content": explanation_prompt
+            }
+        ]
+
+        try:
+            # Use GPT-5-mini for fast, high-quality explanations
+            explanation = self._call_llm("plan_explanation", messages)
+            return explanation
+        except Exception as e:
+            logger.warning(f"Failed to generate LLM explanation, using fallback: {e}")
+            # Fallback to static explanation
+            return self._generate_static_explanation(plan, user_question)
+
+    def _generate_static_explanation(self, plan: MartPlan, user_question: str) -> str:
+        """Fallback static explanation generator."""
         explanation_parts = [
             f"## Data Mart Plan for: '{user_question}'\n",
             f"**Target Schema:** {plan.target_schema}",
