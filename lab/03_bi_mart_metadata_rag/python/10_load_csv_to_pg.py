@@ -42,14 +42,29 @@ def execute_sql_file(conn, sql_file_path):
             print(f"✗ Error executing {sql_file_path.name}: {e}")
             raise
 
-def clean_csv_value(value):
+def clean_csv_value(value, column_name=None):
     """Clean CSV values for PostgreSQL."""
     if value == '' or value == 'NULL':
         return None
-    # Handle boolean values
-    if value.lower() in ('true', '1', 'yes'):
+
+    # Skip picture/photo columns (they contain hex data)
+    if column_name and ('picture' in column_name.lower() or 'photo' in column_name.lower()):
+        return None  # Skip binary data for now
+
+    # Define numeric columns that should not be converted to boolean
+    numeric_columns = {'categoryID', 'supplierID', 'productID', 'orderID', 'customerID',
+                      'employeeID', 'regionID', 'territoryID', 'shipperID',
+                      'unitPrice', 'quantity', 'discount', 'unitsInStock', 'unitsOnOrder',
+                      'reorderLevel', 'freight'}
+
+    # Don't convert numeric values to boolean
+    if column_name and column_name in numeric_columns:
+        return value
+
+    # Handle boolean values only for non-numeric fields
+    if value.lower() in ('true', 'yes'):
         return True
-    elif value.lower() in ('false', '0', 'no'):
+    elif value.lower() in ('false', 'no'):
         return False
     return value
 
@@ -70,7 +85,7 @@ def load_csv_to_table(conn, schema_name, table_name, csv_file_path, column_mappi
             # Prepare data for insertion
             rows = []
             for row in reader:
-                cleaned_row = [clean_csv_value(row[h]) for h in headers]
+                cleaned_row = [clean_csv_value(row[h], h) for h in headers]
                 rows.append(cleaned_row)
 
         if not rows:
