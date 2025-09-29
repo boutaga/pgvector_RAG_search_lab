@@ -172,7 +172,11 @@ class MartPlanningAgent:
                 request_params.pop("optimization", None)
 
                 response = self.client.chat.completions.create(**request_params)
-                return response.choices[0].message.content.strip()
+                content = response.choices[0].message.content
+                if content is None or content.strip() == "":
+                    logger.warning(f"Received empty response from {model_name}")
+                    raise ValueError("Received empty response from model")
+                return content.strip()
 
             except Exception as e:
                 logger.warning(f"Attempt {attempt + 1} failed with {model_name}: {e}")
@@ -410,7 +414,10 @@ Return ONLY valid JSON with no additional text."""
             logger.info("✓ Successfully generated mart plan with GPT-5")
             return mart_plan
         except json.JSONDecodeError as e:
-            logger.error(f"JSON parsing failed: {e}\nResponse: {json_text}")
+            logger.error(f"JSON parsing failed: {e}")
+            logger.error(f"Response length: {len(response_text)}")
+            logger.error(f"Full response: {repr(response_text)}")
+            logger.error(f"Extracted JSON: {repr(json_text)}")
             raise ValueError(f"Failed to parse JSON response: {e}")
         except Exception as e:
             logger.error(f"Plan validation failed: {e}")
