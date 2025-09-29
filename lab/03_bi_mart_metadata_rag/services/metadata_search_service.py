@@ -228,7 +228,8 @@ class MetadataSearchService:
 
                 boost_expression = " + ".join(boost_conditions) if boost_conditions else "0.0"
 
-                cursor.execute(f"""
+                # Build the SQL query with proper parameter substitution
+                sql_query = """
                     SELECT
                         id,
                         schema_name,
@@ -240,32 +241,38 @@ class MetadataSearchService:
                         referenced_table,
                         column_comment,
                         metadata_text,
-                        (1 - (embedding <=> %s::vector)) + ({boost_expression}) as similarity
+                        (1 - (embedding <=> %s::vector)) + """ + boost_expression + """ as similarity
                     FROM catalog.column_metadata
                     WHERE embedding IS NOT NULL
-                        AND ((1 - (embedding <=> %s::vector)) + ({boost_expression})) >= %s
+                        AND ((1 - (embedding <=> %s::vector)) + """ + boost_expression + """) >= %s
                     ORDER BY similarity DESC
                     LIMIT %s
-                """, (query_embedding, query_embedding, config.similarity_threshold, config.top_k))
+                """
+
+                cursor.execute(sql_query, (query_embedding, query_embedding, config.similarity_threshold, config.top_k))
 
                 results = []
                 for row in cursor.fetchall():
-                    results.append(SearchResult(
-                        id=row[0],
-                        metadata_type='column',
-                        schema_name=row[1],
-                        table_name=row[2],
-                        column_name=row[3],
-                        description=row[8] or f"{row[3]} column in {row[2]}",
-                        metadata_text=row[9],
-                        similarity_score=row[10],
-                        additional_info={
-                            'data_type': row[4],
-                            'is_primary_key': row[5],
-                            'is_foreign_key': row[6],
-                            'referenced_table': row[7]
-                        }
-                    ))
+                    try:
+                        results.append(SearchResult(
+                            id=row[0],
+                            metadata_type='column',
+                            schema_name=row[1],
+                            table_name=row[2],
+                            column_name=row[3],
+                            description=row[8] or f"{row[3]} column in {row[2]}",
+                            metadata_text=row[9],
+                            similarity_score=row[10],
+                            additional_info={
+                                'data_type': row[4],
+                                'is_primary_key': row[5],
+                                'is_foreign_key': row[6],
+                                'referenced_table': row[7]
+                            }
+                        ))
+                    except IndexError as e:
+                        logger.error(f"Row has {len(row)} columns, expected 11: {row}")
+                        raise e
 
                 return results
 
