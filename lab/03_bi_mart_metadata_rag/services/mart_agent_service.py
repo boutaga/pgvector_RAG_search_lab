@@ -45,15 +45,12 @@ class AgentConfig:
         if self.gpt5_config is None:
             self.gpt5_config = {
                 "temperature": 0.1,
-                "max_completion_tokens": 3000,
-                "reasoning_depth": "thorough",
-                "structured_output": True
+                "max_completion_tokens": 3000
             }
         if self.gpt5_mini_config is None:
             self.gpt5_mini_config = {
                 "temperature": 0.05,
-                "max_completion_tokens": 1500,
-                "optimization": "speed"
+                "max_completion_tokens": 1500
             }
         if self.task_routing is None:
             self.task_routing = {
@@ -170,12 +167,11 @@ class MartPlanningAgent:
                     **model_config
                 }
 
-                # Remove any parameters that the model doesn't support
-                if model_name.startswith("gpt-4"):
-                    # Remove GPT-5 specific parameters
-                    request_params.pop("reasoning_depth", None)
-                    request_params.pop("structured_output", None)
-                    request_params.pop("optimization", None)
+                # Remove any parameters that the OpenAI API doesn't support
+                # These were speculative GPT-5 parameters that don't actually exist
+                request_params.pop("reasoning_depth", None)
+                request_params.pop("structured_output", None)
+                request_params.pop("optimization", None)
 
                 response = self.client.chat.completions.create(**request_params)
                 return response.choices[0].message.content.strip()
