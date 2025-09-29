@@ -31,15 +31,17 @@ def scan_table_metadata(conn, schema_name: str = 'src_northwind') -> List[Dict]:
     query = """
     WITH table_stats AS (
         SELECT
-            s.schemaname,
-            s.tablename,
+            n.nspname as schemaname,
+            c.relname as tablename,
             COALESCE(s.n_tup_ins, 0) + COALESCE(s.n_tup_upd, 0) + COALESCE(s.n_tup_del, 0) as total_activity,
             COALESCE(s.n_live_tup, 0) as row_count,
             pg_relation_size(c.oid) as table_size
-        FROM pg_stat_user_tables s
-        JOIN pg_class c ON c.relname = s.tablename
-        JOIN pg_namespace n ON n.nspname = s.schemaname AND n.oid = c.relnamespace
-        WHERE s.schemaname = %s
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        LEFT JOIN pg_stat_user_tables s
+            ON s.relid = c.oid
+        WHERE n.nspname = %s
+            AND c.relkind IN ('r', 'p')  -- regular tables and partitioned tables
     ),
     table_info AS (
         SELECT
@@ -251,7 +253,7 @@ def scan_column_metadata(conn, schema_name: str = 'src_northwind') -> List[Dict]
     """
 
     with conn.cursor() as cursor:
-        cursor.execute(query, (schema_name, schema_name, schema_name, schema_name, schema_name, schema_name, schema_name, schema_name))
+        cursor.execute(query, (schema_name, schema_name, schema_name, schema_name, schema_name, schema_name, schema_name))
         columns = [desc[0] for desc in cursor.description]
         results = []
         for row in cursor.fetchall():

@@ -241,7 +241,7 @@ class MetadataEmbeddingService:
                     if embedding and any(embedding):  # Skip zero embeddings
                         cursor.execute("""
                             UPDATE catalog.relationship_metadata
-                            SET embedding = %s, updated_at = CURRENT_TIMESTAMP
+                            SET embedding = %s
                             WHERE id = %s
                         """, (embedding, row_id))
                         embedded_count += 1
@@ -287,7 +287,7 @@ class MetadataEmbeddingService:
                     if embedding and any(embedding):  # Skip zero embeddings
                         cursor.execute("""
                             UPDATE catalog.suggested_kpis
-                            SET embedding = %s, updated_at = CURRENT_TIMESTAMP
+                            SET embedding = %s
                             WHERE id = %s
                         """, (embedding, row_id))
                         embedded_count += 1
