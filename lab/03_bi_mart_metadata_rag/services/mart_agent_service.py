@@ -45,14 +45,14 @@ class AgentConfig:
         if self.gpt5_config is None:
             self.gpt5_config = {
                 "temperature": 0.1,
-                "max_tokens": 3000,
+                "max_completion_tokens": 3000,
                 "reasoning_depth": "thorough",
                 "structured_output": True
             }
         if self.gpt5_mini_config is None:
             self.gpt5_mini_config = {
                 "temperature": 0.05,
-                "max_tokens": 1500,
+                "max_completion_tokens": 1500,
                 "optimization": "speed"
             }
         if self.task_routing is None:
@@ -85,17 +85,22 @@ class MartPlanningAgent:
         # Test model availability and set up routing
         self._test_model_availability()
 
-        logger.info(f"Initialized mart planning agent with primary model: {self.config.primary_model}, fast model: {self.config.fast_model}")
+    def _get_token_param_name(self, model: str) -> str:
+        """Get the correct token parameter name based on the model."""
+        gpt5_models = ['gpt-5', 'gpt-5-mini']
+        return 'max_completion_tokens' if model in gpt5_models else 'max_tokens'
 
     def _test_model_availability(self):
         """Test availability of GPT-5 models and adjust configuration if needed."""
         try:
             # Test GPT-5 availability with a simple request
-            response = self.client.chat.completions.create(
-                model=self.config.primary_model,
-                messages=[{"role": "user", "content": "Test"}],
-                max_tokens=10
-            )
+            token_param = self._get_token_param_name(self.config.primary_model)
+            params = {
+                "model": self.config.primary_model,
+                "messages": [{"role": "user", "content": "Test"}],
+                token_param: 10
+            }
+            response = self.client.chat.completions.create(**params)
             logger.info(f"✓ {self.config.primary_model} is available")
         except Exception as e:
             logger.warning(f"⚠ {self.config.primary_model} not available, falling back to {self.config.fallback_model}: {e}")
@@ -107,11 +112,13 @@ class MartPlanningAgent:
 
         try:
             # Test GPT-5-mini availability
-            response = self.client.chat.completions.create(
-                model=self.config.fast_model,
-                messages=[{"role": "user", "content": "Test"}],
-                max_tokens=10
-            )
+            token_param = self._get_token_param_name(self.config.fast_model)
+            params = {
+                "model": self.config.fast_model,
+                "messages": [{"role": "user", "content": "Test"}],
+                token_param: 10
+            }
+            response = self.client.chat.completions.create(**params)
             logger.info(f"✓ {self.config.fast_model} is available")
         except Exception as e:
             logger.warning(f"⚠ {self.config.fast_model} not available, using {self.config.fallback_model}: {e}")
@@ -121,6 +128,8 @@ class MartPlanningAgent:
                 if self.config.task_routing[task] == "gpt-5-mini":
                     self.config.task_routing[task] = self.config.fallback_model
 
+        logger.info(f"Initialized mart planning agent with primary model: {self.config.primary_model}, fast model: {self.config.fast_model}")
+
     def _get_model_config(self, model_name: str) -> Dict[str, Any]:
         """Get configuration for a specific model."""
         if model_name == "gpt-5":
@@ -128,10 +137,11 @@ class MartPlanningAgent:
         elif model_name == "gpt-5-mini":
             return self.config.gpt5_mini_config
         else:
-            # Fallback configuration
+            # Fallback configuration for other models
+            token_param = self._get_token_param_name(model_name)
             return {
                 "temperature": self.config.temperature,
-                "max_tokens": self.config.max_tokens
+                token_param: self.config.max_tokens
             }
 
     def _call_llm(self, task_type: str, messages: List[Dict[str, str]]) -> str:
