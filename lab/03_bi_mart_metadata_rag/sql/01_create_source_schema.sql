@@ -20,10 +20,10 @@ CREATE TABLE src_northwind.suppliers (
     contact_name VARCHAR(30),
     contact_title VARCHAR(30),
     address VARCHAR(60),
-    city VARCHAR(15),
-    region VARCHAR(15),
-    postal_code VARCHAR(10),
-    country VARCHAR(15),
+    city VARCHAR(30),
+    region VARCHAR(30),
+    postal_code VARCHAR(20),
+    country VARCHAR(30),
     phone VARCHAR(24),
     fax VARCHAR(24),
     homepage TEXT
@@ -66,10 +66,10 @@ CREATE TABLE src_northwind.employees (
     birth_date DATE,
     hire_date DATE,
     address VARCHAR(60),
-    city VARCHAR(15),
-    region VARCHAR(15),
-    postal_code VARCHAR(10),
-    country VARCHAR(15),
+    city VARCHAR(30),
+    region VARCHAR(30),
+    postal_code VARCHAR(20),
+    country VARCHAR(30),
     home_phone VARCHAR(24),
     extension VARCHAR(4),
     photo BYTEA,
@@ -92,10 +92,10 @@ CREATE TABLE src_northwind.customers (
     contact_name VARCHAR(30),
     contact_title VARCHAR(30),
     address VARCHAR(60),
-    city VARCHAR(15),
-    region VARCHAR(15),
-    postal_code VARCHAR(10),
-    country VARCHAR(15),
+    city VARCHAR(30),
+    region VARCHAR(30),
+    postal_code VARCHAR(20),
+    country VARCHAR(30),
     phone VARCHAR(24),
     fax VARCHAR(24)
 );
@@ -119,10 +119,10 @@ CREATE TABLE src_northwind.orders (
     freight NUMERIC(10,2),
     ship_name VARCHAR(40),
     ship_address VARCHAR(60),
-    ship_city VARCHAR(15),
-    ship_region VARCHAR(15),
-    ship_postal_code VARCHAR(10),
-    ship_country VARCHAR(15)
+    ship_city VARCHAR(30),
+    ship_region VARCHAR(30),
+    ship_postal_code VARCHAR(20),
+    ship_country VARCHAR(30)
 );
 
 -- Order Details table (fact table)

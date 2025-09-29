@@ -55,7 +55,7 @@ def clean_csv_value(value, column_name=None):
     numeric_columns = {'categoryID', 'supplierID', 'productID', 'orderID', 'customerID',
                       'employeeID', 'regionID', 'territoryID', 'shipperID',
                       'unitPrice', 'quantity', 'discount', 'unitsInStock', 'unitsOnOrder',
-                      'reorderLevel', 'freight'}
+                      'reorderLevel', 'freight', 'shipVia', 'reportsTo'}
 
     # Don't convert numeric values to boolean
     if column_name and column_name in numeric_columns:
@@ -165,7 +165,8 @@ def load_northwind_data():
                 'companyName': 'company_name',
                 'contactName': 'contact_name',
                 'contactTitle': 'contact_title',
-                'postalCode': 'postal_code'
+                'postalCode': 'postal_code',
+                'homePage': 'homepage'  # Map camelCase to lowercase
             }),
             ('shippers', 'shippers.csv', {
                 'shipperID': 'shipper_id',
