@@ -199,8 +199,11 @@ class MartExplorerApp:
         col1, col2 = st.columns([3, 1])
 
         with col1:
+            # Use selected template if available
+            default_value = st.session_state.get('selected_template', '')
             kpi_requirement = st.text_area(
                 "KPI Description",
+                value=default_value,
                 placeholder="Example: I need to analyze product sales velocity by category over the last 30 days, including revenue contribution and inventory turnover metrics...",
                 height=120,
                 key="kpi_input"
@@ -217,7 +220,8 @@ class MartExplorerApp:
 
             for template_name, template_text in templates.items():
                 if st.button(template_name, key=f"template_{template_name}", use_container_width=True):
-                    st.session_state.kpi_input = template_text
+                    # Set the template text in a different session state key to avoid conflicts
+                    st.session_state.selected_template = template_text
                     st.rerun()
 
         return kpi_requirement

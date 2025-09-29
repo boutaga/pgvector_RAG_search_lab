@@ -29,8 +29,8 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AgentConfig:
     """Configuration for the mart planning agent with GPT-5 support."""
-    primary_model: str = "gpt-5"
-    fast_model: str = "gpt-5-mini"
+    primary_model: str = "gpt-4"  # Temporarily use GPT-4 for stability
+    fast_model: str = "gpt-4"      # Temporarily use GPT-4 for stability
     fallback_model: str = "gpt-4"
     temperature: float = 0.1
     max_tokens: int = 3000
