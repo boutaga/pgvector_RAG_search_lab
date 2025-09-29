@@ -7,6 +7,7 @@ Uses LLM to generate data mart plans based on RAG search results.
 import os
 import sys
 import json
+import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 import openai
@@ -25,6 +26,26 @@ from metadata_search_service import MetadataSearchService, SearchResult, QueryTy
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def parse_llm_json(text: str) -> dict:
+    """Robust JSON parsing from LLM responses."""
+    text = text.strip()
+
+    # 1) If the model honored JSON mode, this is already a JSON object
+    if text.startswith("{"):
+        return json.loads(text)
+
+    # 2) Try to pull a ```json ...``` fenced block
+    m = re.search(r"```json\s*(\{.*?\})\s*```", text, re.S)
+    if m:
+        return json.loads(m.group(1))
+
+    # 3) Last-resort: grab the first JSON object substring
+    m = re.search(r"(\{.*\})", text, re.S)
+    if m:
+        return json.loads(m.group(1))
+
+    raise ValueError(f"No JSON object found in completion. First 200 chars: {text[:200]!r}")
 
 @dataclass
 class AgentConfig:
@@ -166,16 +187,29 @@ class MartPlanningAgent:
                 }
 
                 # Remove any parameters that the OpenAI API doesn't support
-                # These were speculative GPT-5 parameters that don't actually exist
                 request_params.pop("reasoning_depth", None)
                 request_params.pop("structured_output", None)
                 request_params.pop("optimization", None)
 
+                # For JSON output, ask the API to enforce JSON if supported
+                if task_type == "complex_planning":
+                    try:
+                        request_params["response_format"] = {"type": "json_object"}
+                    except Exception:
+                        pass  # Some models don't support this
+
                 response = self.client.chat.completions.create(**request_params)
-                content = response.choices[0].message.content
-                if content is None or content.strip() == "":
-                    logger.warning(f"Received empty response from {model_name}")
-                    raise ValueError("Received empty response from model")
+                choice = response.choices[0]
+
+                # Handle different response types
+                content = getattr(choice.message, "content", None) or ""
+
+                # Fallbacks if content is empty
+                if not content:
+                    if getattr(choice.message, "refusal", None):
+                        raise RuntimeError(f"Model refusal: {choice.message.refusal}")
+                    raise RuntimeError("Empty completion content from model")
+
                 return content.strip()
 
             except Exception as e:
@@ -407,21 +441,30 @@ Return ONLY valid JSON with no additional text."""
         else:
             json_text = response_text
 
-        # Parse JSON
+        # Parse JSON with robust parsing
         try:
-            plan_data = json.loads(json_text)
+            plan_data = parse_llm_json(response_text)
             mart_plan = MartPlan(**plan_data)
-            logger.info("✓ Successfully generated mart plan with GPT-5")
+            logger.info("✓ Successfully generated mart plan")
             return mart_plan
-        except json.JSONDecodeError as e:
+        except Exception as e:
             logger.error(f"JSON parsing failed: {e}")
             logger.error(f"Response length: {len(response_text)}")
             logger.error(f"Full response: {repr(response_text)}")
-            logger.error(f"Extracted JSON: {repr(json_text)}")
+
+            # Try the fast model once before giving up
+            if self.config.fast_model != self.config.primary_model:
+                logger.info("Trying with fast model...")
+                try:
+                    response_text = self._call_llm("plan_validation", messages)
+                    plan_data = parse_llm_json(response_text)
+                    mart_plan = MartPlan(**plan_data)
+                    logger.info("✓ Successfully generated mart plan with fast model")
+                    return mart_plan
+                except Exception as e2:
+                    logger.error(f"Fast model also failed: {e2}")
+
             raise ValueError(f"Failed to parse JSON response: {e}")
-        except Exception as e:
-            logger.error(f"Plan validation failed: {e}")
-            raise ValueError(f"Failed to validate mart plan: {e}")
 
     def validate_mart_plan(self, plan: MartPlan) -> PlanValidationResult:
         """Validate a mart plan using GPT-5-mini for fast and thorough validation."""
