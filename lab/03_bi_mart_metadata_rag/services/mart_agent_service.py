@@ -50,8 +50,8 @@ def parse_llm_json(text: str) -> dict:
 @dataclass
 class AgentConfig:
     """Configuration for the mart planning agent with GPT-5 support."""
-    primary_model: str = "gpt-4"  # Temporarily use GPT-4 for stability
-    fast_model: str = "gpt-4"      # Temporarily use GPT-4 for stability
+    primary_model: str = "gpt-5"
+    fast_model: str = "gpt-5-mini"
     fallback_model: str = "gpt-4"
     temperature: float = 0.1
     max_tokens: int = 3000
@@ -201,16 +201,36 @@ class MartPlanningAgent:
                 response = self.client.chat.completions.create(**request_params)
                 choice = response.choices[0]
 
-                # Handle different response types
-                content = getattr(choice.message, "content", None) or ""
+                # Prefer normal content
+                content = (getattr(choice.message, "content", None) or "").strip()
 
-                # Fallbacks if content is empty
+                # If content is empty, try function/tool call payload
                 if not content:
+                    tool_calls = getattr(choice.message, "tool_calls", None) or []
+                    if tool_calls and getattr(tool_calls[0], "function", None):
+                        # Many models put the JSON in function.arguments
+                        args = getattr(tool_calls[0].function, "arguments", "") or ""
+                        if args.strip():
+                            return args.strip()
                     if getattr(choice.message, "refusal", None):
                         raise RuntimeError(f"Model refusal: {choice.message.refusal}")
+                    # Retry once without response_format (some models misbehave with it)
+                    if "response_format" in request_params:
+                        rp = dict(request_params)
+                        rp.pop("response_format", None)
+                        response = self.client.chat.completions.create(**rp)
+                        choice = response.choices[0]
+                        content = (getattr(choice.message, "content", None) or "").strip()
+                        if content:
+                            return content
+                        tool_calls = getattr(choice.message, "tool_calls", None) or []
+                        if tool_calls and getattr(tool_calls[0], "function", None):
+                            args = getattr(tool_calls[0].function, "arguments", "") or ""
+                            if args.strip():
+                                return args.strip()
                     raise RuntimeError("Empty completion content from model")
 
-                return content.strip()
+                return content
 
             except Exception as e:
                 logger.warning(f"Attempt {attempt + 1} failed with {model_name}: {e}")
@@ -423,9 +443,18 @@ Return ONLY valid JSON with no additional text."""
 
         # Use complex_planning task routing for GPT-5
         response_text = self._call_llm("complex_planning", messages)
-
-        # Parse and validate the response
-        return self._parse_mart_plan_response(response_text)
+        try:
+            return self._parse_mart_plan_response(response_text)
+        except Exception as e:
+            logger.warning(f"Primary model parse failed: {e}. Retrying with fast model...")
+            # Temporarily route complex_planning to fast model for one retry
+            original = self.config.task_routing.get("complex_planning", self.config.primary_model)
+            try:
+                self.config.task_routing["complex_planning"] = self.config.fast_model
+                response_text = self._call_llm("complex_planning", messages)
+                return self._parse_mart_plan_response(response_text)
+            finally:
+                self.config.task_routing["complex_planning"] = original
 
     def _parse_mart_plan_response(self, response_text: str) -> MartPlan:
         """Parse and validate the mart plan response from LLM."""
@@ -443,7 +472,7 @@ Return ONLY valid JSON with no additional text."""
 
         # Parse JSON with robust parsing
         try:
-            plan_data = parse_llm_json(response_text)
+            plan_data = parse_llm_json(json_text)
             mart_plan = MartPlan(**plan_data)
             logger.info("✓ Successfully generated mart plan")
             return mart_plan
@@ -451,19 +480,7 @@ Return ONLY valid JSON with no additional text."""
             logger.error(f"JSON parsing failed: {e}")
             logger.error(f"Response length: {len(response_text)}")
             logger.error(f"Full response: {repr(response_text)}")
-
-            # Try the fast model once before giving up
-            if self.config.fast_model != self.config.primary_model:
-                logger.info("Trying with fast model...")
-                try:
-                    response_text = self._call_llm("plan_validation", messages)
-                    plan_data = parse_llm_json(response_text)
-                    mart_plan = MartPlan(**plan_data)
-                    logger.info("✓ Successfully generated mart plan with fast model")
-                    return mart_plan
-                except Exception as e2:
-                    logger.error(f"Fast model also failed: {e2}")
-
+            # Parsing failed – let caller decide a retry strategy
             raise ValueError(f"Failed to parse JSON response: {e}")
 
     def validate_mart_plan(self, plan: MartPlan) -> PlanValidationResult:
@@ -570,9 +587,11 @@ Focus on practical, actionable feedback. Be concise but thorough."""
         """
         logger.info(f"Planning mart for question: {user_question}")
 
-        # Search for relevant metadata with lower threshold
-        from metadata_search_service import SearchConfig
-        search_config = SearchConfig(similarity_threshold=0.3)
+        # Use UI-provided search config if available, else a sane default
+        search_config = getattr(self, "_ui_search_config", None)
+        if search_config is None:
+            from metadata_search_service import SearchConfig
+            search_config = SearchConfig(similarity_threshold=0.5, top_k=10, include_relationships=True)
         query_type, search_results = self.search_service.search_metadata(user_question, search_config)
 
         if not search_results:

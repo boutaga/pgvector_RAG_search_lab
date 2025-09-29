@@ -161,8 +161,14 @@ class MartExplorerApp:
 
             # Initialize services
             config = AgentConfig()
-            self.agent = MartPlanningAgent(config)
             self.search_service = MetadataSearchService()
+            # get current sidebar settings (defaults if not yet created)
+            top_k = st.session_state.get("top_k", 10)
+            thr = st.session_state.get("similarity_threshold", 0.5)
+            search_cfg = SearchConfig(top_k=top_k, similarity_threshold=thr, include_relationships=True)
+            self.agent = MartPlanningAgent(config)  # keep signature
+            # stash search_cfg on the agent for use
+            self.agent._ui_search_config = search_cfg
 
             # Store model status
             st.session_state.model_status = {
@@ -748,8 +754,8 @@ LIMIT 10;"""
 
             # Search settings
             st.markdown("### 🔍 Search Settings")
-            top_k = st.slider("Metadata results", min_value=5, max_value=20, value=10)
-            similarity_threshold = st.slider("Similarity threshold", min_value=0.5, max_value=1.0, value=0.7)
+            top_k = st.slider("Metadata results", min_value=5, max_value=20, value=10, key="top_k")
+            similarity_threshold = st.slider("Similarity threshold", min_value=0.0, max_value=1.0, value=0.5, key="similarity_threshold")
 
             st.markdown("---")
 
