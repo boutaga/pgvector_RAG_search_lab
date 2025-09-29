@@ -216,9 +216,9 @@ class MetadataSearchService:
                     boost_conditions.append("""
                         CASE
                             WHEN data_type IN ('numeric', 'integer', 'bigint', 'real', 'double precision')
-                                AND (column_name LIKE '%price%' OR column_name LIKE '%amount%'
-                                     OR column_name LIKE '%cost%' OR column_name LIKE '%total%'
-                                     OR column_name LIKE '%quantity%' OR column_name LIKE '%revenue%')
+                                AND (column_name LIKE '%%price%%' OR column_name LIKE '%%amount%%'
+                                     OR column_name LIKE '%%cost%%' OR column_name LIKE '%%total%%'
+                                     OR column_name LIKE '%%quantity%%' OR column_name LIKE '%%revenue%%')
                             THEN 0.1
                             ELSE 0.0
                         END
