@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from enum import Enum
 import openai
 import logging
+import json
+from pgvector.psycopg2 import register_vector
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -69,15 +71,18 @@ class MetadataSearchService:
         """Create a database connection."""
         db_url = os.environ.get('DATABASE_URL')
         if db_url:
-            return psycopg2.connect(db_url)
+            conn = psycopg2.connect(db_url)
         else:
-            return psycopg2.connect(
+            conn = psycopg2.connect(
                 host=os.environ.get('DB_HOST', 'localhost'),
                 port=os.environ.get('DB_PORT', '5432'),
                 database=os.environ.get('DB_NAME', 'postgres'),
                 user=os.environ.get('DB_USER', 'postgres'),
                 password=os.environ.get('DB_PASSWORD', '')
             )
+        # Register vector types
+        register_vector(conn)
+        return conn
 
     def generate_query_embedding(self, query: str) -> List[float]:
         """Generate embedding for a search query."""
@@ -152,6 +157,9 @@ class MetadataSearchService:
 
         try:
             with conn.cursor() as cursor:
+                # Use JSON format for vector (consistent with other labs)
+                embedding_json = json.dumps(query_embedding)
+
                 cursor.execute("""
                     SELECT
                         id,
@@ -167,7 +175,7 @@ class MetadataSearchService:
                         AND (1 - (embedding <=> %s::vector)) >= %s
                     ORDER BY similarity DESC
                     LIMIT %s
-                """, (query_embedding, query_embedding, config.similarity_threshold, config.top_k))
+                """, (embedding_json, embedding_json, config.similarity_threshold, config.top_k))
 
                 results = []
                 for row in cursor.fetchall():
@@ -249,7 +257,20 @@ class MetadataSearchService:
                     LIMIT %s
                 """
 
-                cursor.execute(sql_query, (query_embedding, query_embedding, config.similarity_threshold, config.top_k))
+                logger.info(f"Executing query with embedding length: {len(query_embedding)}")
+                logger.info(f"Config threshold: {config.similarity_threshold}, top_k: {config.top_k}")
+
+                # Use JSON format for vector (consistent with other labs)
+                embedding_json = json.dumps(query_embedding)
+
+                # Debug parameter values and ensure they're the right types
+                threshold = float(config.similarity_threshold)
+                top_k = int(config.top_k)
+
+                params = (embedding_json, embedding_json, threshold, top_k)
+                logger.info(f"Parameters: embedding_json_len={len(embedding_json)}, threshold={threshold}, top_k={top_k}")
+
+                cursor.execute(sql_query, params)
 
                 results = []
                 for row in cursor.fetchall():
@@ -292,6 +313,9 @@ class MetadataSearchService:
 
         try:
             with conn.cursor() as cursor:
+                # Use JSON format for vector (consistent with other labs)
+                embedding_json = json.dumps(query_embedding)
+
                 cursor.execute("""
                     SELECT
                         id,
@@ -308,7 +332,7 @@ class MetadataSearchService:
                         AND (1 - (embedding <=> %s::vector)) >= %s
                     ORDER BY similarity DESC
                     LIMIT %s
-                """, (query_embedding, query_embedding, config.similarity_threshold, config.top_k))
+                """, (embedding_json, embedding_json, config.similarity_threshold, config.top_k))
 
                 results = []
                 for row in cursor.fetchall():
@@ -345,6 +369,9 @@ class MetadataSearchService:
 
         try:
             with conn.cursor() as cursor:
+                # Use JSON format for vector (consistent with other labs)
+                embedding_json = json.dumps(query_embedding)
+
                 cursor.execute("""
                     SELECT
                         id,
@@ -360,7 +387,7 @@ class MetadataSearchService:
                         AND (1 - (embedding <=> %s::vector)) >= %s
                     ORDER BY similarity DESC
                     LIMIT %s
-                """, (query_embedding, query_embedding, config.similarity_threshold, config.top_k))
+                """, (embedding_json, embedding_json, config.similarity_threshold, config.top_k))
 
                 results = []
                 for row in cursor.fetchall():

@@ -12,6 +12,7 @@ from typing import List, Dict, Any, Optional
 import time
 import logging
 from dataclasses import dataclass
+from pgvector.psycopg2 import register_vector
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -51,15 +52,18 @@ class MetadataEmbeddingService:
         """Create a database connection."""
         db_url = os.environ.get('DATABASE_URL')
         if db_url:
-            return psycopg2.connect(db_url)
+            conn = psycopg2.connect(db_url)
         else:
-            return psycopg2.connect(
+            conn = psycopg2.connect(
                 host=os.environ.get('DB_HOST', 'localhost'),
                 port=os.environ.get('DB_PORT', '5432'),
                 database=os.environ.get('DB_NAME', 'postgres'),
                 user=os.environ.get('DB_USER', 'postgres'),
                 password=os.environ.get('DB_PASSWORD', '')
             )
+        # Register vector types
+        register_vector(conn)
+        return conn
 
     def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for a list of texts."""
