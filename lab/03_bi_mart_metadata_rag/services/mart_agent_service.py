@@ -526,8 +526,10 @@ Focus on practical, actionable feedback. Be concise but thorough."""
         """
         logger.info(f"Planning mart for question: {user_question}")
 
-        # Search for relevant metadata
-        query_type, search_results = self.search_service.search_metadata(user_question)
+        # Search for relevant metadata with lower threshold
+        from metadata_search_service import SearchConfig
+        search_config = SearchConfig(similarity_threshold=0.3)
+        query_type, search_results = self.search_service.search_metadata(user_question, search_config)
 
         if not search_results:
             raise ValueError("No relevant metadata found for the question")
