@@ -68,8 +68,12 @@ def clean_csv_value(value, column_name=None):
         return False
     return value
 
-def load_csv_to_table(conn, schema_name, table_name, csv_file_path, column_mappings=None):
-    """Load CSV data into a PostgreSQL table."""
+def load_csv_to_table(conn, schema_name, table_name, csv_file_path, column_mappings=None, skip_column=None):
+    """Load CSV data into a PostgreSQL table.
+
+    Args:
+        skip_column: Column name to skip during initial load (for self-referential FKs)
+    """
     with conn.cursor() as cursor:
         # Read CSV to determine columns
         with open(csv_file_path, 'r', encoding='utf-8-sig') as f:
@@ -78,14 +82,16 @@ def load_csv_to_table(conn, schema_name, table_name, csv_file_path, column_mappi
 
             # Map CSV columns to table columns if mapping provided
             if column_mappings:
-                table_columns = [column_mappings.get(h, h) for h in headers]
+                table_columns = [column_mappings.get(h, h) for h in headers if not (skip_column and column_mappings.get(h, h) == skip_column)]
+                headers_to_use = [h for h in headers if not (skip_column and column_mappings.get(h, h) == skip_column)]
             else:
-                table_columns = headers
+                table_columns = [h for h in headers if h != skip_column]
+                headers_to_use = [h for h in headers if h != skip_column]
 
             # Prepare data for insertion
             rows = []
             for row in reader:
-                cleaned_row = [clean_csv_value(row[h], h) for h in headers]
+                cleaned_row = [clean_csv_value(row[h], h) for h in headers_to_use]
                 rows.append(cleaned_row)
 
         if not rows:
@@ -109,11 +115,39 @@ def load_csv_to_table(conn, schema_name, table_name, csv_file_path, column_mappi
             cursor.executemany(insert_query, rows)
             rows_inserted = cursor.rowcount
             conn.commit()
-            print(f"  ✓ Loaded {rows_inserted} rows into {schema_name}.{table_name}")
+            if skip_column:
+                print(f"  ✓ Loaded {rows_inserted} rows into {schema_name}.{table_name} (without {skip_column})")
+            else:
+                print(f"  ✓ Loaded {rows_inserted} rows into {schema_name}.{table_name}")
         except Exception as e:
             conn.rollback()
             print(f"  ✗ Error loading {table_name}: {e}")
             raise
+
+def update_employee_reports_to(conn, csv_file_path, column_mappings):
+    """Update the reports_to column in employees table after initial load."""
+    with conn.cursor() as cursor:
+        # Read CSV to get reports_to data
+        with open(csv_file_path, 'r', encoding='utf-8-sig') as f:
+            reader = csv.DictReader(f)
+
+            for row in reader:
+                employee_id = clean_csv_value(row['employeeID'], 'employeeID')
+                reports_to = clean_csv_value(row.get('reportsTo'), 'reportsTo')
+
+                if reports_to:
+                    update_query = sql.SQL("""
+                        UPDATE src_northwind.employees
+                        SET reports_to = %s
+                        WHERE employee_id = %s
+                    """)
+                    try:
+                        cursor.execute(update_query, (reports_to, employee_id))
+                    except Exception as e:
+                        print(f"  ⚠ Warning: Could not update reports_to for employee {employee_id}: {e}")
+
+        conn.commit()
+        print(f"  ✓ Updated reports_to relationships for employees")
 
 def load_northwind_data():
     """Main function to load all Northwind data."""
@@ -234,12 +268,24 @@ def load_northwind_data():
         ]
 
         print("\nLoading CSV data...")
+        employees_data = None  # Store employees data for second pass
         for table_name, csv_filename, column_mapping in table_load_order:
             csv_path = data_dir / csv_filename
             if csv_path.exists():
-                load_csv_to_table(conn, 'src_northwind', table_name, csv_path, column_mapping)
+                # Special handling for employees table - load in two passes
+                if table_name == 'employees':
+                    # First pass: load without reports_to column
+                    load_csv_to_table(conn, 'src_northwind', table_name, csv_path, column_mapping, skip_column='reports_to')
+                    employees_data = (csv_path, column_mapping)  # Save for second pass
+                else:
+                    load_csv_to_table(conn, 'src_northwind', table_name, csv_path, column_mapping)
             else:
                 print(f"  ⚠ Skipping {table_name}: {csv_filename} not found")
+
+        # Second pass for employees: update reports_to relationships
+        if employees_data:
+            csv_path, column_mapping = employees_data
+            update_employee_reports_to(conn, csv_path, column_mapping)
 
         # Verify data was loaded
         print("\nVerifying data load...")
