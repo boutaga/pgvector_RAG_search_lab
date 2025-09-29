@@ -44,12 +44,10 @@ class AgentConfig:
     def __post_init__(self):
         if self.gpt5_config is None:
             self.gpt5_config = {
-                "temperature": 0.1,
                 "max_completion_tokens": 3000
             }
         if self.gpt5_mini_config is None:
             self.gpt5_mini_config = {
-                "temperature": 0.05,
                 "max_completion_tokens": 1500
             }
         if self.task_routing is None:
