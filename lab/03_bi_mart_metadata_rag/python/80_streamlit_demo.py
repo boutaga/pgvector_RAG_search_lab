@@ -36,6 +36,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+@st.cache_resource
+def get_agent_cached(config: AgentConfig):
+    return MartPlanningAgent(config)
+
 # Custom CSS for professional UI
 st.markdown("""
     <style>
@@ -166,7 +170,7 @@ class MartExplorerApp:
             top_k = st.session_state.get("top_k", 10)
             thr = st.session_state.get("similarity_threshold", 0.5)
             search_cfg = SearchConfig(top_k=top_k, similarity_threshold=thr, include_relationships=True)
-            self.agent = MartPlanningAgent(config)  # keep signature
+            self.agent = get_agent_cached(config)
             # stash search_cfg on the agent for use
             self.agent._ui_search_config = search_cfg
 

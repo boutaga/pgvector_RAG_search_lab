@@ -110,12 +110,13 @@ def interactive_planning_loop():
             primary_model="gpt-5",
             fast_model="gpt-5-mini",
             fallback_model="gpt-4",
-            temperature=0.1,
+            # IMPORTANT: do not set temperature for gpt-5 chat/completions
             max_tokens=3000,
             max_retries=3
         )
         agent = MartPlanningAgent(config)
-        print("✓ Mart planning agent initialized with GPT-5 and GPT-5-mini")
+        print(f"✓ Mart planning agent initialized with {agent.config.primary_model} "
+              f"and {agent.config.fast_model}")
     except Exception as e:
         print(f"✗ Error initializing agent: {e}")
         return
@@ -219,7 +220,8 @@ def main():
         print(f"🏗️  Planning mart for: '{question}'")
 
         try:
-            agent = MartPlanningAgent()
+            cfg = AgentConfig(primary_model="gpt-5", fast_model="gpt-5-mini", fallback_model="gpt-4")
+            agent = MartPlanningAgent(cfg)
             mart_plan, search_results = agent.plan_mart_from_question(question)
 
             print_mart_plan(mart_plan, question)

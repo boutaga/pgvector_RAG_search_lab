@@ -228,6 +228,30 @@ class MartPlanningAgent:
                             args = getattr(tool_calls[0].function, "arguments", "") or ""
                             if args.strip():
                                 return args.strip()
+
+                    # Last try: switch to fast model once (no response_format)
+                    if model_name != self.config.fast_model:
+                        alt = dict(request_params)
+                        alt["model"] = self.config.fast_model
+                        alt.pop("response_format", None)
+                        alt.update(self._get_model_config(self.config.fast_model))
+                        response = self.client.chat.completions.create(**alt)
+                        choice = response.choices[0]
+                        content = (getattr(choice.message, "content", None) or "").strip()
+                        if content:
+                            return content
+                        tool_calls = getattr(choice.message, "tool_calls", None) or []
+                        if tool_calls and getattr(tool_calls[0], "function", None):
+                            args = getattr(tool_calls[0].function, "arguments", "") or ""
+                            if args.strip():
+                                return args.strip()
+
+                    # Log raw payload for diagnostics
+                    try:
+                        raw = response.model_dump()
+                        logger.error("Empty completion; raw payload (trunc): %s", str(raw)[:1000])
+                    except Exception:
+                        logger.error("Empty completion and model_dump() unavailable")
                     raise RuntimeError("Empty completion content from model")
 
                 return content
@@ -593,7 +617,14 @@ Focus on practical, actionable feedback. Be concise but thorough."""
             from metadata_search_service import SearchConfig
             search_config = SearchConfig(similarity_threshold=0.5, top_k=10, include_relationships=True)
         query_type, search_results = self.search_service.search_metadata(user_question, search_config)
-
+        if not search_results and getattr(search_config, "similarity_threshold", 0.5) > 0.3:
+            lowered = type(search_config)(
+                top_k=getattr(search_config, "top_k", 10),
+                similarity_threshold=0.3,
+                include_relationships=getattr(search_config, "include_relationships", True)
+            )
+            logger.info("No hits at %.2f — retrying at 0.3", getattr(search_config, "similarity_threshold", 0.5))
+            query_type, search_results = self.search_service.search_metadata(user_question, lowered)
         if not search_results:
             raise ValueError("No relevant metadata found for the question")
 
