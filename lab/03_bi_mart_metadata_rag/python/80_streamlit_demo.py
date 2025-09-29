@@ -163,8 +163,14 @@ class MartExplorerApp:
             else:
                 self.demo_mode = False
 
-            # Initialize services
-            config = AgentConfig()
+            # Initialize services with proper GPT-5 configuration
+            config = AgentConfig(
+                primary_model="gpt-5",
+                fast_model="gpt-5-mini",
+                fallback_model="gpt-4",
+                max_tokens=3000,
+                max_retries=3
+            )
             self.search_service = MetadataSearchService()
             # get current sidebar settings (defaults if not yet created)
             top_k = st.session_state.get("top_k", 10)
@@ -241,6 +247,16 @@ class MartExplorerApp:
         if st.button("🧠 Generate Mart Plan with GPT-5", type="primary", use_container_width=True):
             with st.spinner("🔍 Searching relevant metadata... 🧠 Planning optimal mart structure..."):
                 try:
+                    # Update search configuration from sidebar
+                    top_k = st.session_state.get("top_k", 10)
+                    similarity_threshold = st.session_state.get("similarity_threshold", 0.5)
+                    search_cfg = SearchConfig(
+                        top_k=top_k,
+                        similarity_threshold=similarity_threshold,
+                        include_relationships=True
+                    )
+                    self.agent._ui_search_config = search_cfg
+
                     # Generate mart plan
                     mart_plan, search_results = self.agent.plan_mart_from_question(kpi_requirement)
                     st.session_state.mart_plan = mart_plan
@@ -249,11 +265,25 @@ class MartExplorerApp:
                     # Extract suggested fields
                     self.extract_suggested_fields(mart_plan)
 
-                    st.success("✅ Mart plan generated successfully!")
+                    st.success(f"✅ Mart plan generated successfully! Found {len(search_results)} relevant metadata elements.")
                     st.balloons()
 
+                except ValueError as e:
+                    if "No relevant metadata found" in str(e):
+                        st.error("❌ No relevant metadata found for your question. Try:"
+                               "\n- Using more general terms\n- Checking if the database contains relevant tables\n- Lowering the similarity threshold in settings")
+                    else:
+                        st.error(f"❌ Failed to parse mart plan: {e}")
+                        st.warning("💡 The AI may be having trouble with the response format. Try rephrasing your question or using a template.")
                 except Exception as e:
-                    st.error(f"❌ Failed to generate mart plan: {e}")
+                    st.error(f"❌ Unexpected error during mart planning: {e}")
+                    with st.expander("🔍 Debug Information"):
+                        st.text(f"Error type: {type(e).__name__}")
+                        st.text(f"Error details: {str(e)}")
+                        if hasattr(e, '__traceback__'):
+                            import traceback
+                            st.text("Traceback:")
+                            st.code(traceback.format_exc())
 
         # Display mart plan if available
         if st.session_state.mart_plan:

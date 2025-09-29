@@ -204,16 +204,47 @@ class MartPlanningAgent:
                 # Prefer normal content
                 content = (getattr(choice.message, "content", None) or "").strip()
 
-                # If content is empty, try function/tool call payload
+                # Check for empty content and apply robust error handling
                 if not content:
+                    finish_reason = getattr(choice, "finish_reason", None)
+                    logger.warning(f"Empty content received, finish_reason: {finish_reason}")
+
+                    # If finish_reason is 'length' AND content is empty, immediately retry with lower tokens
+                    if finish_reason == 'length' and model_name.startswith(("gpt-5", "o4", "o3")):
+                        logger.info("GPT-5 reasoning burn detected, retrying with lower token cap...")
+                        retry_params = dict(request_params)
+                        retry_params["max_completion_tokens"] = 400  # Lower cap
+                        retry_params.pop("response_format", None)  # Remove JSON mode
+
+                        # Add stricter system instruction
+                        messages_copy = list(messages)
+                        if messages_copy and messages_copy[0]["role"] == "system":
+                            messages_copy[0]["content"] += "\n\nIMPORTANT: You must provide a complete response within the token limit. Do not spend all tokens on reasoning."
+
+                        retry_params["messages"] = messages_copy
+
+                        try:
+                            retry_response = self.client.chat.completions.create(**retry_params)
+                            retry_choice = retry_response.choices[0]
+                            retry_content = (getattr(retry_choice.message, "content", None) or "").strip()
+                            if retry_content:
+                                logger.info("Token-capped retry succeeded")
+                                return retry_content
+                        except Exception as retry_error:
+                            logger.warning(f"Token-capped retry failed: {retry_error}")
+
+                    # Try function/tool call payload
                     tool_calls = getattr(choice.message, "tool_calls", None) or []
                     if tool_calls and getattr(tool_calls[0], "function", None):
                         # Many models put the JSON in function.arguments
                         args = getattr(tool_calls[0].function, "arguments", "") or ""
                         if args.strip():
                             return args.strip()
+
+                    # Check for refusal
                     if getattr(choice.message, "refusal", None):
                         raise RuntimeError(f"Model refusal: {choice.message.refusal}")
+
                     # Retry once without response_format (some models misbehave with it)
                     if "response_format" in request_params:
                         rp = dict(request_params)
