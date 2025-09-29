@@ -148,16 +148,16 @@ class MartPlanningAgent:
 
     def _get_model_config(self, model_name: str) -> Dict[str, Any]:
         """Get configuration for a specific model."""
-        if model_name == "gpt-5":
-            return self.config.gpt5_config
-        elif model_name == "gpt-5-mini":
-            return self.config.gpt5_mini_config
-        else:
-            # Fallback configuration for other models
-            token_param = self._get_token_param_name(model_name)
+        # Use proper token limits for different model families
+        if model_name.startswith(("gpt-5", "o4", "o3")):
             return {
-                "temperature": self.config.temperature,
-                token_param: self.config.max_tokens
+                "max_completion_tokens": 600,  # Hard cap to prevent reasoning burn
+                # Do NOT set temperature for gpt-5* on chat.completions
+            }
+        else:
+            return {
+                "max_tokens": 800,
+                "temperature": 0.2,
             }
 
     def _call_llm(self, task_type: str, messages: List[Dict[str, str]]) -> str:
