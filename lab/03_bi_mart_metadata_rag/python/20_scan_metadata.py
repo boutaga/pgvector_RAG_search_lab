@@ -31,13 +31,15 @@ def scan_table_metadata(conn, schema_name: str = 'src_northwind') -> List[Dict]:
     query = """
     WITH table_stats AS (
         SELECT
-            schemaname,
-            tablename,
-            n_tup_ins + n_tup_upd + n_tup_del as total_activity,
-            n_live_tup as row_count,
-            pg_relation_size(schemaname||'.'||tablename) as table_size
-        FROM pg_stat_user_tables
-        WHERE schemaname = %s
+            s.schemaname,
+            s.tablename,
+            COALESCE(s.n_tup_ins, 0) + COALESCE(s.n_tup_upd, 0) + COALESCE(s.n_tup_del, 0) as total_activity,
+            COALESCE(s.n_live_tup, 0) as row_count,
+            pg_relation_size(c.oid) as table_size
+        FROM pg_stat_user_tables s
+        JOIN pg_class c ON c.relname = s.tablename
+        JOIN pg_namespace n ON n.nspname = s.schemaname AND n.oid = c.relnamespace
+        WHERE s.schemaname = %s
     ),
     table_info AS (
         SELECT
@@ -77,12 +79,15 @@ def scan_table_metadata(conn, schema_name: str = 'src_northwind') -> List[Dict]:
     ),
     index_info AS (
         SELECT
-            schemaname,
-            tablename,
-            COUNT(*) as index_count
-        FROM pg_indexes
-        WHERE schemaname = %s
-        GROUP BY schemaname, tablename
+            n.nspname as schemaname,
+            c.relname as tablename,
+            COUNT(i.indexrelid) as index_count
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        LEFT JOIN pg_index i ON i.indrelid = c.oid
+        WHERE n.nspname = %s
+            AND c.relkind = 'r'
+        GROUP BY n.nspname, c.relname
     )
     SELECT
         ti.table_schema,
@@ -182,18 +187,34 @@ def scan_column_metadata(conn, schema_name: str = 'src_northwind') -> List[Dict]
             AND kcu.table_schema = %s
     ),
     stats AS (
+        -- Try to get stats, but make it optional
         SELECT
-            schemaname,
-            tablename,
-            attname,
+            schemaname::text as schemaname,
+            tablename::text as tablename,
+            attname::text as attname,
             n_distinct,
             null_frac,
             avg_width,
             correlation,
-            most_common_vals::text as most_common_vals,
-            most_common_freqs::text as most_common_freqs
+            COALESCE(most_common_vals::text, '') as most_common_vals,
+            COALESCE(most_common_freqs::text, '') as most_common_freqs
         FROM pg_stats
         WHERE schemaname = %s
+        UNION ALL
+        -- Fallback if pg_stats doesn't exist or has no data
+        SELECT
+            %s::text as schemaname,
+            ''::text as tablename,
+            ''::text as attname,
+            NULL::real as n_distinct,
+            NULL::real as null_frac,
+            NULL::integer as avg_width,
+            NULL::real as correlation,
+            ''::text as most_common_vals,
+            ''::text as most_common_freqs
+        WHERE NOT EXISTS (
+            SELECT 1 FROM pg_stats WHERE schemaname = %s LIMIT 1
+        )
     )
     SELECT
         ci.*,
@@ -230,7 +251,7 @@ def scan_column_metadata(conn, schema_name: str = 'src_northwind') -> List[Dict]
     """
 
     with conn.cursor() as cursor:
-        cursor.execute(query, (schema_name, schema_name, schema_name, schema_name, schema_name))
+        cursor.execute(query, (schema_name, schema_name, schema_name, schema_name, schema_name, schema_name, schema_name, schema_name))
         columns = [desc[0] for desc in cursor.description]
         results = []
         for row in cursor.fetchall():
