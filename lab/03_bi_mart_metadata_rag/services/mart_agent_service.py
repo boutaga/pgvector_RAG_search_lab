@@ -151,12 +151,12 @@ class MartPlanningAgent:
         # Use proper token limits for different model families
         if model_name.startswith(("gpt-5", "o4", "o3")):
             return {
-                "max_completion_tokens": 2000,  # Increased to allow room for reasoning + output
+                "max_completion_tokens": 4000,  # Increased to allow room for reasoning + output
                 # Do NOT set temperature for gpt-5* on chat.completions
             }
         else:
             return {
-                "max_tokens": 1500,
+                "max_tokens": 2000,
                 "temperature": 0.2,
             }
 
@@ -219,7 +219,7 @@ class MartPlanningAgent:
                     if finish_reason == 'length' and model_name.startswith(("gpt-5", "o4", "o3")):
                         logger.info("GPT-5 reasoning burn detected, retrying with compact reasoning instruction...")
                         retry_params = dict(request_params)
-                        retry_params["max_completion_tokens"] = 1200  # Still generous but with strict instruction
+                        retry_params["max_completion_tokens"] = 3000  # Increased retry limit
                         retry_params.pop("response_format", None)  # Remove JSON mode
 
                         # Add stricter system instruction emphasizing output over reasoning

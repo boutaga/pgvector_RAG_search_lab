@@ -43,7 +43,7 @@ def get_agent_cached():
         primary_model="gpt-5",
         fast_model="gpt-5-mini",
         fallback_model="gpt-4",
-        max_tokens=3000,
+        max_tokens=4000,
         max_retries=3
     )
     return MartPlanningAgent(config)
@@ -266,6 +266,10 @@ class MartExplorerApp:
                     mart_plan, search_results = self.agent.plan_mart_from_question(kpi_requirement)
                     st.session_state.mart_plan = mart_plan
                     st.session_state.search_results = search_results
+
+                    # Clear cached validation result when new plan is generated
+                    if 'validation_result' in st.session_state:
+                        del st.session_state.validation_result
 
                     # Extract suggested fields
                     self.extract_suggested_fields(mart_plan)
@@ -561,8 +565,12 @@ class MartExplorerApp:
 
         st.markdown("### ✅ Plan Validation")
 
-        # Run validation
-        validation_result = self.agent.validate_mart_plan(st.session_state.mart_plan)
+        # Run validation only once and cache the result
+        if 'validation_result' not in st.session_state:
+            with st.spinner("Validating mart plan..."):
+                st.session_state.validation_result = self.agent.validate_mart_plan(st.session_state.mart_plan)
+
+        validation_result = st.session_state.validation_result
 
         if validation_result.is_valid:
             st.success("✅ Mart plan is valid and ready for execution")
