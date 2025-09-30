@@ -249,9 +249,32 @@ class MartExplorerApp:
 
     def render_mart_planning(self, kpi_requirement: str):
         """Render mart planning and field selection interface"""
-        if st.button("🧠 Generate Mart Plan with GPT-5", type="primary", use_container_width=True):
+        # Dynamic button text based on model selection
+        use_gpt5 = st.session_state.get("use_gpt5_planning", True)
+        button_text = "🧠 Generate Mart Plan with GPT-5" if use_gpt5 else "⚡ Generate Mart Plan with GPT-5-mini"
+
+        if st.button(button_text, type="primary", use_container_width=True):
             with st.spinner("🔍 Searching relevant metadata... 🧠 Planning optimal mart structure..."):
                 try:
+                    # Update model configuration based on sidebar settings
+                    use_gpt5_for_planning = st.session_state.get("use_gpt5_planning", True)
+                    use_gpt5_mini_for_validation = st.session_state.get("use_gpt5_mini_validation", True)
+                    reasoning_effort = st.session_state.get("reasoning_effort", "low")
+
+                    # Dynamically update agent task routing
+                    if use_gpt5_for_planning:
+                        self.agent.config.task_routing["complex_planning"] = "gpt-5"
+                    else:
+                        self.agent.config.task_routing["complex_planning"] = "gpt-5-mini"
+
+                    if use_gpt5_mini_for_validation:
+                        self.agent.config.task_routing["plan_validation"] = "gpt-5-mini"
+                    else:
+                        self.agent.config.task_routing["plan_validation"] = "gpt-5"
+
+                    # Store reasoning effort for use in API calls
+                    self.agent._reasoning_effort = reasoning_effort
+
                     # Update search configuration from sidebar
                     top_k = st.session_state.get("top_k", 10)
                     similarity_threshold = st.session_state.get("similarity_threshold", 0.5)
@@ -796,8 +819,20 @@ LIMIT 10;"""
 
             # Model preferences
             st.markdown("### 🤖 Model Preferences")
-            use_gpt5 = st.checkbox("Use GPT-5 for planning", value=True)
-            use_gpt5_mini = st.checkbox("Use GPT-5-mini for validation", value=True)
+            use_gpt5 = st.checkbox("Use GPT-5 for planning", value=True, key="use_gpt5_planning")
+            use_gpt5_mini = st.checkbox("Use GPT-5-mini for validation", value=True, key="use_gpt5_mini_validation")
+
+            # Reasoning effort control for GPT-5 models
+            if use_gpt5:
+                reasoning_effort = st.selectbox(
+                    "GPT-5 Reasoning Effort",
+                    options=["low", "medium", "high"],
+                    index=0,  # Default to "low" for faster responses
+                    help="Lower effort = faster responses, less deep reasoning",
+                    key="reasoning_effort"
+                )
+            else:
+                reasoning_effort = None
 
             # Search settings
             st.markdown("### 🔍 Search Settings")

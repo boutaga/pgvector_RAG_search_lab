@@ -150,10 +150,15 @@ class MartPlanningAgent:
         """Get configuration for a specific model."""
         # Use proper token limits for different model families
         if model_name.startswith(("gpt-5", "o4", "o3")):
-            return {
-                "max_completion_tokens": 4000,  # Increased to allow room for reasoning + output
+            config = {
+                "max_completion_tokens": 8000,  # Increased to allow room for reasoning + output
                 # Do NOT set temperature for gpt-5* on chat.completions
             }
+            # Add reasoning_effort if set via UI
+            reasoning_effort = getattr(self, '_reasoning_effort', None)
+            if reasoning_effort:
+                config["reasoning_effort"] = reasoning_effort
+            return config
         else:
             return {
                 "max_tokens": 2000,
@@ -202,7 +207,8 @@ class MartPlanningAgent:
                         pass  # Some models don't support this
 
                 # Log request details for diagnostics
-                logger.info(f"API call: model={model_name}, max_tokens={request_params.get('max_completion_tokens') or request_params.get('max_tokens')}, json_format={use_json_format}")
+                reasoning_effort_str = f", reasoning_effort={request_params.get('reasoning_effort')}" if 'reasoning_effort' in request_params else ""
+                logger.info(f"API call: model={model_name}, max_tokens={request_params.get('max_completion_tokens') or request_params.get('max_tokens')}, json_format={use_json_format}{reasoning_effort_str}")
 
                 response = self.client.chat.completions.create(**request_params)
                 choice = response.choices[0]
