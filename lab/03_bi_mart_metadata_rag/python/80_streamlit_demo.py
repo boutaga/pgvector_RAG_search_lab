@@ -43,7 +43,7 @@ def get_agent_cached():
         primary_model="gpt-5",
         fast_model="gpt-5-mini",
         fallback_model="gpt-4",
-        max_tokens=4000,
+        max_tokens=8000,
         max_retries=3
     )
     return MartPlanningAgent(config)
