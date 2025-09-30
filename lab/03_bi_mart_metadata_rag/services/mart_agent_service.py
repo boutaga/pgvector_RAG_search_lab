@@ -151,12 +151,12 @@ class MartPlanningAgent:
         # Use proper token limits for different model families
         if model_name.startswith(("gpt-5", "o4", "o3")):
             return {
-                "max_completion_tokens": 600,  # Hard cap to prevent reasoning burn
+                "max_completion_tokens": 2000,  # Increased to allow room for reasoning + output
                 # Do NOT set temperature for gpt-5* on chat.completions
             }
         else:
             return {
-                "max_tokens": 800,
+                "max_tokens": 1500,
                 "temperature": 0.2,
             }
 
@@ -191,12 +191,18 @@ class MartPlanningAgent:
                 request_params.pop("structured_output", None)
                 request_params.pop("optimization", None)
 
-                # For JSON output, ask the API to enforce JSON if supported
-                if task_type == "complex_planning":
+                # For JSON output, ONLY use response_format for non-GPT-5 models
+                # GPT-5 handles JSON better without format constraints
+                use_json_format = False
+                if task_type == "complex_planning" and not model_name.startswith(("gpt-5", "o4", "o3")):
                     try:
                         request_params["response_format"] = {"type": "json_object"}
+                        use_json_format = True
                     except Exception:
                         pass  # Some models don't support this
+
+                # Log request details for diagnostics
+                logger.info(f"API call: model={model_name}, max_tokens={request_params.get('max_completion_tokens') or request_params.get('max_tokens')}, json_format={use_json_format}")
 
                 response = self.client.chat.completions.create(**request_params)
                 choice = response.choices[0]
@@ -209,29 +215,37 @@ class MartPlanningAgent:
                     finish_reason = getattr(choice, "finish_reason", None)
                     logger.warning(f"Empty content received, finish_reason: {finish_reason}")
 
-                    # If finish_reason is 'length' AND content is empty, immediately retry with lower tokens
+                    # If finish_reason is 'length' AND content is empty, immediately retry with compact instructions
                     if finish_reason == 'length' and model_name.startswith(("gpt-5", "o4", "o3")):
-                        logger.info("GPT-5 reasoning burn detected, retrying with lower token cap...")
+                        logger.info("GPT-5 reasoning burn detected, retrying with compact reasoning instruction...")
                         retry_params = dict(request_params)
-                        retry_params["max_completion_tokens"] = 400  # Lower cap
+                        retry_params["max_completion_tokens"] = 1200  # Still generous but with strict instruction
                         retry_params.pop("response_format", None)  # Remove JSON mode
 
-                        # Add stricter system instruction
+                        # Add stricter system instruction emphasizing output over reasoning
                         messages_copy = list(messages)
                         if messages_copy and messages_copy[0]["role"] == "system":
-                            messages_copy[0]["content"] += "\n\nIMPORTANT: You must provide a complete response within the token limit. Do not spend all tokens on reasoning."
+                            messages_copy[0]["content"] += "\n\nCRITICAL: Minimize reasoning tokens. Generate complete JSON output immediately. Be concise in internal reasoning - prioritize producing the full JSON response."
+                        else:
+                            messages_copy.insert(0, {
+                                "role": "system",
+                                "content": "CRITICAL: Minimize reasoning tokens. Generate complete JSON output immediately. Be concise in internal reasoning - prioritize producing the full JSON response."
+                            })
 
                         retry_params["messages"] = messages_copy
 
                         try:
+                            logger.info(f"Compact retry: tokens={retry_params['max_completion_tokens']}")
                             retry_response = self.client.chat.completions.create(**retry_params)
                             retry_choice = retry_response.choices[0]
                             retry_content = (getattr(retry_choice.message, "content", None) or "").strip()
                             if retry_content:
-                                logger.info("Token-capped retry succeeded")
+                                logger.info("Compact reasoning retry succeeded")
                                 return retry_content
+                            else:
+                                logger.warning(f"Compact retry still empty, finish_reason={getattr(retry_choice, 'finish_reason', 'unknown')}")
                         except Exception as retry_error:
-                            logger.warning(f"Token-capped retry failed: {retry_error}")
+                            logger.warning(f"Compact retry failed: {retry_error}")
 
                     # Try function/tool call payload
                     tool_calls = getattr(choice.message, "tool_calls", None) or []
@@ -277,13 +291,18 @@ class MartPlanningAgent:
                             if args.strip():
                                 return args.strip()
 
-                    # Log raw payload for diagnostics
+                    # Log raw payload for diagnostics with token usage
                     try:
                         raw = response.model_dump()
+                        usage = getattr(response, 'usage', None)
+                        if usage:
+                            logger.error(f"Empty completion; tokens used - completion: {getattr(usage, 'completion_tokens', 'N/A')}, "
+                                       f"reasoning: {getattr(getattr(usage, 'completion_tokens_details', None), 'reasoning_tokens', 'N/A')}, "
+                                       f"prompt: {getattr(usage, 'prompt_tokens', 'N/A')}")
                         logger.error("Empty completion; raw payload (trunc): %s", str(raw)[:1000])
                     except Exception:
                         logger.error("Empty completion and model_dump() unavailable")
-                    raise RuntimeError("Empty completion content from model")
+                    raise RuntimeError(f"Empty completion content from {model_name} (consider increasing max_completion_tokens)")
 
                 return content
 
@@ -466,24 +485,22 @@ class MartPlanningAgent:
 
         logger.info("Generating mart plan with GPT-5...")
 
-        # Enhanced system prompt for GPT-5
-        system_prompt = """You are an expert data warehouse architect with deep expertise in dimensional modeling and modern BI practices.
+        # Enhanced system prompt for GPT-5 - emphasizing output over reasoning
+        system_prompt = """You are an expert data warehouse architect specializing in dimensional modeling.
 
-Your task is to generate optimal data mart schemas that follow Kimball methodology while leveraging GPT-5's enhanced reasoning capabilities.
+Generate optimal data mart schemas following Kimball methodology.
 
-Key capabilities to utilize:
-1. Deep analytical reasoning about business requirements
-2. Advanced pattern recognition for optimal schema design
-3. Sophisticated understanding of performance implications
-4. Enhanced JSON structure generation with validation
+CRITICAL INSTRUCTIONS:
+- Minimize internal reasoning - prioritize generating complete JSON output
+- Be concise and direct in your analysis
+- Focus on producing the full JSON response quickly
 
 Generate schemas that are:
 - Optimized for the specific business question
 - Performant for analytical workloads
-- Maintainable and extensible
-- Business-user friendly
+- Business-user friendly with clear naming
 
-Return ONLY valid JSON with no additional text."""
+Return ONLY valid JSON with no additional text or explanation."""
 
         messages = [
             {

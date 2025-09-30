@@ -37,7 +37,15 @@ st.set_page_config(
 )
 
 @st.cache_resource
-def get_agent_cached(config: AgentConfig):
+def get_agent_cached():
+    """Get cached agent instance with default config."""
+    config = AgentConfig(
+        primary_model="gpt-5",
+        fast_model="gpt-5-mini",
+        fallback_model="gpt-4",
+        max_tokens=3000,
+        max_retries=3
+    )
     return MartPlanningAgent(config)
 
 # Custom CSS for professional UI
@@ -164,26 +172,23 @@ class MartExplorerApp:
                 self.demo_mode = False
 
             # Initialize services with proper GPT-5 configuration
-            config = AgentConfig(
-                primary_model="gpt-5",
-                fast_model="gpt-5-mini",
-                fallback_model="gpt-4",
-                max_tokens=3000,
-                max_retries=3
-            )
             self.search_service = MetadataSearchService()
-            # get current sidebar settings (defaults if not yet created)
+
+            # Get cached agent (initialized once per session)
+            self.agent = get_agent_cached()
+
+            # Get current sidebar settings (defaults if not yet created)
             top_k = st.session_state.get("top_k", 10)
             thr = st.session_state.get("similarity_threshold", 0.5)
             search_cfg = SearchConfig(top_k=top_k, similarity_threshold=thr, include_relationships=True)
-            self.agent = get_agent_cached(config)
-            # stash search_cfg on the agent for use
+
+            # Apply search config dynamically (not cached, can change per interaction)
             self.agent._ui_search_config = search_cfg
 
-            # Store model status
+            # Store model status (check actual agent config)
             st.session_state.model_status = {
-                'GPT-5': config.primary_model == 'gpt-5',
-                'GPT-5-mini': config.fast_model == 'gpt-5-mini',
+                'GPT-5': self.agent.config.primary_model == 'gpt-5',
+                'GPT-5-mini': self.agent.config.fast_model == 'gpt-5-mini',
                 'GPT-4': True  # Always available as fallback
             }
 

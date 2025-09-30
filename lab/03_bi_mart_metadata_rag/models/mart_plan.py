@@ -4,7 +4,7 @@ Pydantic models for MartPlan data structures.
 Defines the schema for the JSON output from the mart planning agent.
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import List, Dict, Any, Optional
 from enum import Enum
 
@@ -25,7 +25,8 @@ class MeasureDefinition(BaseModel):
     description: Optional[str] = Field(None, description="Human-readable description")
     data_type: Optional[str] = Field("numeric", description="Expected data type")
 
-    @validator('name')
+    @field_validator('name')
+    @classmethod
     def name_must_be_valid_identifier(cls, v):
         if not v.replace('_', '').isalnum():
             raise ValueError('Measure name must be a valid SQL identifier')
@@ -39,7 +40,8 @@ class DimensionDefinition(BaseModel):
     attributes: List[str] = Field(..., description="Dimension attributes to include")
     description: Optional[str] = Field(None, description="Human-readable description")
 
-    @validator('name')
+    @field_validator('name')
+    @classmethod
     def name_must_be_valid_identifier(cls, v):
         if not v.replace('_', '').isalnum():
             raise ValueError('Dimension name must be a valid SQL identifier')
@@ -56,13 +58,15 @@ class FactDefinition(BaseModel):
     where_conditions: Optional[List[str]] = Field(None, description="Optional filter conditions")
     description: Optional[str] = Field(None, description="Human-readable description")
 
-    @validator('name')
+    @field_validator('name')
+    @classmethod
     def name_must_be_valid_identifier(cls, v):
         if not v.replace('_', '').isalnum():
             raise ValueError('Fact table name must be a valid SQL identifier')
         return v
 
-    @validator('grain')
+    @field_validator('grain')
+    @classmethod
     def grain_must_not_be_empty(cls, v):
         if not v:
             raise ValueError('Fact table must have at least one grain column')
@@ -91,12 +95,11 @@ class MartPlan(BaseModel):
 
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
-    class Config:
-        """Pydantic configuration."""
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             # Add any custom encoders here if needed
-        }
-        schema_extra = {
+        },
+        json_schema_extra={
             "example": {
                 "source_schema": "src_northwind",
                 "target_schema": "mart_sales",
@@ -127,6 +130,7 @@ class MartPlan(BaseModel):
                 ]
             }
         }
+    )
 
 class PlanValidationResult(BaseModel):
     """Result of validating a mart plan."""
@@ -162,7 +166,8 @@ class ExecutionResult(BaseModel):
     rows_processed: Optional[int] = Field(None, description="Total rows processed")
     tables_created: Optional[int] = Field(None, description="Number of tables created")
 
-    @validator('status')
+    @field_validator('status')
+    @classmethod
     def status_must_be_valid(cls, v):
         valid_statuses = ['PLANNING', 'EXECUTING', 'COMPLETED', 'FAILED', 'CANCELLED']
         if v not in valid_statuses:
