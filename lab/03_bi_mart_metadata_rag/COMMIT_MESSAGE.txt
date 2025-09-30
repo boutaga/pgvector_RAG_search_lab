@@ -1,0 +1,33 @@
+Release Lab 03 v1.1 - GPT-5 Token Optimization & UI Enhancements
+
+Major Changes:
+- Fixed GPT-5 reasoning burn issue (increased tokens 600→8000)
+- Added Streamlit UI model selection controls
+- Added reasoning effort control (low/medium/high)
+- Fixed infinite validation loop in Streamlit
+- Migrated to Pydantic V2 syntax
+- Improved caching and performance
+
+Technical Updates:
+- services/mart_agent_service.py: Increased max_completion_tokens to 8000
+- services/mart_agent_service.py: Added reasoning_effort parameter support
+- services/mart_agent_service.py: Removed response_format constraint for GPT-5
+- models/mart_plan.py: Updated to Pydantic V2 (field_validator, ConfigDict)
+- python/80_streamlit_demo.py: Added model selection checkboxes
+- python/80_streamlit_demo.py: Added reasoning effort dropdown
+- python/80_streamlit_demo.py: Fixed validation caching
+
+Documentation:
+- Added RELEASE_NOTES_v1.1.md with complete changelog
+- Updated README.md with new features and troubleshooting
+- Updated GPT5_ENHANCEMENT_SUMMARY.md with v1.1 changes
+- Removed planning files (PHASE2_FIX_PLAN.md, IMPLEMENTATION_SUMMARY.md)
+
+Cost Impact:
+- GPT-5: ~$0.023 per query (with 8000 tokens)
+- GPT-5-mini: ~$0.006 per query (74% cheaper)
+
+Tested and working on demo environment.
+
+🤖 Generated with Claude Code
+Co-Authored-By: Claude <noreply@anthropic.com>

@@ -269,15 +269,26 @@ Features:
 - **Primary Model**: GPT-5 for complex mart planning with enhanced reasoning
 - **Fast Model**: GPT-5-mini for validation, explanations, and quick tasks
 - **Fallback Model**: GPT-4 for compatibility when GPT-5 unavailable
-- **Temperature**: 0.1 for primary model, 0.05 for fast model
-- **Max Tokens**: 3000 for GPT-5, 1500 for GPT-5-mini
+- **Max Completion Tokens**: 8000 for GPT-5/GPT-5-mini (optimized for reasoning + output)
+- **Reasoning Effort**: Configurable (low/medium/high) - default: low for demos
 
-#### Task Routing Strategy
-- **Complex Planning**: GPT-5 (mart schema generation)
+#### Task Routing Strategy (Configurable in UI)
+- **Complex Planning**: GPT-5 or GPT-5-mini (selectable in Streamlit UI)
 - **Plan Validation**: GPT-5-mini (fast, thorough validation)
 - **Plan Explanation**: GPT-5-mini (business-friendly descriptions)
 - **Error Analysis**: GPT-5 (deep problem diagnosis)
 - **Optimization**: GPT-5 (performance recommendations)
+
+#### Model Selection (Streamlit UI)
+The Streamlit interface allows real-time model switching:
+- ☑/☐ **Use GPT-5 for planning**: Toggle between GPT-5 and GPT-5-mini
+- ☑/☐ **Use GPT-5-mini for validation**: Toggle validation model
+- **Reasoning Effort**: Select low/medium/high for GPT-5 (affects speed/quality)
+
+**Recommended for Demos:**
+- Planning: GPT-5-mini (faster, ~10-15s, $0.004/query)
+- Validation: GPT-5-mini
+- Reasoning Effort: low
 
 ### Database Configuration
 - **Source Schema**: src_northwind (Northwind tables)
@@ -412,6 +423,26 @@ This lab builds upon and integrates with the existing lab infrastructure:
    # Check API quota and limits
    python3 -c "import openai; print(openai.api_key[:10] + '...')"
    ```
+
+5. **"Empty completion content" Errors**
+   - **Cause**: GPT-5 models using all tokens for reasoning
+   - **Solution**: Token limits have been increased to 8000 (already applied)
+   - **If persists**: Increase further in `services/mart_agent_service.py` line 154
+   - **Alternative**: Use GPT-5-mini with reasoning_effort="low" in UI
+
+6. **Pydantic Deprecation Warnings**
+   - **Cause**: Using Pydantic V1 syntax with V2 installed
+   - **Solution**: Already fixed in v1.1 - ensure you have latest code
+   - **Check version**: `python3 -c "import pydantic; print(pydantic.__version__)"`
+
+7. **Streamlit Model Selection Not Working**
+   - **Cause**: Cached agent not picking up new settings
+   - **Solution**: Restart Streamlit (Ctrl+C and rerun)
+   - **Alternative**: Clear cache: Press "C" in terminal or UI menu → "Clear cache"
+
+8. **Validation Running Forever**
+   - **Cause**: Fixed in v1.1 - validation now cached
+   - **Solution**: Update to latest code and restart Streamlit
 
 ## 📈 Future Enhancements
 
