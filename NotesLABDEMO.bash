@@ -51,3 +51,53 @@ Collecting usage statistics. To deactivate, set browser.gatherUsageStats to fals
 
 export OPENAI_API_KEY="secret"
 export DATABASE_URL="postgresql://postgres@localhost:5435/wikipedia"
+
+
+
+export DATABASE_URL="postgresql://postgres@localhost:5435/northwind_rag"
+export OPENAI_API_KEY="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"
+
+
+
+
+cd /home/postgres/RAG_lab_demo/lab/03_bi_mart_metadata_rag
+
+source venv_lab3/bin/activate
+
+python3 python/50_mart_planning_agent.py
+
+streamlit run python/80_streamlit_demo.py
+
+
+
+wikipedia=# select id, title, url from articles where title like '%zombie%';
+  id   |         title         |                              url
+-------+-----------------------+---------------------------------------------------------------
+ 66253 | List of zombie movies | https://simple.wikipedia.org/wiki/List%20of%20zombie%20movies
+(1 row)
+
+wikipedia=# WITH current_article AS (
+    SELECT content_vector
+    FROM articles
+    WHERE id = 66253
+)
+SELECT
+    a.title,
+    a.url,
+    a.content_vector <-> current_article.content_vector AS distance
+FROM
+    articles a,
+    current_article
+WHERE
+    a.id <> 66353
+ORDER BY
+    distance
+LIMIT 5;
+               title                |                                     url                                     |      distance
+------------------------------------+-----------------------------------------------------------------------------+--------------------
+ List of zombie movies              | https://simple.wikipedia.org/wiki/List%20of%20zombie%20movies               |                  0
+ Night of the Living Dead           | https://simple.wikipedia.org/wiki/Night%20of%20the%20Living%20Dead          | 0.7672253445926926
+ List of Universal Pictures movies  | https://simple.wikipedia.org/wiki/List%20of%20Universal%20Pictures%20movies | 0.8052875540692092
+ Zombie                             | https://simple.wikipedia.org/wiki/Zombie                                    | 0.8328822265980188
+ List of Metro-Goldwyn-Mayer movies | https://simple.wikipedia.org/wiki/List%20of%20Metro-Goldwyn-Mayer%20movies  | 0.8753209206755904
+(5 rows)

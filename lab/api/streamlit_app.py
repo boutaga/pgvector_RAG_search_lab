@@ -21,6 +21,7 @@ from lab.core.config import ConfigService, load_config
 from lab.search.simple_search import SimpleSearchEngine
 from lab.search.hybrid_search import HybridSearchEngine
 from lab.search.adaptive_search import AdaptiveSearchEngine
+from lab.evaluation.streamlit_evaluation import evaluation_page
 
 
 def initialize_session_state():
@@ -668,13 +669,21 @@ def main():
     st.markdown("Search Wikipedia articles and Netflix shows using advanced vector similarity methods.")
     
     # Navigation
-    tab1, tab2 = st.tabs(["🔍 Search", "📈 Statistics"])
-    
+    tab1, tab2, tab3 = st.tabs(["🔍 Search", "📈 Statistics", "📊 Evaluation"])
+
     with tab1:
         search_page()
-    
+
     with tab2:
         statistics_page()
+
+    with tab3:
+        # Load services for evaluation page
+        try:
+            db_service, config, engines = load_services()
+            evaluation_page(db_service, config, engines)
+        except Exception as e:
+            st.error(f"Failed to load evaluation page: {e}")
     
     # Footer
     st.divider()
