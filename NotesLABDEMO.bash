@@ -55,7 +55,7 @@ export DATABASE_URL="postgresql://postgres@localhost:5435/wikipedia"
 
 
 export DATABASE_URL="postgresql://postgres@localhost:5435/northwind_rag"
-export OPENAI_API_KEY="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"
+export OPENAI_API_KEY="super_long_key"
 
 
 
