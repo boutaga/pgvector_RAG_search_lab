@@ -13,6 +13,15 @@ The lab supports two main scenarios:
 1. **Movie Recommendations**: Perform similarity searches to recommend Netflix shows to DVDRental users based on their rental profiles
 2. **Wikipedia RAG Search**: Query a database of 25,000 Wikipedia articles using advanced retrieval-augmented generation techniques
 
+## RAG Implementations
+
+This repository implements **four distinct RAG approaches**, from simple to autonomous:
+
+1. **Naive/Simple RAG** (`lab/search/simple_search.py`) - Basic vector similarity search with direct retrieval
+2. **Hybrid RAG** (`lab/search/hybrid_search.py`) - Combines dense and sparse embeddings with fixed weights
+3. **Adaptive RAG** (`lab/search/adaptive_search.py`) - Query classification with dynamic weight adjustment
+4. **Agentic RAG** (`lab/search/agentic_search.py`) - **NEW!** LLM agent autonomously decides when to retrieve information
+
 ## Repository Contents
 
 This repository now includes:
@@ -25,9 +34,15 @@ This repository now includes:
 
 ### Wikipedia Scripts (New)
 - `create_emb_wiki.py`: Generates dense embeddings for Wikipedia articles using OpenAI text-embedding-3-small model
-- `create_emb_sparse_wiki.py`: Generates sparse embeddings for Wikipedia articles using SPLADE model  
+- `create_emb_sparse_wiki.py`: Generates sparse embeddings for Wikipedia articles using SPLADE model
 - `RAG_search_wiki.py`: Simple Wikipedia RAG search using dense embeddings
 - `RAG_search_wiki_hybrid.py`: Advanced hybrid Wikipedia RAG with query classification and dense/sparse search combination
+
+### Lab Search Modules (Modular Architecture)
+- `lab/search/simple_search.py`: Naive RAG implementation
+- `lab/search/hybrid_search.py`: Hybrid RAG with dense + sparse combination
+- `lab/search/adaptive_search.py`: Adaptive RAG with query classification
+- `lab/search/agentic_search.py`: **NEW!** Agentic RAG with LLM-driven retrieval decisions
 
 ### Original Movie/Netflix Scripts
 - `create_emb.py`: Generates dense embeddings using OpenAI and updates the PostgreSQL database.
@@ -89,11 +104,44 @@ python3 RAG_search_wiki.py
 python3 RAG_search_wiki_hybrid.py
 ```
 
+### Agentic RAG Search (Latest Addition!)
+
+The Agentic RAG approach represents the cutting edge of retrieval-augmented generation:
+
+```bash
+# Set environment variable
+export DATABASE_URL="postgresql://postgres@localhost/wikipedia"
+export OPENAI_API_KEY="your_openai_api_key"
+
+# Run agentic search
+python3 lab/search/agentic_search.py --source wikipedia --interactive
+
+# Or run the demo
+python3 lab/search/examples/agentic_demo.py
+```
+
+**What makes Agentic RAG special:**
+- **Autonomous Decision-Making**: LLM agent decides whether to search or answer directly
+- **Function Calling**: Uses OpenAI's function calling to expose search as a tool
+- **Cost Efficient**: Skips unnecessary retrievals for simple questions
+- **Grounded Answers**: When searching, ensures answers are based on retrieved information
+- **Source Citations**: Provides transparent source attribution
+- **Flexible**: Can be extended with multiple tools and multi-step retrieval
+
+**How it works:**
+1. User asks a question
+2. LLM agent analyzes the query
+3. Agent decides: "Do I need to search the database?"
+   - Simple question → Answer directly
+   - Complex/specific question → Use search_wikipedia() tool
+4. If searched, agent uses retrieved snippets to formulate answer
+5. Answer includes source citations and decision metadata
+
 The hybrid Wikipedia search supports:
 - **Adaptive query classification**: Automatically detects factual, conceptual, or exploratory queries
 - **Dense and sparse vector search**: Uses both OpenAI embeddings and SPLADE
 - **Intelligent re-ranking**: Adjusts weights based on query type
-- **Multiple search modes**: dense-only, sparse-only, hybrid, or adaptive
+- **Multiple search modes**: dense-only, sparse-only, hybrid, adaptive, or agentic
 - **Comprehensive answer generation**: GPT-powered responses with source attribution
 
 ### Original Movie/Netflix Hybrid RAG Search

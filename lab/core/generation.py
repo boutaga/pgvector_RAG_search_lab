@@ -24,11 +24,12 @@ class GenerationModel(Enum):
 @dataclass
 class GenerationResponse:
     """Container for generation response."""
-    content: str
+    content: Optional[str]  # Changed to Optional for function calls
     model: str
     usage: Dict[str, int] = None
     cost: float = 0.0
     metadata: Dict[str, Any] = None
+    function_call: Optional[Dict[str, Any]] = None  # NEW: Function call data
 
 
 class GenerationService:
@@ -522,18 +523,209 @@ SQL Query:"""
     ) -> str:
         """
         Create prompt for text summarization.
-        
+
         Args:
             text: Text to summarize
             max_length: Maximum summary length in words
-            
+
         Returns:
             Summarization prompt
         """
-        return f"""Summarize the following text in no more than {max_length} words. 
+        return f"""Summarize the following text in no more than {max_length} words.
 Focus on the key points and main ideas.
 
 Text:
 {text}
 
 Summary:"""
+
+    def generate_with_functions(
+        self,
+        messages: List[Dict[str, str]],
+        functions: List[Dict[str, Any]],
+        function_call: str = "auto",
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None
+    ) -> GenerationResponse:
+        """
+        Generate response with function calling capability.
+
+        This method enables the LLM to call functions (tools) as part of its response.
+        Used for Agentic RAG where the LLM decides whether to invoke a search tool.
+
+        Args:
+            messages: List of message dictionaries with role and content
+            functions: List of function specifications (OpenAI format)
+            function_call: "auto" (let model decide), "none" (don't call), or {"name": "function_name"}
+            temperature: Override temperature
+            max_tokens: Override max tokens
+
+        Returns:
+            GenerationResponse with either content or function_call populated
+        """
+        try:
+            temp = temperature if temperature is not None else self.temperature
+            max_tok = max_tokens if max_tokens is not None else self.max_tokens
+
+            # GPT-5 mini has specific requirements
+            if self.model == "gpt-5-mini":
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    functions=functions,
+                    function_call=function_call,
+                    temperature=1,  # GPT-5 mini only supports temperature=1
+                    max_completion_tokens=max_tok
+                )
+            else:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    functions=functions,
+                    function_call=function_call,
+                    temperature=temp,
+                    max_tokens=max_tok
+                )
+
+            # Extract message
+            message = response.choices[0].message
+
+            # Extract usage
+            usage = {
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens
+            }
+
+            # Calculate cost
+            cost = 0.0
+            if self.track_costs and self.model in self.MODEL_COSTS:
+                costs = self.MODEL_COSTS[self.model]
+                cost = (
+                    (usage["prompt_tokens"] / 1000) * costs["input"] +
+                    (usage["completion_tokens"] / 1000) * costs["output"]
+                )
+
+            # Check if function was called
+            if response.choices[0].finish_reason == "function_call":
+                # Extract function call data
+                function_call_data = {
+                    "name": message.function_call.name,
+                    "arguments": message.function_call.arguments
+                }
+
+                logger.info(f"LLM called function: {function_call_data['name']}")
+
+                return GenerationResponse(
+                    content=None,  # No content when function is called
+                    model=self.model,
+                    usage=usage,
+                    cost=cost,
+                    metadata={
+                        "temperature": 1 if self.model == "gpt-5-mini" else temp,
+                        "max_tokens": max_tok,
+                        "finish_reason": "function_call"
+                    },
+                    function_call=function_call_data
+                )
+            else:
+                # Normal response with content
+                return GenerationResponse(
+                    content=message.content,
+                    model=self.model,
+                    usage=usage,
+                    cost=cost,
+                    metadata={
+                        "temperature": 1 if self.model == "gpt-5-mini" else temp,
+                        "max_tokens": max_tok,
+                        "finish_reason": response.choices[0].finish_reason
+                    },
+                    function_call=None
+                )
+
+        except Exception as e:
+            logger.error(f"Function calling generation failed: {e}")
+            raise
+
+    def generate_from_messages(
+        self,
+        messages: List[Dict[str, Any]],
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        functions: Optional[List[Dict[str, Any]]] = None,
+        function_call: str = "none"
+    ) -> GenerationResponse:
+        """
+        Generate response directly from messages list.
+
+        Useful for multi-turn conversations or when you've manually built the message history.
+
+        Args:
+            messages: List of message dictionaries
+            temperature: Override temperature
+            max_tokens: Override max tokens
+            functions: Optional function definitions
+            function_call: Function call mode
+
+        Returns:
+            GenerationResponse
+        """
+        try:
+            temp = temperature if temperature is not None else self.temperature
+            max_tok = max_tokens if max_tokens is not None else self.max_tokens
+
+            # Build API call parameters
+            api_params = {
+                "model": self.model,
+                "messages": messages
+            }
+
+            # Handle GPT-5 mini specifics
+            if self.model == "gpt-5-mini":
+                api_params["temperature"] = 1
+                api_params["max_completion_tokens"] = max_tok
+            else:
+                api_params["temperature"] = temp
+                api_params["max_tokens"] = max_tok
+
+            # Add functions if provided
+            if functions:
+                api_params["functions"] = functions
+                api_params["function_call"] = function_call
+
+            response = self.client.chat.completions.create(**api_params)
+
+            # Extract message
+            message = response.choices[0].message
+
+            # Extract usage
+            usage = {
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens
+            }
+
+            # Calculate cost
+            cost = 0.0
+            if self.track_costs and self.model in self.MODEL_COSTS:
+                costs = self.MODEL_COSTS[self.model]
+                cost = (
+                    (usage["prompt_tokens"] / 1000) * costs["input"] +
+                    (usage["completion_tokens"] / 1000) * costs["output"]
+                )
+
+            return GenerationResponse(
+                content=message.content,
+                model=self.model,
+                usage=usage,
+                cost=cost,
+                metadata={
+                    "temperature": 1 if self.model == "gpt-5-mini" else temp,
+                    "max_tokens": max_tok,
+                    "finish_reason": response.choices[0].finish_reason
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Message-based generation failed: {e}")
+            raise

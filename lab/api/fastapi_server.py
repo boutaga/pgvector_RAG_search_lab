@@ -22,6 +22,7 @@ from lab.core.config import ConfigService, load_config
 from lab.search.simple_search import SimpleSearchEngine
 from lab.search.hybrid_search import HybridSearchEngine
 from lab.search.adaptive_search import AdaptiveSearchEngine
+from lab.search.agentic_search import AgenticSearchEngine
 
 
 # Global services (initialized in lifespan)
@@ -53,13 +54,15 @@ async def lifespan(app: FastAPI):
     engines['wikipedia'] = {
         'simple': SimpleSearchEngine(db_service, config, 'wikipedia'),
         'hybrid': HybridSearchEngine(db_service, config, 'wikipedia'),
-        'adaptive': AdaptiveSearchEngine(db_service, config, 'wikipedia')
+        'adaptive': AdaptiveSearchEngine(db_service, config, 'wikipedia'),
+        'agentic': AgenticSearchEngine(db_service, config, 'wikipedia')
     }
-    
+
     engines['movies'] = {
         'simple': SimpleSearchEngine(db_service, config, 'movies'),
         'hybrid': HybridSearchEngine(db_service, config, 'movies'),
-        'adaptive': AdaptiveSearchEngine(db_service, config, 'movies')
+        'adaptive': AdaptiveSearchEngine(db_service, config, 'movies'),
+        'agentic': AgenticSearchEngine(db_service, config, 'movies')
     }
     
     logging.info("FastAPI server started successfully")
@@ -94,7 +97,7 @@ app.add_middleware(
 class SearchRequest(BaseModel):
     query: str = Field(..., description="Search query")
     source: str = Field("wikipedia", description="Data source (wikipedia or movies)")
-    method: str = Field("adaptive", description="Search method (simple, hybrid, adaptive)")
+    method: str = Field("adaptive", description="Search method (simple, hybrid, adaptive, agentic)")
     search_type: str = Field("dense", description="Search type for simple method (dense or sparse)")
     top_k: int = Field(10, ge=1, le=50, description="Number of results")
     dense_weight: Optional[float] = Field(0.5, ge=0.0, le=1.0, description="Dense weight for hybrid search")
@@ -166,7 +169,7 @@ async def root():
             "health": "/health"
         },
         "sources": ["wikipedia", "movies"],
-        "methods": ["simple", "hybrid", "adaptive"]
+        "methods": ["simple", "hybrid", "adaptive", "agentic"]
     }
 
 
@@ -283,7 +286,23 @@ async def search(request: SearchRequest):
                     'classification_confidence': search_data.get('classification_confidence'),
                     'recommended_weights': search_data.get('recommended_weights')
                 }
-        
+
+        elif request.method == "agentic":
+            # Agentic search - LLM decides whether to retrieve
+            response_data = engine.search_and_answer_agentic(
+                query=request.query,
+                top_k=request.top_k,
+                include_sources=True
+            )
+            results = response_data.get('sources', [])
+            answer = response_data.get('answer')
+            metadata = {
+                'decision': response_data.get('decision'),
+                'tool_used': response_data.get('tool_used', False),
+                'search_count': response_data.get('search_count', 0),
+                'cost': response_data.get('cost', 0)
+            }
+
         else:
             raise HTTPException(status_code=400, detail=f"Unknown method: {request.method}")
         

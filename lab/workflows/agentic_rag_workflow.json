@@ -1,0 +1,247 @@
+{
+  "name": "Agentic RAG Demo",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "agentic-trigger-001",
+      "name": "Demo Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "query",
+              "value": "What is PostgreSQL replication and how does it work?"
+            },
+            {
+              "name": "method",
+              "value": "agentic"
+            },
+            {
+              "name": "top_k",
+              "value": "5"
+            },
+            {
+              "name": "source",
+              "value": "wikipedia"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "agentic-setup-002",
+      "name": "Query Setup",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/search",
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        },
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "query",
+              "value": "={{$json.query}}"
+            },
+            {
+              "name": "method",
+              "value": "={{$json.method}}"
+            },
+            {
+              "name": "top_k",
+              "value": "={{$json.top_k}}"
+            },
+            {
+              "name": "source",
+              "value": "={{$json.source}}"
+            },
+            {
+              "name": "generate_answer",
+              "value": "true"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"{{$json.query}}\",\n  \"method\": \"{{$json.method}}\",\n  \"source\": \"{{$json.source}}\",\n  \"top_k\": {{$json.top_k}},\n  \"generate_answer\": true\n}"
+      },
+      "id": "agentic-api-003",
+      "name": "Call Agentic Search API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and format agentic search response\nconst response = $input.item.json;\n\n// Determine decision indicator\nconst decision = response.metadata?.decision || 'unknown';\nlet decisionIcon = '❓';\nlet decisionText = 'Unknown';\n\nif (decision === 'search') {\n  decisionIcon = '🔄';\n  decisionText = 'Agent used search tool';\n} else if (decision === 'direct') {\n  decisionIcon = '⚡';\n  decisionText = 'Agent answered directly (no search needed)';\n}\n\n// Format sources if available\nlet sourcesText = '';\nif (response.results && response.results.length > 0) {\n  sourcesText = response.results.map((r, i) => {\n    const title = r.metadata?.title || 'Unknown';\n    return `[${i+1}] ${title}\\n    ${r.content.substring(0, 150)}...\\n    Score: ${r.score.toFixed(4)}`;\n  }).join('\\n\\n');\n} else {\n  sourcesText = 'No sources (agent answered directly)';\n}\n\n// Format output\nreturn {\n  json: {\n    query: response.query,\n    method: response.method,\n    decision: decision,\n    decisionIcon: decisionIcon,\n    decisionText: decisionText,\n    toolUsed: response.metadata?.tool_used || false,\n    searchCount: response.metadata?.search_count || 0,\n    answer: response.answer,\n    numResults: response.num_results,\n    sources: sourcesText,\n    cost: response.metadata?.cost || 0,\n    costFormatted: `$${(response.metadata?.cost || 0).toFixed(4)}`\n  }\n};"
+      },
+      "id": "agentic-format-004",
+      "name": "Format Agentic Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "displayOutput",
+              "value": "=╔════════════════════════════════════════════════════════════════════╗\n   AGENTIC RAG DEMO RESULT\n╚════════════════════════════════════════════════════════════════════╝\n\n📝 Query: {{$json.query}}\n\n{{$json.decisionIcon}} Agent Decision: {{$json.decisionText}}\n   • Tool Used: {{$json.toolUsed}}\n   • Search Count: {{$json.searchCount}}\n   • Cost: {{$json.costFormatted}}\n\n────────────────────────────────────────────────────────────────────\n💡 ANSWER\n────────────────────────────────────────────────────────────────────\n{{$json.answer}}\n\n────────────────────────────────────────────────────────────────────\n📚 SOURCES ({{$json.numResults}} results)\n────────────────────────────────────────────────────────────────────\n{{$json.sources}}\n\n╔════════════════════════════════════════════════════════════════════╗\n   Powered by Agentic RAG - LLM-Driven Retrieval\n╚════════════════════════════════════════════════════════════════════╝"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "agentic-display-005",
+      "name": "Display Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.decision}}",
+              "operation": "equals",
+              "value2": "search"
+            }
+          ]
+        }
+      },
+      "id": "agentic-if-006",
+      "name": "IF Search Was Used",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 480]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "note",
+              "value": "=✅ Agent made an intelligent decision to search the database for: {{$json.query}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "agentic-note-search-007",
+      "name": "Note: Search Used",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [1120, 420]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "note",
+              "value": "=⚡ Agent efficiently answered directly without needing to search for: {{$json.query}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "agentic-note-direct-008",
+      "name": "Note: Direct Answer",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [1120, 540]
+    }
+  ],
+  "connections": {
+    "Demo Start": {
+      "main": [
+        [
+          {
+            "node": "Query Setup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Setup": {
+      "main": [
+        [
+          {
+            "node": "Call Agentic Search API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Agentic Search API": {
+      "main": [
+        [
+          {
+            "node": "Format Agentic Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Agentic Response": {
+      "main": [
+        [
+          {
+            "node": "Display Result",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "IF Search Was Used",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Search Was Used": {
+      "main": [
+        [
+          {
+            "node": "Note: Search Used",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Note: Direct Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "tags": [
+    {
+      "id": "agentic-rag",
+      "name": "agentic-rag"
+    }
+  ],
+  "pinData": {},
+  "versionId": "1.0.0"
+}
