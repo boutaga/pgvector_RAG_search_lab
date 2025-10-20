@@ -224,26 +224,29 @@ class AgenticSearchEngine:
 
             return "\n\n".join(snippets)
 
-        # OpenAI function specification
+        # OpenAI tool specification (modern format)
         function_name = "search_wikipedia" if self.source == "wikipedia" else "search_database"
 
         spec = {
-            "name": function_name,
-            "description": f"Search the {self.source} database for relevant information and return text snippets",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "The search query (can be rephrased from the original user question for better results)"
+            "type": "function",
+            "function": {
+                "name": function_name,
+                "description": f"Search the {self.source} database for relevant information and return text snippets",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The search query (can be rephrased from the original user question for better results)"
+                        },
+                        "top_k": {
+                            "type": "integer",
+                            "description": "Number of results to retrieve (1-10)",
+                            "default": 5
+                        }
                     },
-                    "top_k": {
-                        "type": "integer",
-                        "description": "Number of results to retrieve (1-10)",
-                        "default": 5
-                    }
-                },
-                "required": ["query"]
+                    "required": ["query"]
+                }
             }
         }
 
@@ -291,26 +294,28 @@ class AgenticSearchEngine:
         sources = []
         total_cost = 0.0
 
-        # Initial LLM call with function definition
+        # Initial LLM call with tool definition
         logging.info("Sending initial request to LLM agent...")
-        response = self.generator.generate_with_functions(
+        response = self.generator.generate_with_tools(
             messages=messages,
-            functions=[tool_spec],
-            function_call="auto"  # Let model decide
+            tools=[tool_spec],
+            tool_choice="auto"  # Let model decide
         )
 
         total_cost += response.cost
 
-        # Check if function was called
-        if response.function_call:
+        # Check if tool was called
+        if response.tool_calls:
             # Agent decided to search
             tool_used = True
             decision = "search"
             search_count = 1
 
-            # Parse function call
-            fn_name = response.function_call['name']
-            fn_args = json.loads(response.function_call['arguments'])
+            # Parse tool call (first one, we limit to 1 iteration currently)
+            tool_call = response.tool_calls[0]
+            fn_name = tool_call['function']['name']
+            fn_args = json.loads(tool_call['function']['arguments'])
+            tool_call_id = tool_call['id']
 
             search_query = fn_args.get('query', query)
             search_k = fn_args.get('top_k', top_k)
@@ -333,22 +338,23 @@ class AgenticSearchEngine:
                     for r in actual_results
                 ]
 
-            # Add function call and result to conversation
+            # Add tool call and result to conversation (modern format)
             messages.append({
                 "role": "assistant",
                 "content": None,
-                "function_call": response.function_call
+                "tool_calls": response.tool_calls
             })
             messages.append({
-                "role": "function",
-                "name": fn_name,
+                "role": "tool",
+                "tool_call_id": tool_call_id,
                 "content": search_results_str
             })
 
-            # Get final answer from LLM (no more function calls)
+            # Get final answer from LLM (no more tool calls)
             logging.info("Getting final answer from LLM with search results...")
             final_response = self.generator.generate_from_messages(
                 messages=messages,
+                functions=None,  # No tools for final answer
                 function_call="none"  # Force answer, no more tool calls
             )
 

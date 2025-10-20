@@ -24,12 +24,25 @@ class GenerationModel(Enum):
 @dataclass
 class GenerationResponse:
     """Container for generation response."""
-    content: Optional[str]  # Changed to Optional for function calls
+    content: Optional[str]  # Optional when tool is called
     model: str
     usage: Dict[str, int] = None
     cost: float = 0.0
     metadata: Dict[str, Any] = None
-    function_call: Optional[Dict[str, Any]] = None  # NEW: Function call data
+    tool_calls: Optional[List[Dict[str, Any]]] = None  # Modern: Tool calls (supports parallel)
+
+    # Backward compatibility property
+    @property
+    def function_call(self) -> Optional[Dict[str, Any]]:
+        """Backward compatibility: return first tool call as function_call format."""
+        if self.tool_calls and len(self.tool_calls) > 0:
+            # Return in old format for compatibility
+            tc = self.tool_calls[0]
+            return {
+                "name": tc.get("function", {}).get("name"),
+                "arguments": tc.get("function", {}).get("arguments")
+            }
+        return None
 
 
 class GenerationService:
@@ -539,53 +552,53 @@ Text:
 
 Summary:"""
 
-    def generate_with_functions(
+    def generate_with_tools(
         self,
-        messages: List[Dict[str, str]],
-        functions: List[Dict[str, Any]],
-        function_call: str = "auto",
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+        tool_choice: Union[str, Dict[str, Any]] = "auto",
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None
     ) -> GenerationResponse:
         """
-        Generate response with function calling capability.
+        Generate response with tool calling capability (modern OpenAI API).
 
-        This method enables the LLM to call functions (tools) as part of its response.
-        Used for Agentic RAG where the LLM decides whether to invoke a search tool.
+        This method uses OpenAI's tools API which replaces the deprecated functions API.
+        The LLM can invoke tools as part of its response. Supports parallel tool calling.
 
         Args:
             messages: List of message dictionaries with role and content
-            functions: List of function specifications (OpenAI format)
-            function_call: "auto" (let model decide), "none" (don't call), or {"name": "function_name"}
+            tools: List of tool specifications in format:
+                   [{"type": "function", "function": {...}}]
+            tool_choice: "auto" (let model decide), "none" (don't call),
+                         "required" (must call), or specific tool selector
             temperature: Override temperature
             max_tokens: Override max tokens
 
         Returns:
-            GenerationResponse with either content or function_call populated
+            GenerationResponse with either content or tool_calls populated
         """
         try:
             temp = temperature if temperature is not None else self.temperature
             max_tok = max_tokens if max_tokens is not None else self.max_tokens
 
-            # GPT-5 mini has specific requirements
+            # Build API parameters
+            api_params = {
+                "model": self.model,
+                "messages": messages,
+                "tools": tools,
+                "tool_choice": tool_choice
+            }
+
+            # Handle GPT-5 mini specifics
             if self.model == "gpt-5-mini":
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    functions=functions,
-                    function_call=function_call,
-                    temperature=1,  # GPT-5 mini only supports temperature=1
-                    max_completion_tokens=max_tok
-                )
+                api_params["temperature"] = 1
+                api_params["max_completion_tokens"] = max_tok
             else:
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    functions=functions,
-                    function_call=function_call,
-                    temperature=temp,
-                    max_tokens=max_tok
-                )
+                api_params["temperature"] = temp
+                api_params["max_tokens"] = max_tok
+
+            response = self.client.chat.completions.create(**api_params)
 
             # Extract message
             message = response.choices[0].message
@@ -606,27 +619,34 @@ Summary:"""
                     (usage["completion_tokens"] / 1000) * costs["output"]
                 )
 
-            # Check if function was called
-            if response.choices[0].finish_reason == "function_call":
-                # Extract function call data
-                function_call_data = {
-                    "name": message.function_call.name,
-                    "arguments": message.function_call.arguments
-                }
+            # Check if tools were called
+            if message.tool_calls:
+                # Extract tool calls data
+                tool_calls_data = [
+                    {
+                        "id": tc.id,
+                        "type": tc.type,
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments
+                        }
+                    }
+                    for tc in message.tool_calls
+                ]
 
-                logger.info(f"LLM called function: {function_call_data['name']}")
+                logger.info(f"LLM called {len(tool_calls_data)} tool(s): {[tc['function']['name'] for tc in tool_calls_data]}")
 
                 return GenerationResponse(
-                    content=None,  # No content when function is called
+                    content=None,  # No content when tool is called
                     model=self.model,
                     usage=usage,
                     cost=cost,
                     metadata={
                         "temperature": 1 if self.model == "gpt-5-mini" else temp,
                         "max_tokens": max_tok,
-                        "finish_reason": "function_call"
+                        "finish_reason": "tool_calls"
                     },
-                    function_call=function_call_data
+                    tool_calls=tool_calls_data
                 )
             else:
                 # Normal response with content
@@ -640,12 +660,67 @@ Summary:"""
                         "max_tokens": max_tok,
                         "finish_reason": response.choices[0].finish_reason
                     },
-                    function_call=None
+                    tool_calls=None
                 )
 
         except Exception as e:
-            logger.error(f"Function calling generation failed: {e}")
+            logger.error(f"Tool calling generation failed: {e}")
             raise
+
+    def generate_with_functions(
+        self,
+        messages: List[Dict[str, str]],
+        functions: List[Dict[str, Any]],
+        function_call: str = "auto",
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None
+    ) -> GenerationResponse:
+        """
+        DEPRECATED: Use generate_with_tools() instead.
+
+        This method wraps the deprecated functions API to the modern tools API
+        for backward compatibility. It converts function specifications to tool
+        format and delegates to generate_with_tools().
+
+        Args:
+            messages: List of message dictionaries with role and content
+            functions: List of function specifications (old format)
+            function_call: "auto" (let model decide), "none", or {"name": "function_name"}
+            temperature: Override temperature
+            max_tokens: Override max tokens
+
+        Returns:
+            GenerationResponse with tool_calls (accessible via function_call property)
+        """
+        # Convert functions to tools format
+        tools = [
+            {
+                "type": "function",
+                "function": func
+            }
+            for func in functions
+        ]
+
+        # Convert function_call to tool_choice
+        if isinstance(function_call, str):
+            tool_choice = function_call
+        elif isinstance(function_call, dict):
+            # {"name": "function_name"} -> {"type": "function", "function": {"name": "..."}}
+            tool_choice = {
+                "type": "function",
+                "function": {"name": function_call.get("name")}
+            }
+        else:
+            tool_choice = "auto"
+
+        # Call new method
+        return self.generate_with_tools(
+            messages=messages,
+            tools=tools,
+            tool_choice=tool_choice,
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
 
     def generate_from_messages(
         self,
@@ -688,10 +763,14 @@ Summary:"""
                 api_params["temperature"] = temp
                 api_params["max_tokens"] = max_tok
 
-            # Add functions if provided
+            # Add tools if functions provided (convert to modern API)
             if functions:
-                api_params["functions"] = functions
-                api_params["function_call"] = function_call
+                # Convert functions to tools format
+                tools = [{"type": "function", "function": func} for func in functions]
+                api_params["tools"] = tools
+                # Convert function_call to tool_choice
+                tool_choice = function_call if isinstance(function_call, str) else "auto"
+                api_params["tool_choice"] = tool_choice
 
             response = self.client.chat.completions.create(**api_params)
 
@@ -714,6 +793,21 @@ Summary:"""
                     (usage["completion_tokens"] / 1000) * costs["output"]
                 )
 
+            # Extract tool calls if present
+            tool_calls_data = None
+            if message.tool_calls:
+                tool_calls_data = [
+                    {
+                        "id": tc.id,
+                        "type": tc.type,
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments
+                        }
+                    }
+                    for tc in message.tool_calls
+                ]
+
             return GenerationResponse(
                 content=message.content,
                 model=self.model,
@@ -723,7 +817,8 @@ Summary:"""
                     "temperature": 1 if self.model == "gpt-5-mini" else temp,
                     "max_tokens": max_tok,
                     "finish_reason": response.choices[0].finish_reason
-                }
+                },
+                tool_calls=tool_calls_data
             )
 
         except Exception as e:
