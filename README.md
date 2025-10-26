@@ -144,6 +144,75 @@ The hybrid Wikipedia search supports:
 - **Multiple search modes**: dense-only, sparse-only, hybrid, adaptive, or agentic
 - **Comprehensive answer generation**: GPT-powered responses with source attribution
 
+### Blog Post Command Reference
+
+The exact commands shown in the Agentic RAG blog post:
+
+#### CLI Usage (JSON Output)
+```bash
+# Simple query with JSON output - matches blog post format
+python lab/search/agentic_search.py \
+  --source wikipedia \
+  --query "What is PostgreSQL?" \
+  --json
+
+# Expected output:
+# {"answer": "...\n\nDecision: used search", "tool_used": true, "loops": 1, "latency_ms": 1234}
+```
+
+#### CLI Usage (Human-Readable)
+```bash
+# With decision info and sources
+python lab/search/agentic_search.py \
+  --source wikipedia \
+  --query "What is PostgreSQL?" \
+  --show-decision \
+  --show-sources
+```
+
+#### FastAPI Endpoint
+```bash
+# POST to /search with method=agentic
+curl -X POST http://localhost:8000/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "What is PostgreSQL?",
+    "method": "agentic",
+    "source": "wikipedia",
+    "top_k": 5
+  }'
+```
+
+#### Decision Tracking Example
+```python
+from lab.search.agentic_search import AgenticSearchEngine
+from lab.evaluation.metrics import DecisionLog, summarize
+from lab.core.database import DatabaseService
+from lab.core.config import ConfigService
+
+# Initialize engine
+config = ConfigService()
+db = DatabaseService(config.database.connection_string, 1, 5)
+engine = AgenticSearchEngine(db, config, 'wikipedia')
+
+# Run batch of queries
+queries = [
+    "What is 2+2?",
+    "Explain PostgreSQL MVCC",
+    "What is the capital of France?"
+]
+results = engine.batch_agentic_search(queries, top_k=5)
+
+# Track decisions
+logs = [DecisionLog.from_agentic_result(r) for r in results]
+
+# Analyze patterns
+summary = summarize(logs)
+print(f"Search rate: {summary['search_rate']:.1%}")
+print(f"Avg latency: {summary['avg_latency_ms']:.0f}ms")
+print(f"Total cost: ${summary['total_cost']:.4f}")
+```
+
 ### Original Movie/Netflix Hybrid RAG Search
 
 The `RAG_search_hybrid.py` script supports:

@@ -296,10 +296,14 @@ async def search(request: SearchRequest):
             )
             results = response_data.get('sources', [])
             answer = response_data.get('answer')
+
+            # Enhanced metadata matching blog post format
             metadata = {
                 'decision': response_data.get('decision'),
                 'tool_used': response_data.get('tool_used', False),
                 'search_count': response_data.get('search_count', 0),
+                'loops': response_data.get('loops', response_data.get('search_count', 0)),
+                'latency_ms': response_data.get('latency_ms', 0),
                 'cost': response_data.get('cost', 0)
             }
 

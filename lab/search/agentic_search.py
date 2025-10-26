@@ -18,6 +18,7 @@ import sys
 import os
 import logging
 import json
+import time
 from typing import List, Dict, Any, Optional, Tuple
 
 # Add parent directory to path for imports
@@ -252,13 +253,42 @@ class AgenticSearchEngine:
 
         return search_tool, spec
 
+    def _append_decision_note(self, answer: str, decision: str, tool_used: bool) -> str:
+        """
+        Append decision note to answer for observability.
+
+        Ensures the final answer includes a clear decision note showing whether
+        the agent used search or answered directly. This is critical for
+        understanding agent behavior and debugging.
+
+        Args:
+            answer: The LLM-generated answer text
+            decision: Decision type ('search', 'direct', etc.)
+            tool_used: Whether the search tool was used
+
+        Returns:
+            Answer with decision note appended (if not already present)
+        """
+        # Check if decision note already present
+        if "Decision:" in answer:
+            return answer
+
+        # Append appropriate decision note
+        if decision == "search" or tool_used:
+            return answer + "\n\nDecision: used search"
+        elif decision == "direct":
+            return answer + "\n\nDecision: skipped search"
+        else:
+            return answer + f"\n\nDecision: {decision}"
+
     def search_and_answer_agentic(
         self,
         query: str,
         top_k: int = 5,
         max_iterations: int = 1,
         include_sources: bool = True,
-        system_prompt: Optional[str] = None
+        system_prompt: Optional[str] = None,
+        two_phase: bool = False
     ) -> Dict[str, Any]:
         """
         Execute agentic search with LLM decision-making.
@@ -272,10 +302,14 @@ class AgenticSearchEngine:
             max_iterations: Maximum search iterations allowed (default 1)
             include_sources: Whether to include source information
             system_prompt: Optional override for system prompt
+            two_phase: Use two-phase generation (faster model for search, better model for synthesis)
 
         Returns:
             Response dict with answer, decision metadata, and optional sources
         """
+        # Start latency tracking
+        start_time = time.time()
+
         logging.info(f"Starting agentic search for: {query}")
 
         # Create search tool
@@ -352,14 +386,35 @@ class AgenticSearchEngine:
 
             # Get final answer from LLM (no more tool calls)
             logging.info("Getting final answer from LLM with search results...")
-            final_response = self.generator.generate_from_messages(
-                messages=messages,
-                functions=None,  # No tools for final answer
-                function_call="none"  # Force answer, no more tool calls
-            )
+
+            # Two-phase: use better model for synthesis if requested
+            if two_phase and hasattr(self.generator, 'model'):
+                original_model = self.generator.model
+                synthesis_model = "gpt-4o" if "mini" in original_model.lower() else original_model
+                if synthesis_model != original_model:
+                    logging.info(f"Two-phase: switching from {original_model} to {synthesis_model} for synthesis")
+                    self.generator.model = synthesis_model
+
+                final_response = self.generator.generate_from_messages(
+                    messages=messages,
+                    functions=None,  # No tools for final answer
+                    function_call="none"  # Force answer, no more tool calls
+                )
+
+                # Restore original model
+                self.generator.model = original_model
+            else:
+                final_response = self.generator.generate_from_messages(
+                    messages=messages,
+                    functions=None,  # No tools for final answer
+                    function_call="none"  # Force answer, no more tool calls
+                )
 
             answer = final_response.content
             total_cost += final_response.cost
+
+            # Append decision note for observability
+            answer = self._append_decision_note(answer, decision, tool_used)
 
         else:
             # Agent answered directly without search
@@ -367,19 +422,27 @@ class AgenticSearchEngine:
             answer = response.content
             logging.info("Agent answered directly without using search tool")
 
+            # Append decision note for observability
+            answer = self._append_decision_note(answer, decision, tool_used)
+
+        # Calculate latency
+        latency_ms = int((time.time() - start_time) * 1000)
+
         result = {
             'query': query,
             'answer': answer,
             'decision': decision,
             'tool_used': tool_used,
             'search_count': search_count,
+            'loops': search_count,  # Alias for blog post alignment
             'sources': sources,
             'cost': total_cost,
             'method': 'agentic',
-            'num_results': len(sources)
+            'num_results': len(sources),
+            'latency_ms': latency_ms
         }
 
-        logging.info(f"Agentic search complete: decision={decision}, cost=${total_cost:.4f}")
+        logging.info(f"Agentic search complete: decision={decision}, cost=${total_cost:.4f}, latency={latency_ms}ms")
 
         return result
 
@@ -497,6 +560,18 @@ Examples:
         help="Show source snippets"
     )
 
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output results as JSON (for programmatic use)"
+    )
+
+    parser.add_argument(
+        "--two-phase",
+        action="store_true",
+        help="Use two-phase generation: gpt-4o-mini for search, gpt-4o for synthesis"
+    )
+
     return parser
 
 
@@ -532,6 +607,25 @@ def print_agentic_result(result: Dict[str, Any], show_decision: bool = False, sh
             print(f"[{i}] {title}")
             print(f"    {source['content']}")
             print(f"    Score: {source['score']:.4f}")
+
+
+def print_agentic_result_json(result: Dict[str, Any]):
+    """
+    Print agentic search result as JSON.
+
+    Outputs a compact JSON format suitable for programmatic use
+    and matching the blog post specification.
+
+    Args:
+        result: Search result dictionary
+    """
+    output = {
+        "answer": result['answer'],
+        "tool_used": result['tool_used'],
+        "loops": result.get('loops', result.get('search_count', 0)),
+        "latency_ms": result.get('latency_ms', 0)
+    }
+    print(json.dumps(output, ensure_ascii=False))
 
 
 def interactive_agentic_search(engine: AgenticSearchEngine, top_k: int, show_decision: bool, show_sources: bool):
@@ -651,8 +745,17 @@ def main():
 
         else:
             # Single query mode
-            result = engine.search_and_answer_agentic(args.query, args.top_k)
-            print_agentic_result(result, args.show_decision, args.show_sources)
+            result = engine.search_and_answer_agentic(
+                args.query,
+                args.top_k,
+                two_phase=args.two_phase if hasattr(args, 'two_phase') else False
+            )
+
+            # Output in requested format
+            if args.json:
+                print_agentic_result_json(result)
+            else:
+                print_agentic_result(result, args.show_decision, args.show_sources)
 
     except Exception as e:
         logger.error(f"Agentic search failed: {str(e)}")

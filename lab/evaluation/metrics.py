@@ -14,7 +14,8 @@ This module provides:
 """
 
 import math
-from typing import List, Dict, Union, Optional, Tuple
+from typing import List, Dict, Union, Optional, Tuple, Any
+from dataclasses import dataclass
 import numpy as np
 
 
@@ -502,6 +503,143 @@ def compare_ndcg_distributions(
 
 
 # ============================================================================
+# Agentic RAG Decision Tracking (Blog Post Appendix B)
+# ============================================================================
+
+@dataclass
+class DecisionLog:
+    """
+    Track agentic RAG decision-making for analysis.
+
+    Used to log when the agent decides to use search vs answer directly.
+    Useful for understanding agent behavior patterns and cost optimization.
+
+    Attributes:
+        query: User query text
+        decision: Decision type ('search', 'direct', 'unknown')
+        tool_used: Whether search tool was invoked
+        loops: Number of search iterations
+        latency_ms: Response latency in milliseconds
+        cost: API cost in USD
+        answer_length: Length of generated answer
+        sources_retrieved: Number of sources retrieved
+        timestamp: ISO format timestamp
+    """
+    query: str
+    decision: str
+    tool_used: bool
+    loops: int
+    latency_ms: int
+    cost: float
+    answer_length: int = 0
+    sources_retrieved: int = 0
+    timestamp: Optional[str] = None
+
+    def __post_init__(self):
+        """Set timestamp if not provided."""
+        if self.timestamp is None:
+            from datetime import datetime
+            self.timestamp = datetime.now().isoformat()
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            'query': self.query,
+            'decision': self.decision,
+            'tool_used': self.tool_used,
+            'loops': self.loops,
+            'latency_ms': self.latency_ms,
+            'cost': self.cost,
+            'answer_length': self.answer_length,
+            'sources_retrieved': self.sources_retrieved,
+            'timestamp': self.timestamp
+        }
+
+    @classmethod
+    def from_agentic_result(cls, result: Dict[str, Any]) -> 'DecisionLog':
+        """
+        Create DecisionLog from agentic search result.
+
+        Args:
+            result: Result dictionary from AgenticSearchEngine
+
+        Returns:
+            DecisionLog instance
+
+        Example:
+            >>> result = engine.search_and_answer_agentic(query)
+            >>> log = DecisionLog.from_agentic_result(result)
+        """
+        return cls(
+            query=result.get('query', ''),
+            decision=result.get('decision', 'unknown'),
+            tool_used=result.get('tool_used', False),
+            loops=result.get('loops', result.get('search_count', 0)),
+            latency_ms=result.get('latency_ms', 0),
+            cost=result.get('cost', 0.0),
+            answer_length=len(result.get('answer', '')),
+            sources_retrieved=result.get('num_results', 0)
+        )
+
+
+def summarize(decision_logs: List[DecisionLog]) -> Dict[str, Any]:
+    """
+    Summarize agentic decision patterns from logs.
+
+    Provides aggregate statistics on agent behavior including:
+    - Search vs direct answer rates
+    - Average latency and cost
+    - Source retrieval patterns
+
+    Args:
+        decision_logs: List of DecisionLog entries
+
+    Returns:
+        Dictionary with summary statistics
+
+    Example:
+        >>> logs = [DecisionLog.from_agentic_result(r) for r in results]
+        >>> summary = summarize(logs)
+        >>> print(f"Search rate: {summary['search_rate']:.1%}")
+        >>> print(f"Avg cost: ${summary['avg_cost']:.4f}")
+    """
+    if not decision_logs:
+        return {
+            'total_queries': 0,
+            'search_count': 0,
+            'direct_count': 0,
+            'search_rate': 0.0,
+            'direct_rate': 0.0,
+            'avg_latency_ms': 0.0,
+            'avg_cost': 0.0,
+            'total_cost': 0.0,
+            'avg_loops': 0.0
+        }
+
+    search_count = sum(1 for log in decision_logs if log.decision == 'search')
+    direct_count = sum(1 for log in decision_logs if log.decision == 'direct')
+    total_latency = sum(log.latency_ms for log in decision_logs)
+    total_cost = sum(log.cost for log in decision_logs)
+    total_loops = sum(log.loops for log in decision_logs)
+
+    return {
+        'total_queries': len(decision_logs),
+        'search_count': search_count,
+        'direct_count': direct_count,
+        'search_rate': search_count / len(decision_logs) if decision_logs else 0.0,
+        'direct_rate': direct_count / len(decision_logs) if decision_logs else 0.0,
+        'avg_latency_ms': total_latency / len(decision_logs),
+        'avg_cost': total_cost / len(decision_logs),
+        'total_cost': total_cost,
+        'avg_loops': total_loops / len(decision_logs),
+        'min_latency_ms': min(log.latency_ms for log in decision_logs),
+        'max_latency_ms': max(log.latency_ms for log in decision_logs),
+        'min_cost': min(log.cost for log in decision_logs),
+        'max_cost': max(log.cost for log in decision_logs)
+    }
+
+
+# ============================================================================
 # Export Public API
 # ============================================================================
 
@@ -528,4 +666,8 @@ __all__ = [
 
     # Comparison
     'compare_ndcg_distributions',
+
+    # Agentic decision tracking
+    'DecisionLog',
+    'summarize',
 ]
