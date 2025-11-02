@@ -31,6 +31,121 @@ System performance and scalability testing:
 - **Scalability Analysis**: Performance with varying worker counts
 - **Resource Monitoring**: CPU and memory usage tracking
 
+### 3. K-Balance Experiment (`examples/k_balance_experiment.py`)
+
+Educational experiment for optimizing RAG retrieval parameters:
+
+#### Purpose
+Systematically explore the trade-offs between two critical RAG parameters:
+- **k_retrieve**: Number of candidate documents fetched from vector database
+- **k_context**: Number of documents fed into LLM after optional re-ranking
+
+#### Key Trade-offs
+**Increasing k_retrieve:**
+- ✅ Improves Recall (finds more relevant documents)
+- ✅ Better Evidence Sufficiency (comprehensive candidate pool)
+- ❌ May decrease Precision (includes marginal documents)
+- ❌ Increases Latency (more database I/O)
+
+**Decreasing k_context:**
+- ✅ Reduces LLM Cost (fewer tokens in prompt)
+- ✅ May improve Answer Quality (less noise)
+- ✅ Faster LLM Response Time
+- ❌ May miss relevant context if filtering is poor
+
+#### Metrics Computed
+- **Precision@k**: Proportion of retrieved documents that are relevant
+- **Recall@k**: Proportion of relevant documents retrieved
+- **F1@k**: Harmonic mean of precision and recall
+- **nDCG@k**: Ranking quality (penalizes relevant docs appearing late)
+- **MRR**: Position of first relevant document
+- **Latency**: Retrieval time in milliseconds
+- **Context Tokens**: Approximate token count for LLM input (cost proxy)
+
+#### Usage Examples
+
+**Single Configuration:**
+```bash
+python lab/evaluation/examples/k_balance_experiment.py \
+    --test-file lab/evaluation/test_cases.json \
+    --k-retrieve 100 \
+    --k-context 8 \
+    --vector-column content_vector_3072
+```
+
+**Compare Multiple Configurations:**
+```bash
+python lab/evaluation/examples/k_balance_experiment.py \
+    --test-file lab/evaluation/test_cases.json \
+    --k-retrieve-values 50 100 200 \
+    --k-context-values 5 8 10 \
+    --output results.json
+```
+
+**Custom Database Schema:**
+```bash
+python lab/evaluation/examples/k_balance_experiment.py \
+    --test-file test_cases.json \
+    --table my_documents \
+    --id-column doc_id \
+    --vector-column embedding \
+    --k-retrieve 100 \
+    --k-context 8
+```
+
+#### Test Case Format
+Test cases require queries with ground truth document IDs:
+
+```json
+[
+  {
+    "query": "What is machine learning?",
+    "expected_doc_ids": [1, 2, 3, 15, 22],
+    "metadata": {
+      "category": "conceptual",
+      "difficulty": "easy"
+    }
+  }
+]
+```
+
+#### Interpreting Results
+
+**Low Recall** → Increase k_retrieve to expand candidate pool
+
+**Good Recall, Low Precision** → Add re-ranker, decrease k_context
+
+**High Latency** → Optimize indexes, reduce k_context
+
+**Low nDCG** → Use hybrid/adaptive search for better ranking
+
+#### Recommended Strategy
+1. Use **high k_retrieve** (100-200) to build large candidate pool
+2. Apply optional **re-ranking** (e.g., cross-encoder) to refine results
+3. Use **moderate k_context** (5-10) for final LLM input
+4. Monitor metrics to find optimal balance for your use case
+
+#### Output Example
+```
+================================================================================
+SUMMARY STATISTICS
+================================================================================
+
+Config               Precision    Recall       F1           nDCG         MRR
+----------------------------------------------------------------------------------------------------
+k_r=50, k_c=5        0.035        0.612        0.066        0.651        0.723
+k_r=100, k_c=5       0.038        0.742        0.072        0.721        0.756
+k_r=200, k_c=5       0.041        0.823        0.078        0.768        0.782
+k_r=100, k_c=8       0.040        0.742        0.076        0.721        0.756
+```
+
+**Full Documentation**: See `lab/evaluation/examples/README_K_BALANCE.md` for comprehensive guide including:
+- Setup instructions
+- Detailed metric explanations
+- Query type recommendations
+- Troubleshooting guide
+- Next steps (re-ranking, hybrid search, cost analysis)
+
 ## Quick Start
 
 ### Running Evaluations

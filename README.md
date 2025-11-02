@@ -144,6 +144,36 @@ The hybrid Wikipedia search supports:
 - **Multiple search modes**: dense-only, sparse-only, hybrid, adaptive, or agentic
 - **Comprehensive answer generation**: GPT-powered responses with source attribution
 
+### RAG Parameter Optimization (NEW!)
+
+Experiment with and optimize k_retrieve (candidate pool size) and k_context (LLM input size) to find the perfect balance between recall, precision, cost, and latency:
+
+```bash
+# Compare multiple k configurations
+python lab/evaluation/examples/k_balance_experiment.py \
+    --test-file lab/evaluation/test_cases.json \
+    --k-retrieve-values 50 100 200 \
+    --k-context-values 5 8 10 \
+    --output k_balance_results.json
+```
+
+**What you'll learn:**
+- How k_retrieve affects recall (finding relevant documents)
+- How k_context affects precision and LLM cost
+- Optimal parameter values for different query types (factual, conceptual, exploratory)
+- Trade-offs between retrieval quality, latency, and cost
+
+**Key insights:**
+- Higher k_retrieve (100-200) → Better recall, more latency
+- Lower k_context (5-10) → Lower cost, faster LLM response
+- Recommended: k_retrieve=100-200, k_context=5-10 with re-ranking
+
+See comprehensive guide at `lab/evaluation/examples/README_K_BALANCE.md` for:
+- Detailed metric explanations (Precision, Recall, F1, nDCG, MRR)
+- Query type recommendations
+- Troubleshooting guide
+- Next steps (re-ranking, hybrid search integration)
+
 ### Blog Post Command Reference
 
 The exact commands shown in the Agentic RAG blog post:

@@ -379,6 +379,26 @@ python lab/07_evaluation/benchmark.py --benchmark latency --queries-file queries
 python lab/07_evaluation/benchmark.py --benchmark scalability --num-queries 50
 ```
 
+### K-Balance Experiments (NEW!)
+Optimize RAG retrieval parameters (k_retrieve vs k_context):
+```bash
+# Compare multiple configurations
+python lab/evaluation/examples/k_balance_experiment.py \
+    --test-file lab/evaluation/test_cases.json \
+    --k-retrieve-values 50 100 200 \
+    --k-context-values 5 8 10 \
+    --output k_balance_results.json
+```
+
+**Features:**
+- **Parameter Optimization**: Find optimal k_retrieve and k_context values
+- **Trade-off Analysis**: Understand recall vs precision vs cost vs latency
+- **Grid Search**: Test multiple parameter combinations automatically
+- **Educational Tool**: Learn RAG parameter effects with detailed interpretation guide
+- **Cost Estimation**: Approximate LLM token usage for different k_context values
+
+See `lab/evaluation/examples/README_K_BALANCE.md` for comprehensive guide.
+
 ### Evaluation Metrics
 - **Precision@k**: Accuracy of retrieved results
 - **Recall@k**: Completeness of retrieval
@@ -386,6 +406,7 @@ python lab/07_evaluation/benchmark.py --benchmark scalability --num-queries 50
 - **MRR**: Mean Reciprocal Rank
 - **NDCG@k**: Normalized Discounted Cumulative Gain
 - **Answer Quality**: LLM-based relevance and faithfulness scores
+- **Context Tokens**: Approximate token count for LLM cost estimation (k-balance)
 
 ## 📈 Performance
 
