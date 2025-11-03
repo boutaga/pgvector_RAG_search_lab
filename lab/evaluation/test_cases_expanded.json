@@ -1,0 +1,34 @@
+[
+    {
+        "query": "What is machine learning?",
+        "expected_doc_ids": [38080, 6360, 44742, 44678],
+        "metadata": {
+            "category": "conceptual",
+            "difficulty": "easy"
+        }
+    },
+    {
+        "query": "Who invented the telephone?",
+        "expected_doc_ids": [4579, 18368],
+        "metadata": {
+            "category": "factual",
+            "difficulty": "easy"
+        }
+    },
+    {
+        "query": "neural networks deep learning",
+        "expected_doc_ids": [44742, 6360],
+        "metadata": {
+            "category": "conceptual",
+            "difficulty": "medium"
+        }
+    },
+    {
+        "query": "animal whales",
+        "expected_doc_ids": [7597, 15244, 31022, 30442],
+        "metadata": {
+            "category": "factual",
+            "difficulty": "easy"
+        }
+    }
+]
