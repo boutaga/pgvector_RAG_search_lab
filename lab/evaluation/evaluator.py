@@ -24,7 +24,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.database import DatabaseService
 from core.search import VectorSearch, HybridSearch, AdaptiveSearch
-from core.generation import LLMGenerator
+from core.generation import GenerationService
 from core.config import Config
 
 
@@ -132,21 +132,21 @@ class RetrievalEvaluator:
 class AnswerEvaluator:
     """Evaluates answer quality using LLM-based metrics"""
     
-    def __init__(self, generator: LLMGenerator):
+    def __init__(self, generator: GenerationService):
         self.generator = generator
     
     def evaluate_relevance(self, query: str, answer: str) -> float:
         """Evaluate answer relevance to query (0-1 score)"""
         prompt = f"""Rate the relevance of this answer to the query on a scale of 0-10.
-        
+
 Query: {query}
 Answer: {answer}
 
 Provide only a number between 0 and 10."""
-        
+
         try:
-            response = self.generator.generate("", prompt)
-            score = float(response.strip()) / 10.0
+            response = self.generator.generate(prompt=prompt)
+            score = float(response.content.strip()) / 10.0
             return min(max(score, 0.0), 1.0)  # Clamp to [0, 1]
         except:
             return 0.5  # Default middle score on error
@@ -155,15 +155,15 @@ Provide only a number between 0 and 10."""
         """Evaluate answer faithfulness to context (0-1 score)"""
         prompt = f"""Rate how faithful this answer is to the provided context on a scale of 0-10.
 The answer should only contain information from the context.
-        
+
 Context: {context}
 Answer: {answer}
 
 Provide only a number between 0 and 10."""
-        
+
         try:
-            response = self.generator.generate("", prompt)
-            score = float(response.strip()) / 10.0
+            response = self.generator.generate(prompt=prompt)
+            score = float(response.content.strip()) / 10.0
             return min(max(score, 0.0), 1.0)  # Clamp to [0, 1]
         except:
             return 0.5  # Default middle score on error
@@ -175,7 +175,7 @@ class RAGEvaluator:
     def __init__(self, config: Optional[Config] = None):
         self.config = config or Config()
         self.db = DatabaseService(self.config)
-        self.generator = LLMGenerator(self.config)
+        self.generator = GenerationService()
         self.answer_evaluator = AnswerEvaluator(self.generator)
         
         # Initialize search methods
@@ -244,8 +244,9 @@ class RAGEvaluator:
         
         # Generate answer
         context = "\n\n".join([r.get('content', '')[:500] for r in results])
-        answer = self.generator.generate(test_case.query, context)
-        
+        response = self.generator.generate(prompt=test_case.query, context=context)
+        answer = response.content
+
         # Evaluate answer quality
         metrics = {
             'answer_relevance': self.answer_evaluator.evaluate_relevance(
@@ -254,7 +255,7 @@ class RAGEvaluator:
             'answer_faithfulness': self.answer_evaluator.evaluate_faithfulness(
                 context, answer
             ),
-            'token_cost': self.generator.last_cost
+            'token_cost': response.cost
         }
         
         return metrics
