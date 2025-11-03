@@ -27,7 +27,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.database import DatabaseService
 from core.search import VectorSearch, HybridSearch, AdaptiveSearch
 from core.embeddings import OpenAIEmbedder
-from core.config import Config
 
 
 @dataclass
@@ -138,19 +137,19 @@ class ResourceMonitor:
 
 class PerformanceBenchmark:
     """Main performance benchmarking framework"""
-    
-    def __init__(self, config: Optional[Config] = None):
-        self.config = config or Config()
-        self.db = DatabaseService(self.config)
-        self.embedder = OpenAIEmbedder(self.config)
+
+    def __init__(
+        self,
+        db_service: Optional[DatabaseService] = None,
+        embedder: Optional[OpenAIEmbedder] = None
+    ):
+        self.db = db_service or DatabaseService()
+        self.embedder = embedder or OpenAIEmbedder()
         self.resource_monitor = ResourceMonitor()
-        
-        # Initialize search methods
-        self.search_methods = {
-            'vector': VectorSearch(self.db, self.config),
-            'hybrid': HybridSearch(self.db, self.config),
-            'adaptive': AdaptiveSearch(self.db, self.config)
-        }
+
+        # Note: search_methods initialization removed - requires specific configuration
+        # Users should create search instances separately and pass to benchmark methods
+        self.search_methods = {}
     
     def benchmark_search_latency(
         self,
