@@ -25,7 +25,7 @@ import numpy as np
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 from lab.core.database import DatabaseService
-from lab.core.embeddings import OpenAIEmbedder, SpladeEmbedder
+from lab.core.embeddings import OpenAIEmbedder, SPLADEEmbedder
 from lab.core.search import VectorSearch, SparseSearch, HybridSearch, AdaptiveSearch
 from lab.evaluation.evaluator import TestCase, RetrievalEvaluator
 
@@ -83,7 +83,7 @@ def run_experiment(
     config: SearchConfig,
     db: DatabaseService,
     embedder: OpenAIEmbedder,
-    sparse_embedder: SpladeEmbedder = None
+    sparse_embedder: SPLADEEmbedder = None
 ) -> List[ExperimentResult]:
     """Run experiment with given configuration"""
 
@@ -107,7 +107,7 @@ def run_experiment(
             db_service=db,
             embedding_service=sparse_embedder,
             table_name="articles",
-            sparse_vector_column="content_sparse",
+            sparse_column="content_sparse",
             content_columns=["title", "content"],
             id_column="id"
         )
@@ -128,7 +128,7 @@ def run_experiment(
             db_service=db,
             embedding_service=sparse_embedder,
             table_name="articles",
-            sparse_vector_column="content_sparse",
+            sparse_column="content_sparse",
             content_columns=["title", "content"],
             id_column="id"
         )
@@ -155,7 +155,7 @@ def run_experiment(
             db_service=db,
             embedding_service=sparse_embedder,
             table_name="articles",
-            sparse_vector_column="content_sparse",
+            sparse_column="content_sparse",
             content_columns=["title", "content"],
             id_column="id"
         )
@@ -365,7 +365,7 @@ def main():
     sparse_embedder = None
     if not args.skip_sparse:
         try:
-            sparse_embedder = SpladeEmbedder()
+            sparse_embedder = SPLADEEmbedder()
             print("✓ Sparse embedder initialized")
         except Exception as e:
             print(f"⚠️  Sparse embedder not available: {e}")
@@ -378,8 +378,8 @@ def main():
         SearchConfig("Vec-3072-k100", "vector", "content_vector_3072", k_retrieve=100, k_context=8),
         SearchConfig("Vec-3072-k200", "vector", "content_vector_3072", k_retrieve=200, k_context=10),
 
-        # Compare vector dimensions
-        SearchConfig("Vec-1536-k100", "vector", "content_vector", k_retrieve=100, k_context=8),
+        # Compare vector dimensions (NOTE: Requires content_vector column with 1536 dims)
+        # SearchConfig("Vec-1536-k100", "vector", "content_vector", k_retrieve=100, k_context=8),
 
         # Sparse search
         SearchConfig("Sparse-k100", "sparse", k_retrieve=100, k_context=8),
