@@ -93,6 +93,83 @@ python lab/evaluation/examples/k_balance_experiment.py \
     --k-context 8
 ```
 
+### 4. Search Configuration Comparison (`examples/compare_search_configs.py`)
+
+Comprehensive comparison of different search methods and configurations:
+
+#### Supported Search Configurations
+- **Vector Search**: Different k values (k=10, 50, 100, 200)
+- **Sparse Search**: SPLADE-based keyword matching
+- **Hybrid Search**: Dense + Sparse with configurable weights (50/50, 70/30, 30/70)
+- **Adaptive Search**: Automatic weight adjustment based on query type
+
+#### Metrics Computed
+- **Precision@k**: Quality of retrieved documents
+- **Recall@k**: Completeness of retrieval
+- **F1@k**: Harmonic mean of precision and recall
+- **nDCG@k**: Ranking quality (position-aware)
+- **MRR**: Position of first relevant result
+- **Latency**: Retrieval time in milliseconds
+
+#### Usage
+```bash
+# Run all configurations
+python lab/evaluation/examples/compare_search_configs.py \
+    --test-file lab/evaluation/test_cases_expanded.json \
+    --detailed \
+    --output results.json
+
+# Skip sparse/hybrid (vector only)
+python lab/evaluation/examples/compare_search_configs.py \
+    --test-file lab/evaluation/test_cases_expanded.json \
+    --skip-sparse
+```
+
+### 5. Ranking Improvement Demo (`examples/demo_ranking_improvement.py`)
+
+Live demonstration comparing content-only vs title-weighted search:
+
+#### Purpose
+Show measurable ranking quality improvements for conference presentations and teaching.
+
+#### What It Demonstrates
+- **Before**: Content-only vector search
+- **After**: 70% title + 30% content weighted search
+- **Real Results**: +6-25% recall, +8-49% nDCG improvement
+
+#### Usage
+```bash
+# Run live demo (takes ~10 seconds)
+python lab/evaluation/examples/demo_ranking_improvement.py
+```
+
+#### Expected Output
+- Query-by-query comparison tables
+- Metrics: Recall, Precision, nDCG, MRR
+- Overall summary with improvements
+- Perfect for live presentations!
+
+### 6. Educational Documentation (`examples/*.md`)
+
+Comprehensive guides explaining RAG evaluation concepts:
+
+#### Available Guides
+1. **UNDERSTANDING_K.md** - What is k? (retrieval pool size)
+2. **RECALL_VS_PRECISION.md** - Complete explanation with analogies
+3. **UNDERSTANDING_NDCG.md** - Deep dive into ranking quality metrics
+4. **PRESENTATION_GUIDE.md** - Complete demo presentation guide with Q&A
+5. **IMPROVING_RANKING_DEMO.md** - 5 optimization strategies with code
+6. **OPTIMIZATION_QUICK_REF.md** - Quick reference cheat sheet
+7. **DEMO_SCRIPT_EXPLAINED.md** - How the demo works
+8. **COMBINED_VS_SEPARATE_EMBEDDINGS.md** - Embedding strategies
+
+#### Key Features
+- Fishing analogies for non-technical audiences
+- Step-by-step calculations
+- Real examples from actual data
+- Quiz questions to test understanding
+- Conference presentation scripts
+
 #### Test Case Format
 Test cases require queries with ground truth document IDs:
 

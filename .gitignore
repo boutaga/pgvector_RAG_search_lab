@@ -105,3 +105,16 @@ migration*.md
 fix_*.md
 *_plan.md
 lab_03_bi_mart_metadata_rag_plan.md
+AGENTIC_RAG_SUMMARY.md
+BLOG_POST_CHANGES_REQUIRED.md
+IMPLEMENTATION_COMPLETE_SUMMARY.md
+IMPLEMENTATION_SUMMARY.md
+lab.zip
+lab/evaluation/examples/ADAPTIVE_VS_AGENTIC.md
+lab/evaluation/examples/COMBINED_VS_SEPARATE_EMBEDDINGS.md
+lab/evaluation/examples/DEMO_SCRIPT_EXPLAINED.md
+lab/evaluation/examples/IMPROVING_RANKING_DEMO.md
+lab/evaluation/examples/OPTIMIZATION_QUICK_REF.md
+lab/evaluation/examples/PRESENTATION_GUIDE.md
+lab/evaluation/examples/RECALL_VS_PRECISION.md
+lab/evaluation/examples/UNDERSTANDING_K.md
