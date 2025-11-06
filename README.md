@@ -728,7 +728,7 @@ Please ensure all scripts follow Linux (LF) line endings.
 
 ## License
 
-[Your License Here]
+MIT License
 
 ---
 
