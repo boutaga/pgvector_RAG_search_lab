@@ -1,394 +1,746 @@
-# pgvector_RAG_search_lab v1.2
+# pgvector RAG Search Lab
 
-This repository is intended for educational purposes, providing a lab environment to explore pgvector and similarity searches on PostgreSQL.
+A comprehensive educational repository for learning PostgreSQL pgvector, semantic search, and Retrieval-Augmented Generation (RAG) techniques. This lab provides hands-on experience with vector databases, from basic similarity search to advanced agentic AI systems.
 
-## Release 1.2 Updates
-- ✅ Added Wikipedia database with 25,000 articles and pre-computed embeddings
-- ✅ New Wikipedia-specific Python scripts with text-embedding-3-small model
-- ✅ Advanced hybrid RAG search with query classification
-- ✅ Git LFS integration for large database files
-- ✅ Comprehensive documentation updates
+**Version**: 1.2
+**Target Audience**: Database administrators, data engineers, and developers learning vector search and RAG
 
-The lab supports two main scenarios:
-1. **Movie Recommendations**: Perform similarity searches to recommend Netflix shows to DVDRental users based on their rental profiles
-2. **Wikipedia RAG Search**: Query a database of 25,000 Wikipedia articles using advanced retrieval-augmented generation techniques
+---
 
-## RAG Implementations
+## Table of Contents
 
-This repository implements **four distinct RAG approaches**, from simple to autonomous:
+- [Introduction](#introduction)
+- [Repository Structure](#repository-structure)
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Lab 1: Movie Recommendations](#lab-1-movie-recommendations)
+- [Lab 2: Wikipedia RAG Search](#lab-2-wikipedia-rag-search)
+- [Lab 3: Advanced RAG Techniques](#lab-3-advanced-rag-techniques)
+- [Lab 4: Evaluation & Optimization](#lab-4-evaluation--optimization)
+- [Database Details](#database-details)
+- [Troubleshooting](#troubleshooting)
+- [Resources](#resources)
 
-1. **Naive/Simple RAG** (`lab/search/simple_search.py`) - Basic vector similarity search with direct retrieval
-2. **Hybrid RAG** (`lab/search/hybrid_search.py`) - Combines dense and sparse embeddings with fixed weights
-3. **Adaptive RAG** (`lab/search/adaptive_search.py`) - Query classification with dynamic weight adjustment
-4. **Agentic RAG** (`lab/search/agentic_search.py`) - **NEW!** LLM agent autonomously decides when to retrieve information
+---
 
-## Repository Contents
+## Introduction
 
-This repository now includes:
-- **Original datasets**: `dvdrental.zip` and `netflix_titles.csv.zip` 
-- **Wikipedia database**: `vector_database_wikipedia_articles_embedded.zip` (667MB, managed with Git LFS)
-- **Python scripts**: Both original movie/Netflix scripts and new Wikipedia-specific scripts
-- **SQL files**: Database indexes and sample queries
+This repository demonstrates practical applications of pgvector for semantic search and RAG systems. It includes two main scenarios with progressively advanced techniques:
 
-## Files
+### Scenarios
 
-### Wikipedia Scripts (New)
-- `create_emb_wiki.py`: Generates dense embeddings for Wikipedia articles using OpenAI text-embedding-3-small model
-- `create_emb_sparse_wiki.py`: Generates sparse embeddings for Wikipedia articles using SPLADE model
-- `RAG_search_wiki.py`: Simple Wikipedia RAG search using dense embeddings
-- `RAG_search_wiki_hybrid.py`: Advanced hybrid Wikipedia RAG with query classification and dense/sparse search combination
+1. **Movie Recommendations** - Recommend Netflix shows to DVD rental customers using similarity search
+2. **Wikipedia RAG Search** - Query 25,000 Wikipedia articles using retrieval-augmented generation
 
-### Lab Search Modules (Modular Architecture)
-- `lab/search/simple_search.py`: Naive RAG implementation
-- `lab/search/hybrid_search.py`: Hybrid RAG with dense + sparse combination
-- `lab/search/adaptive_search.py`: Adaptive RAG with query classification
-- `lab/search/agentic_search.py`: **NEW!** Agentic RAG with LLM-driven retrieval decisions
+### RAG Implementations (Progressive Complexity)
 
-### Original Movie/Netflix Scripts
-- `create_emb.py`: Generates dense embeddings using OpenAI and updates the PostgreSQL database.
-- `create_emb_sparse.py`: Generates sparse embeddings using SPLADE and updates the PostgreSQL database.
-- `recommend_netflix.py`: Recommends Netflix shows to a customer based on their rental history using dense embeddings.
-- `RAG_search.py`: Performs a dense-only retrieval-augmented generation (RAG) search using OpenAI embeddings.
-- `RAG_search_hybrid.py`: Performs a hybrid RAG search using both dense and sparse embeddings, with re-ranking and support for structured SQL queries. It classifies queries as structured or semantic and routes them accordingly.
-- `RAG_search_hybrid_simple.py`: A simplified version of the hybrid RAG search for experimentation or minimal setups.
-- `RAG_search_Open.py`: (Optional) Variant of RAG search using OpenAI with different configurations or models.
+1. **Naive RAG** - Basic vector similarity search
+2. **Hybrid RAG** - Combines dense (semantic) and sparse (keyword) embeddings
+3. **Adaptive RAG** - Query classification with dynamic weight adjustment
+4. **Agentic RAG** - LLM autonomously decides when to retrieve information
 
-## Installation steps
+---
 
-### General Setup
-1. Provision a Linux server with PostgreSQL 17.X and pgvector 0.8.0.
-2. Set up a Python virtual environment and install dependencies.
-3. Set environment variables for `DATABASE_URL` and `OPENAI_API_KEY`.
+## Repository Structure
 
-### For Movie/Netflix Scenario
-4a. Import dvdrental and Netflix datasets into a single PostgreSQL database.
-5a. Add vector and sparsevec columns to the relevant tables.
-6a. Run `create_emb.py` and `create_emb_sparse.py` to populate embeddings.
-7a. Use the original RAG search scripts to perform similarity or hybrid searches.
+```
+Movies_pgvector_lab/
+│
+├── original/                          # Standalone Python scripts (original implementation)
+│   ├── create_emb.py                  # Generate dense embeddings for movies/Netflix
+│   ├── create_emb_sparse.py           # Generate sparse (SPLADE) embeddings for movies
+│   ├── create_emb_wiki.py             # Generate dense embeddings for Wikipedia
+│   ├── create_emb_sparse_wiki.py      # Generate sparse embeddings for Wikipedia
+│   ├── RAG_search.py                  # Simple RAG search for movies
+│   ├── RAG_search_hybrid.py           # Hybrid RAG for movies with query classification
+│   ├── RAG_search_wiki.py             # Simple RAG search for Wikipedia
+│   ├── RAG_search_wiki_hybrid.py      # Hybrid RAG for Wikipedia
+│   └── recommend_netflix.py           # Netflix recommendation engine
+│
+├── lab/                               # Modular architecture for advanced usage
+│   ├── core/                          # Core services and utilities
+│   │   ├── config.py                  # Configuration management (models, dimensions)
+│   │   ├── database.py                # Database connection and pooling
+│   │   ├── embeddings.py              # Embedding generation services (OpenAI, SPLADE)
+│   │   ├── generation.py              # LLM text generation (GPT-4o, GPT-5-mini)
+│   │   ├── ranking.py                 # Result ranking and re-ranking
+│   │   └── search.py                  # Search operations (vector, sparse, hybrid)
+│   │
+│   ├── search/                        # RAG implementation examples
+│   │   ├── simple_search.py           # Naive RAG - basic vector search
+│   │   ├── hybrid_search.py           # Hybrid RAG - dense + sparse combination
+│   │   ├── adaptive_search.py         # Adaptive RAG - query-based optimization
+│   │   ├── agentic_search.py          # Agentic RAG - autonomous LLM agent
+│   │   └── examples/
+│   │       └── agentic_demo.py        # Interactive agentic RAG demonstration
+│   │
+│   ├── evaluation/                    # Metrics and benchmarking tools
+│   │   ├── metrics.py                 # Precision, Recall, F1, nDCG, MRR calculations
+│   │   ├── evaluator.py               # Evaluation framework
+│   │   ├── relevance_manager.py       # Test query and relevance grade management
+│   │   └── examples/
+│   │       ├── k_balance_experiment.py         # Optimize k_retrieve and k_context
+│   │       ├── compare_search_configs.py       # Compare search strategies
+│   │       ├── demo_ranking_improvement.py     # Optimization demonstration
+│   │       ├── README_K_BALANCE.md             # K-parameter optimization guide
+│   │       ├── UNDERSTANDING_NDCG.md           # nDCG metric explained
+│   │       └── RECALL_VS_PRECISION.md          # Basic metrics guide
+│   │
+│   ├── api/                           # API interfaces
+│   │   ├── fastapi_server.py          # REST API with all search methods
+│   │   └── streamlit_app.py           # Interactive web UI
+│   │
+│   ├── setup/                         # Setup and installation scripts
+│   │   ├── setup.sh                   # Database setup automation
+│   │   ├── setup.sql                  # SQL schema definitions
+│   │   ├── evaluation_schema.sql      # Evaluation tables and functions
+│   │   └── pgvectorscale_install.md   # pgvectorscale installation guide
+│   │
+│   └── workflows/                     # n8n workflow templates
+│       ├── naive_rag_workflow.json
+│       ├── hybrid_rag_workflow.json
+│       ├── adaptive_rag_workflow.json
+│       └── agentic_rag_workflow.json
+│
+├── docs/                              # Additional documentation
+│
+├── SQL files (root level)
+│   ├── indexes.sql                    # General index creation examples
+│   ├── create_3072_indexes.sql        # HNSW indexes for 3072-dim vectors
+│   ├── create_3072_indexes_diskann.sql    # DiskANN indexes (production scale)
+│   ├── create_3072_indexes_ivfflat.sql    # IVFFlat indexes (development)
+│   └── lab_queries.sql                # Sample SQL queries
+│
+└── Data files (managed with Git LFS)
+    ├── dvdrental.zip                  # DVD rental database
+    ├── netflix_titles.csv.zip         # Netflix catalog data
+    └── vector_database_wikipedia_articles_embedded.zip  # 25k Wikipedia articles (667MB)
+```
 
-### For Wikipedia Scenario  
-4b. Import Wikipedia articles dataset (25,000 articles) into PostgreSQL database.
-5b. Ensure the articles table has the required vector columns (already present in provided schema).
-6b. Run `create_emb_wiki.py` to generate dense embeddings for titles and content.
-7b. Optionally run `create_emb_sparse_wiki.py` to add sparse embeddings.
-8b. Use `RAG_search_wiki.py` or `RAG_search_wiki_hybrid.py` for Wikipedia search.
+---
 
-## Python Environment Setup
+## Prerequisites
+
+### Required Software
+
+- **PostgreSQL 17.x** with **pgvector 0.8.0+**
+  ```sql
+  CREATE EXTENSION IF NOT EXISTS vector;
+  ```
+
+- **Python 3.8+** with virtual environment
+- **Git** (with Git LFS for large database files)
+
+### Optional (for production-scale indexes)
+
+- **pgvectorscale** - Provides DiskANN indexes for billions of vectors
+  - See `lab/setup/pgvectorscale_install.md` for installation
+
+### Required API Keys
+
+- **OpenAI API Key** - For embedding generation and LLM responses
+  - Get yours at: https://platform.openai.com/api-keys
+
+### Python Dependencies
 
 ```bash
-python3 -m venv pgvector_lab
-source pgvector_lab/bin/activate
 pip install psycopg2-binary openai pgvector transformers torch sentencepiece
 ```
 
-## Usage Examples
+---
 
-### Wikipedia RAG Search
+## Quick Start
 
-Generate embeddings for Wikipedia articles:
+### 1. Clone Repository
 ```bash
-# Set environment variables
-export DATABASE_URL="postgresql://postgres@localhost/wikipedia"
-export OPENAI_API_KEY="your_openai_api_key"
-
-# Generate dense embeddings (required)
-python3 create_emb_wiki.py
-
-# Generate sparse embeddings (optional)
-python3 create_emb_sparse_wiki.py
-
-# Simple Wikipedia search
-python3 RAG_search_wiki.py
-
-# Advanced hybrid search with query classification
-python3 RAG_search_wiki_hybrid.py
+git clone https://github.com/yourusername/Movies_pgvector_lab.git
+cd Movies_pgvector_lab
 ```
 
-### Agentic RAG Search (Latest Addition!)
-
-The Agentic RAG approach represents the cutting edge of retrieval-augmented generation:
-
+### 2. Set Up Python Environment
 ```bash
-# Set environment variable
-export DATABASE_URL="postgresql://postgres@localhost/wikipedia"
-export OPENAI_API_KEY="your_openai_api_key"
-
-# Run agentic search
-python3 lab/search/agentic_search.py --source wikipedia --interactive
-
-# Or run the demo
-python3 lab/search/examples/agentic_demo.py
+python3 -m venv pgvector_lab
+source pgvector_lab/bin/activate  # On Windows: pgvector_lab\Scripts\activate
+pip install psycopg2-binary openai pgvector transformers torch sentencepiece
 ```
 
-**What makes Agentic RAG special:**
-- **Autonomous Decision-Making**: LLM agent decides whether to search or answer directly
-- **Function Calling**: Uses OpenAI's function calling to expose search as a tool
-- **Cost Efficient**: Skips unnecessary retrievals for simple questions
-- **Grounded Answers**: When searching, ensures answers are based on retrieved information
-- **Source Citations**: Provides transparent source attribution
-- **Flexible**: Can be extended with multiple tools and multi-step retrieval
-
-**How it works:**
-1. User asks a question
-2. LLM agent analyzes the query
-3. Agent decides: "Do I need to search the database?"
-   - Simple question → Answer directly
-   - Complex/specific question → Use search_wikipedia() tool
-4. If searched, agent uses retrieved snippets to formulate answer
-5. Answer includes source citations and decision metadata
-
-The hybrid Wikipedia search supports:
-- **Adaptive query classification**: Automatically detects factual, conceptual, or exploratory queries
-- **Dense and sparse vector search**: Uses both OpenAI embeddings and SPLADE
-- **Intelligent re-ranking**: Adjusts weights based on query type
-- **Multiple search modes**: dense-only, sparse-only, hybrid, adaptive, or agentic
-- **Comprehensive answer generation**: GPT-powered responses with source attribution
-
-### RAG Parameter Optimization (NEW!)
-
-Experiment with and optimize k_retrieve (candidate pool size) and k_context (LLM input size) to find the perfect balance between recall, precision, cost, and latency:
-
+### 3. Configure Environment Variables
 ```bash
-# Compare multiple k configurations
-python lab/evaluation/examples/k_balance_experiment.py \
-    --test-file lab/evaluation/test_cases.json \
-    --k-retrieve-values 50 100 200 \
-    --k-context-values 5 8 10 \
-    --output k_balance_results.json
+export DATABASE_URL="postgresql://user:password@localhost:5432/dbname"
+export OPENAI_API_KEY="your_openai_api_key_here"
 ```
 
-**What you'll learn:**
-- How k_retrieve affects recall (finding relevant documents)
-- How k_context affects precision and LLM cost
-- Optimal parameter values for different query types (factual, conceptual, exploratory)
-- Trade-offs between retrieval quality, latency, and cost
+### 4. Choose Your Lab and Follow Instructions Below
 
-**Key insights:**
-- Higher k_retrieve (100-200) → Better recall, more latency
-- Lower k_context (5-10) → Lower cost, faster LLM response
-- Recommended: k_retrieve=100-200, k_context=5-10 with re-ranking
+---
 
-See comprehensive guide at `lab/evaluation/examples/README_K_BALANCE.md` for:
-- Detailed metric explanations (Precision, Recall, F1, nDCG, MRR)
-- Query type recommendations
-- Troubleshooting guide
-- Next steps (re-ranking, hybrid search integration)
+## Lab 1: Movie Recommendations
 
-### Blog Post Command Reference
+**Goal**: Recommend Netflix shows to DVD rental customers based on their rental history using vector similarity.
 
-The exact commands shown in the Agentic RAG blog post:
+### Database Setup
 
-#### CLI Usage (JSON Output)
+#### 1.1. Create Database
 ```bash
-# Simple query with JSON output - matches blog post format
-python lab/search/agentic_search.py \
-  --source wikipedia \
-  --query "What is PostgreSQL?" \
-  --json
-
-# Expected output:
-# {"answer": "...\n\nDecision: used search", "tool_used": true, "loops": 1, "latency_ms": 1234}
+createdb dvdrental
 ```
 
-#### CLI Usage (Human-Readable)
+#### 1.2. Import Data
 ```bash
-# With decision info and sources
-python lab/search/agentic_search.py \
-  --source wikipedia \
-  --query "What is PostgreSQL?" \
-  --show-decision \
-  --show-sources
+# Import DVD rental database
+unzip dvdrental.zip
+pg_restore -d dvdrental dvdrental.tar
+
+# Import Netflix data
+unzip netflix_titles.csv.zip
+psql -d dvdrental -c "CREATE TABLE netflix_shows (
+    show_id VARCHAR(10) PRIMARY KEY,
+    type VARCHAR(10),
+    title VARCHAR(200),
+    director TEXT,
+    cast TEXT,
+    country TEXT,
+    date_added DATE,
+    release_year INT,
+    rating VARCHAR(10),
+    duration VARCHAR(20),
+    listed_in TEXT,
+    description TEXT
+);"
+psql -d dvdrental -c "\COPY netflix_shows FROM 'netflix_titles.csv' CSV HEADER;"
 ```
 
-#### FastAPI Endpoint
-```bash
-# POST to /search with method=agentic
-curl -X POST http://localhost:8000/search \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "What is PostgreSQL?",
-    "method": "agentic",
-    "source": "wikipedia",
-    "top_k": 5
-  }'
+#### 1.3. Add Vector Columns
+```sql
+-- Add embedding column to film table
+ALTER TABLE film ADD COLUMN embedding vector(1536);
+
+-- Add embedding columns to Netflix shows
+ALTER TABLE netflix_shows ADD COLUMN embedding vector(1536);
+ALTER TABLE netflix_shows ADD COLUMN sparse_embedding sparsevec;
 ```
 
-#### Decision Tracking Example
-```python
-from lab.search.agentic_search import AgenticSearchEngine
-from lab.evaluation.metrics import DecisionLog, summarize
-from lab.core.database import DatabaseService
-from lab.core.config import ConfigService
+### Generate Embeddings
 
-# Initialize engine
-config = ConfigService()
-db = DatabaseService(config.database.connection_string, 1, 5)
-engine = AgenticSearchEngine(db, config, 'wikipedia')
-
-# Run batch of queries
-queries = [
-    "What is 2+2?",
-    "Explain PostgreSQL MVCC",
-    "What is the capital of France?"
-]
-results = engine.batch_agentic_search(queries, top_k=5)
-
-# Track decisions
-logs = [DecisionLog.from_agentic_result(r) for r in results]
-
-# Analyze patterns
-summary = summarize(logs)
-print(f"Search rate: {summary['search_rate']:.1%}")
-print(f"Avg latency: {summary['avg_latency_ms']:.0f}ms")
-print(f"Total cost: ${summary['total_cost']:.4f}")
-```
-
-### Original Movie/Netflix Hybrid RAG Search
-
-The `RAG_search_hybrid.py` script supports:
-- Dense and sparse vector search
-- Weighted re-ranking
-- Structured query classification and SQL execution
-- Transparent output of SQL queries and intermediate results
-
-Example usage:
+#### Dense Embeddings (OpenAI)
 ```bash
 export DATABASE_URL="postgresql://postgres@localhost/dvdrental"
-python3 RAG_search_hybrid.py
+python3 original/create_emb.py
 ```
+**Note**: This will generate embeddings for ~1,000 films. Expect 5-10 minutes runtime.
 
-You will be prompted to enter a question. The script will classify the query and either:
-- Run a semantic search using dense/sparse embeddings
-- Or generate and execute a SQL query for structured data retrieval
-
-## Wikipedia Database Setup (Release 1.2)
-
-### Overview
-The Wikipedia database contains 25,000 articles with pre-computed embeddings using OpenAI's text-embedding-3-small model. The database includes both title and content vectors for advanced semantic search capabilities.
-
-### Database Structure
-The `articles` table contains:
-- `id` (integer): Unique article identifier
-- `url` (text): Wikipedia article URL
-- `title` (text): Article title
-- `content` (text): Article content
-- `title_vector` (vector(1536)): Dense embeddings for titles
-- `content_vector` (vector(1536)): Dense embeddings for content
-- `vector_id` (integer): Vector identifier
-- `content_tsv` (tsvector): Full-text search vectors
-- `title_content_tsvector` (tsvector): Combined title and content text search
-
-### PostgreSQL Installation Steps
-
-#### 1. Prerequisites
-Ensure you have PostgreSQL 17.x with pgvector 0.8.0+ installed:
-```sql
-CREATE EXTENSION IF NOT EXISTS vector;
-```
-
-#### 2. Extract and Import the Database
+#### Sparse Embeddings (SPLADE) - Optional
 ```bash
-# Extract the Wikipedia database (667MB)
+python3 original/create_emb_sparse.py
+```
+**Note**: Requires CUDA-capable GPU for optimal performance. CPU mode supported but slower.
+
+### Create Indexes for Performance
+
+```sql
+-- HNSW index for dense vectors (recommended)
+CREATE INDEX film_embedding_hnsw_idx
+ON film
+USING hnsw (embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+
+CREATE INDEX netflix_embedding_hnsw_idx
+ON netflix_shows
+USING hnsw (embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+```
+
+See `indexes.sql` for additional index configurations.
+
+### Run Searches
+
+#### Simple RAG Search
+```bash
+python3 original/RAG_search.py
+```
+Enter your query when prompted. The system will:
+1. Generate query embedding
+2. Find similar films via vector search
+3. Generate answer using GPT with retrieved context
+
+#### Hybrid RAG Search (Advanced)
+```bash
+python3 original/RAG_search_hybrid.py
+```
+Supports:
+- Dense + sparse vector fusion
+- Query classification (semantic vs structured)
+- SQL query generation for structured questions
+- Weighted re-ranking
+
+#### Netflix Recommendations
+```bash
+python3 original/recommend_netflix.py
+```
+Provides Netflix recommendations for DVD rental customers based on their rental history.
+
+---
+
+## Lab 2: Wikipedia RAG Search
+
+**Goal**: Perform semantic search and RAG over 25,000 Wikipedia articles.
+
+### Database Setup
+
+#### 2.1. Import Wikipedia Database
+```bash
+# Extract database (667MB compressed, ~2GB uncompressed)
 unzip vector_database_wikipedia_articles_embedded.zip
 
-# This will create a PostgreSQL dump file
-# Import the database
+# Create database
 createdb wikipedia
-pg_restore -d wikipedia -v vector_database_wikipedia_articles_embedded.sql
 
-# Alternative: if it's a plain SQL file
+# Import (choose appropriate method based on file format)
+# If .sql file:
 psql -d wikipedia -f vector_database_wikipedia_articles_embedded.sql
+
+# If .dump or .backup file:
+pg_restore -d wikipedia -v vector_database_wikipedia_articles_embedded.dump
 ```
 
-#### 3. Verify Installation
+#### 2.2. Verify Installation
 ```sql
--- Connect to the database
 \c wikipedia
 
--- Check table structure
+-- Check structure
 \d articles
 
--- Verify data count
+-- Verify data
 SELECT COUNT(*) FROM articles;
--- Expected: 25,000 articles
+-- Expected: 25,000
 
--- Check embedding coverage
-SELECT 
-  COUNT(*) as total_articles,
+-- Check embeddings
+SELECT
+  COUNT(*) as total,
   COUNT(title_vector) as title_embeddings,
   COUNT(content_vector) as content_embeddings
 FROM articles;
-
--- Sample article
-SELECT id, title, LENGTH(content) as content_length 
-FROM articles 
-LIMIT 5;
+-- Expected: 25,000 for all counts
 ```
 
-#### 4. Performance Indexes (Already Included)
-The database comes with optimized indexes:
-```sql
--- Vector indexes for performance
-"articles_content_vector_idx" ivfflat (content_vector) WITH (lists='1000')
-"idx_articles_vec_hnsw" hnsw (content_vector vector_cosine_ops)
-"idx_articles_vec_ivf" ivfflat (content_vector vector_cosine_ops)
+### Database Schema
 
--- Full-text search indexes
-"idx_articles_content_tsv" gin (content_tsv)
-"idx_articles_title_content_tsvector" gin (title_content_tsvector)
-```
+The `articles` table includes:
+- `id` - Unique article identifier
+- `title` - Article title
+- `content` - Article text content
+- `url` - Wikipedia URL
+- `title_vector` - Dense embeddings for titles (vector(1536))
+- `content_vector` - Dense embeddings for content (vector(1536))
+- `title_sparse` - Sparse embeddings for titles (sparsevec) - optional
+- `content_sparse` - Sparse embeddings for content (sparsevec) - optional
 
-### Exporting Wikipedia Data to CSV
+**Indexes included**: HNSW and IVFFlat indexes are pre-created for optimal performance.
 
-If you need to export the Wikipedia data for analysis:
+### Optional: Add Sparse Embeddings
 
-```sql
--- Export articles metadata
-COPY (
-  SELECT id, url, title, LENGTH(content) as content_length,
-         CASE WHEN title_vector IS NOT NULL THEN 'YES' ELSE 'NO' END as has_title_embedding,
-         CASE WHEN content_vector IS NOT NULL THEN 'YES' ELSE 'NO' END as has_content_embedding
-  FROM articles
-) TO '/tmp/wikipedia_articles_metadata.csv' WITH CSV HEADER;
-
--- Export article content (without vectors)
-COPY (
-  SELECT id, title, content
-  FROM articles
-) TO '/tmp/wikipedia_articles_content.csv' WITH CSV HEADER;
-
--- Export embeddings as JSON (for external analysis)
-COPY (
-  SELECT id, title,
-         array_to_json(title_vector) as title_embedding,
-         array_to_json(content_vector) as content_embedding
-  FROM articles
-  WHERE title_vector IS NOT NULL AND content_vector IS NOT NULL
-  LIMIT 100  -- Adjust as needed, full export will be very large
-) TO '/tmp/wikipedia_sample_embeddings.json' WITH CSV HEADER;
-```
-
-### Using the Wikipedia Database
-
-Once installed, you can use the Wikipedia-specific scripts:
+The database comes with dense embeddings. To add sparse embeddings for hybrid search:
 
 ```bash
-# Set environment variable
 export DATABASE_URL="postgresql://postgres@localhost/wikipedia"
+python3 original/create_emb_sparse_wiki.py
+```
+**Note**: This adds SPLADE sparse vectors. Takes 2-4 hours for 25k articles.
 
-# The embeddings are already computed, so you can directly run:
-python3 RAG_search_wiki.py              # Simple search
-python3 RAG_search_wiki_hybrid.py       # Advanced hybrid search
+### Run Wikipedia Searches
 
-# Optional: Add sparse embeddings for even better hybrid search
-python3 create_emb_sparse_wiki.py
+#### Simple Wikipedia RAG
+```bash
+python3 original/RAG_search_wiki.py
+```
+Basic semantic search with GPT-powered answers.
+
+#### Hybrid Wikipedia RAG (Advanced)
+```bash
+python3 original/RAG_search_wiki_hybrid.py
+```
+Features:
+- **Automatic query classification**: Factual, conceptual, or exploratory
+- **Dense + sparse fusion**: Optimized weight balancing
+- **Adaptive search**: Different strategies per query type
+- **Source attribution**: Transparent citations
+
+---
+
+## Lab 3: Advanced RAG Techniques
+
+The `lab/search/` directory contains modular implementations of four RAG patterns, demonstrating progressive sophistication.
+
+### 3.1. Naive/Simple RAG
+
+**File**: `lab/search/simple_search.py`
+
+Basic vector similarity search with direct retrieval.
+
+```bash
+python3 lab/search/simple_search.py --source wikipedia --query "What is machine learning?"
 ```
 
-### Database File Information
-- **File**: `vector_database_wikipedia_articles_embedded.zip`
-- **Size**: 667MB (compressed)
-- **Articles**: 25,000 Wikipedia articles
-- **Embeddings**: Pre-computed using OpenAI text-embedding-3-small
-- **Storage**: Managed with Git LFS for efficient repository handling
+**How it works**:
+1. Generate query embedding
+2. Find k most similar articles (cosine distance)
+3. Retrieve article content
+4. Generate answer with LLM
 
-This pre-computed database saves significant time and OpenAI API costs compared to generating embeddings from scratch.
+**Best for**: Simple use cases, baseline testing
+
+---
+
+### 3.2. Hybrid RAG
+
+**File**: `lab/search/hybrid_search.py`
+
+Combines dense (semantic) and sparse (keyword) embeddings with fixed weight fusion.
+
+```bash
+python3 lab/search/hybrid_search.py --source wikipedia --query "PostgreSQL MVCC"
+```
+
+**How it works**:
+1. Generate dense query embedding (OpenAI)
+2. Generate sparse query embedding (SPLADE)
+3. Search both indexes
+4. Fuse results: `score = 0.5 * dense_score + 0.5 * sparse_score`
+5. Generate answer with top-k fused results
+
+**Best for**: Queries needing both semantic and exact keyword matching
+
+---
+
+### 3.3. Adaptive RAG
+
+**File**: `lab/search/adaptive_search.py`
+
+Query classification with dynamic weight adjustment based on query type.
+
+```bash
+python3 lab/search/adaptive_search.py --source wikipedia --query "When was PostgreSQL created?"
+```
+
+**How it works**:
+1. Classify query type:
+   - **Factual**: Specific facts/dates → 0.3 dense, 0.7 sparse (favor keywords)
+   - **Conceptual**: Explanations/definitions → 0.7 dense, 0.3 sparse (favor semantics)
+   - **Exploratory**: Open-ended → 0.5 dense, 0.5 sparse (balanced)
+2. Search with adaptive weights
+3. Generate contextual answer
+
+**Best for**: Mixed query workloads where query types vary
+
+---
+
+### 3.4. Agentic RAG (Most Advanced)
+
+**File**: `lab/search/agentic_search.py`
+
+LLM agent autonomously decides whether to search the database or answer directly.
+
+```bash
+# Interactive mode
+python3 lab/search/agentic_search.py --source wikipedia --interactive
+
+# Single query with decision tracking
+python3 lab/search/agentic_search.py \
+    --source wikipedia \
+    --query "Explain PostgreSQL MVCC" \
+    --show-decision \
+    --show-sources
+
+# JSON output (for programmatic use)
+python3 lab/search/agentic_search.py \
+    --source wikipedia \
+    --query "What is 2+2?" \
+    --json
+```
+
+**How it works**:
+1. User submits query to LLM agent
+2. Agent has access to `search_wikipedia(query, top_k)` function
+3. Agent analyzes query and decides:
+   - **Simple/common knowledge** → Answer directly (no search)
+   - **Specific/complex** → Invoke search function
+4. If searched: Agent uses retrieved snippets to formulate grounded answer
+5. Response includes decision metadata and source citations
+
+**Decision examples**:
+- "What is 2+2?" → Answers directly (no search needed)
+- "Explain PostgreSQL MVCC" → Searches database, cites sources
+- "What is the capital of France?" → May answer directly (common knowledge)
+
+**Key advantages**:
+- **Cost efficient**: Skips retrieval for simple questions
+- **Autonomous**: No fixed pipeline, adapts to query
+- **Grounded**: When searching, answers based only on retrieved snippets
+- **Extensible**: Can add multiple tools (SQL executor, web search, etc.)
+
+**Best for**: Production systems with mixed query complexity, cost-sensitive deployments
+
+---
+
+### Comparison: RAG Approaches
+
+| Feature | Naive | Hybrid | Adaptive | Agentic |
+|---------|-------|--------|----------|---------|
+| **Retrieval** | Always dense | Always hybrid | Always adaptive | Conditional |
+| **Decision Making** | None | Fixed weights | Query classifier | LLM agent |
+| **Efficiency** | Low | Medium | High | Highest |
+| **Flexibility** | Low | Medium | Medium | Very High |
+| **Cost per Query** | Medium | High | High | Variable |
+| **Complexity** | Low | Medium | High | Very High |
+
+---
+
+## Lab 4: Evaluation & Optimization
+
+### 4.1. Understanding Metrics
+
+The lab includes comprehensive evaluation tools for measuring search quality.
+
+**Key Metrics**:
+- **Precision**: % of retrieved documents that are relevant (quality)
+- **Recall**: % of relevant documents that were retrieved (completeness)
+- **F1**: Harmonic mean of precision and recall
+- **nDCG**: Ranking quality with position awareness (0.0 to 1.0)
+- **MRR**: Mean Reciprocal Rank (position of first relevant result)
+
+**Guides**:
+- `lab/evaluation/examples/RECALL_VS_PRECISION.md` - Metrics fundamentals
+- `lab/evaluation/examples/UNDERSTANDING_NDCG.md` - Deep dive on ranking quality
+
+---
+
+### 4.2. K-Parameter Optimization
+
+Experiment with k_retrieve (retrieval pool size) and k_context (LLM input size) to optimize the recall/precision/cost trade-off.
+
+```bash
+# Single configuration test
+python3 lab/evaluation/examples/k_balance_experiment.py \
+    --test-file lab/evaluation/test_cases.json \
+    --k-retrieve 100 \
+    --k-context 8
+
+# Compare multiple configurations
+python3 lab/evaluation/examples/k_balance_experiment.py \
+    --test-file lab/evaluation/test_cases.json \
+    --k-retrieve-values 50 100 200 \
+    --k-context-values 5 8 10 \
+    --output k_results.json
+```
+
+**What you'll learn**:
+- How k_retrieve affects recall (higher = finds more relevant docs)
+- How k_context affects LLM cost and answer quality
+- Optimal values for different query types
+- Trade-offs between retrieval quality, latency, and cost
+
+**Recommended starting point**: k_retrieve=100-200, k_context=5-10
+
+See `lab/evaluation/examples/README_K_BALANCE.md` for comprehensive guide.
+
+---
+
+### 4.3. Search Configuration Comparison
+
+Compare different search strategies systematically.
+
+```bash
+python3 lab/evaluation/examples/compare_search_configs.py \
+    --test-file lab/evaluation/test_cases.json \
+    --detailed \
+    --output comparison_results.json
+```
+
+Tests 9 configurations:
+- Vector search with k=10, 50, 100, 200
+- Sparse search (SPLADE)
+- Hybrid search with different weight balances (50/50, 70/30, 30/70)
+- Adaptive search
+
+**Outputs**:
+- Per-query metrics (Precision, Recall, nDCG, MRR)
+- Aggregate statistics
+- Latency measurements
+- JSON/CSV export for analysis
+
+---
+
+### 4.4. Ranking Improvement Demo
+
+See real-world optimization in action.
+
+```bash
+python3 lab/evaluation/examples/demo_ranking_improvement.py
+```
+
+**Demonstrates**:
+- Title weighting optimization (70% title, 30% content)
+- Before/after comparison with real queries
+- Up to 49% nDCG improvement on specific queries
+- Zero additional cost (SQL formula change only)
+
+**Results**:
+- Overall recall: 81.2% → 87.5% (+6%)
+- Overall nDCG: 0.795 → 0.861 (+8%)
+- Best case: nDCG 0.540 → 0.804 (+49%)
+
+---
+
+## Database Details
+
+### Vector Dimensions
+
+The repository supports multiple embedding dimensions:
+
+- **1536 dimensions**: Legacy embeddings (text-embedding-ada-002, text-embedding-3-small)
+  - Storage: ~6KB per vector
+  - Included in Wikipedia database
+
+- **3072 dimensions**: Newer embeddings (text-embedding-3-large)
+  - Storage: ~12KB per vector
+  - Better semantic understanding
+  - Requires re-embedding (see migration scripts)
+
+### Index Types
+
+**IVFFlat** (Development):
+- Fast to build (30-60 minutes)
+- Slower queries (50-100ms)
+- Low memory usage
+- Recall: ~0.85
+- Best for: <100k vectors, development
+
+**HNSW** (Production):
+- Medium build time (2-3 hours)
+- Fast queries (10-20ms)
+- Higher memory usage
+- Recall: ~0.97
+- Best for: <1M vectors, production
+
+**DiskANN** (Scale):
+- Slow build (3-4 hours)
+- Fastest queries (5-15ms)
+- Medium memory usage
+- Recall: ~0.98
+- Best for: >1M vectors, production scale
+- Requires: pgvectorscale extension
+
+### Index Creation Examples
+
+```sql
+-- HNSW (recommended for most use cases)
+CREATE INDEX articles_content_hnsw_idx
+ON articles
+USING hnsw (content_vector vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+
+-- DiskANN (for scale)
+CREATE INDEX articles_content_diskann_idx
+ON articles
+USING diskann (content_vector vector_cosine_ops)
+WITH (
+    storage_layout = memory_optimized,
+    num_neighbors = 50,
+    search_list_size = 100
+);
+```
+
+See SQL files in root directory for complete examples.
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+#### "Extension 'vector' not found"
+**Solution**: Install pgvector 0.8.0+
+```bash
+# Ubuntu/Debian
+sudo apt-get install postgresql-17-pgvector
+
+# From source
+git clone https://github.com/pgvector/pgvector.git
+cd pgvector
+make
+sudo make install
+```
+
+#### "Out of memory during index build"
+**Solution**: Increase `maintenance_work_mem`
+```sql
+SET maintenance_work_mem = '2GB';
+```
+
+#### "Query timeout / slow queries"
+**Solution**:
+1. Ensure index exists: `\d articles`
+2. Check index is being used: `EXPLAIN ANALYZE SELECT ...`
+3. Adjust ef_search for HNSW: `SET hnsw.ef_search = 100;`
+
+#### "OpenAI API rate limit"
+**Solution**: Reduce batch size in embedding scripts
+- Edit `BATCH_SIZE` in `create_emb*.py` files
+- Add exponential backoff (already implemented)
+- Consider upgrading to paid tier
+
+#### "SPLADE model not found"
+**Solution**: Model downloads automatically on first run. Ensure internet connection and sufficient disk space (~500MB).
+
+---
+
+## Resources
+
+### Documentation
+- **pgvector**: https://github.com/pgvector/pgvector
+- **pgvectorscale**: https://github.com/timescale/pgvectorscale
+- **OpenAI Embeddings**: https://platform.openai.com/docs/guides/embeddings
+- **SPLADE**: https://github.com/naver/splade
+
+### Guides in This Repository
+- `lab/setup/pgvectorscale_install.md` - DiskANN installation
+- `lab/evaluation/examples/README_K_BALANCE.md` - K-parameter tuning
+- `lab/evaluation/examples/UNDERSTANDING_NDCG.md` - nDCG metrics
+- `lab/evaluation/examples/RECALL_VS_PRECISION.md` - Basic metrics
+- `lab/evaluation/examples/PRESENTATION_GUIDE.md` - Demo guide
+
+### Blog Posts & Presentations
+Check `docs/` directory for related blog posts and presentation materials.
+
+---
+
+## Contributing
+
+This is an educational repository. Contributions welcome:
+- Bug fixes
+- Documentation improvements
+- Additional examples
+- Performance optimizations
+
+Please ensure all scripts follow Linux (LF) line endings.
+
+---
+
+## License
+
+[Your License Here]
+
+---
+
+## Acknowledgments
+
+- pgvector team for excellent PostgreSQL extension
+- OpenAI for embedding and generation APIs
+- Timescale for pgvectorscale and DiskANN support
+- Wikipedia for article dataset
+
+---
+
+**Questions?** Open an issue or check existing documentation in `lab/evaluation/examples/`.
+
+**Latest Updates**: See `current_progress.md` for development status and recent changes.
