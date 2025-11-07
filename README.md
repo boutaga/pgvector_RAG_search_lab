@@ -44,7 +44,7 @@ This repository demonstrates practical applications of pgvector for semantic sea
 ## Repository Structure
 
 ```
-Movies_pgvector_lab/
+pgvector_RAG_search_lab/
 │
 ├── original/                          # Standalone Python scripts (original implementation)
 │   ├── create_emb.py                  # Generate dense embeddings for movies/Netflix
