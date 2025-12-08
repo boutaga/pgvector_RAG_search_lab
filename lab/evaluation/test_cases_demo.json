@@ -1,0 +1,110 @@
+[
+    {
+        "query": "What is machine learning?",
+        "expected_doc_ids": [38080, 6360, 44742, 44678],
+        "metadata": {
+            "category": "conceptual",
+            "difficulty": "easy",
+            "notes": "Abstract concept - content search may work better"
+        }
+    },
+    {
+        "query": "Who invented the telephone?",
+        "expected_doc_ids": [4579, 18368],
+        "metadata": {
+            "category": "factual",
+            "difficulty": "easy",
+            "notes": "Specific entity - title search helps find 'Alexander Graham Bell'"
+        }
+    },
+    {
+        "query": "neural networks deep learning",
+        "expected_doc_ids": [44742, 6360],
+        "metadata": {
+            "category": "conceptual",
+            "difficulty": "medium",
+            "notes": "Keywords match article titles - title weighting should help"
+        }
+    },
+    {
+        "query": "whale marine mammal",
+        "expected_doc_ids": [7597, 15244, 31022, 30442],
+        "metadata": {
+            "category": "factual",
+            "difficulty": "easy",
+            "notes": "Entity query - 'Whale' article should rank high with title matching"
+        }
+    },
+    {
+        "query": "quantum mechanics physics",
+        "expected_doc_ids": [],
+        "metadata": {
+            "category": "conceptual",
+            "difficulty": "medium",
+            "notes": "TODO: Run find_test_case_ids.sql to get IDs for quantum-related articles"
+        }
+    },
+    {
+        "query": "Napoleon Bonaparte French emperor",
+        "expected_doc_ids": [],
+        "metadata": {
+            "category": "factual",
+            "difficulty": "medium",
+            "notes": "TODO: Historical figure with many related articles - title matching crucial"
+        }
+    },
+    {
+        "query": "climate change global warming",
+        "expected_doc_ids": [],
+        "metadata": {
+            "category": "exploratory",
+            "difficulty": "medium",
+            "notes": "TODO: Broad topic with multiple valid articles"
+        }
+    },
+    {
+        "query": "Albert Einstein relativity theory",
+        "expected_doc_ids": [],
+        "metadata": {
+            "category": "factual",
+            "difficulty": "medium",
+            "notes": "TODO: Person + concept - should find Einstein bio and relativity articles"
+        }
+    },
+    {
+        "query": "DNA genetics biology",
+        "expected_doc_ids": [],
+        "metadata": {
+            "category": "conceptual",
+            "difficulty": "medium",
+            "notes": "TODO: Scientific topic with overlapping articles"
+        }
+    },
+    {
+        "query": "World War II history",
+        "expected_doc_ids": [],
+        "metadata": {
+            "category": "exploratory",
+            "difficulty": "hard",
+            "notes": "TODO: Broad historical topic - many related articles"
+        }
+    },
+    {
+        "query": "Python programming language",
+        "expected_doc_ids": [],
+        "metadata": {
+            "category": "factual",
+            "difficulty": "medium",
+            "notes": "TODO: Should distinguish programming language from snake - title crucial"
+        }
+    },
+    {
+        "query": "Renaissance art history",
+        "expected_doc_ids": [],
+        "metadata": {
+            "category": "exploratory",
+            "difficulty": "medium",
+            "notes": "TODO: Art/history topic with multiple related articles"
+        }
+    }
+]

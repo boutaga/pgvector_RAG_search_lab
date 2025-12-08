@@ -367,33 +367,307 @@ def compute_summary_statistics(
     return summary
 
 
-def print_summary_table(summary: Dict[str, Any]):
-    """Print summary statistics in a formatted table."""
-    print("\n" + "=" * 100)
-    print("SUMMARY STATISTICS")
-    print("=" * 100)
+# ANSI color codes for terminal output
+class Colors:
+    """ANSI color codes for terminal output."""
+    HEADER = '\033[95m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+    END = '\033[0m'
 
-    # Header
-    print(f"\n{'Config':<20} {'Precision':<12} {'Recall':<12} {'F1':<12} {'nDCG':<12} {'MRR':<12} {'Latency':<12} {'Ctx Tokens':<12}")
-    print("-" * 100)
+    # Background colors
+    BG_GREEN = '\033[42m'
+    BG_YELLOW = '\033[43m'
+    BG_RED = '\033[41m'
+
+
+def colorize_metric(value: float, metric_type: str) -> str:
+    """Apply color based on metric value and type."""
+    if metric_type == 'recall':
+        if value >= 1.0:
+            return f"{Colors.GREEN}{value:.3f}{Colors.END}"
+        elif value >= 0.8:
+            return f"{Colors.YELLOW}{value:.3f}{Colors.END}"
+        else:
+            return f"{Colors.RED}{value:.3f}{Colors.END}"
+    elif metric_type == 'precision':
+        if value >= 0.3:
+            return f"{Colors.GREEN}{value:.3f}{Colors.END}"
+        elif value >= 0.1:
+            return f"{Colors.YELLOW}{value:.3f}{Colors.END}"
+        else:
+            return f"{Colors.RED}{value:.3f}{Colors.END}"
+    elif metric_type == 'ndcg':
+        if value >= 0.9:
+            return f"{Colors.GREEN}{value:.3f}{Colors.END}"
+        elif value >= 0.7:
+            return f"{Colors.YELLOW}{value:.3f}{Colors.END}"
+        else:
+            return f"{Colors.RED}{value:.3f}{Colors.END}"
+    elif metric_type == 'mrr':
+        if value >= 0.9:
+            return f"{Colors.GREEN}{value:.3f}{Colors.END}"
+        elif value >= 0.5:
+            return f"{Colors.YELLOW}{value:.3f}{Colors.END}"
+        else:
+            return f"{Colors.RED}{value:.3f}{Colors.END}"
+    return f"{value:.3f}"
+
+
+def find_first_full_recall_k(results: List[Dict[str, Any]], query: str) -> Optional[int]:
+    """Find the minimum k_retrieve where recall reaches 100% for a specific query."""
+    query_results = [r for r in results if r['query'] == query]
+
+    # Sort by k_retrieve
+    query_results.sort(key=lambda x: x['k_retrieve'])
+
+    for r in query_results:
+        if r['recall@k'] >= 1.0:
+            return r['k_retrieve']
+
+    return None  # Never reached 100%
+
+
+def print_per_query_summary(results: List[Dict[str, Any]], k_retrieve_values: List[int]):
+    """Print summary statistics for each query across all k configurations."""
+    from tabulate import tabulate
+
+    print(f"\n{Colors.BOLD}{'=' * 120}{Colors.END}")
+    print(f"{Colors.BOLD}{'PER-QUERY SUMMARY':^120}{Colors.END}")
+    print(f"{Colors.BOLD}{'=' * 120}{Colors.END}")
+    print(f"\n{Colors.CYAN}Shows how each query performs across different k_retrieve values{Colors.END}")
+
+    # Get unique queries
+    queries = []
+    seen = set()
+    for r in results:
+        if r['query'] not in seen:
+            queries.append(r['query'])
+            seen.add(r['query'])
+
+    for query in queries:
+        query_results = [r for r in results if r['query'] == query]
+        if not query_results:
+            continue
+
+        # Get metadata from first result
+        metadata = query_results[0].get('query_metadata', {})
+        category = metadata.get('category', '-')
+        difficulty = metadata.get('difficulty', '-')
+        total_relevant = query_results[0].get('total_relevant', 0)
+
+        # Find first k with 100% recall
+        first_full_recall_k = find_first_full_recall_k(results, query)
+
+        query_short = query[:50] + "..." if len(query) > 50 else query
+
+        print(f"\n{Colors.BOLD}{'─' * 120}{Colors.END}")
+        print(f"{Colors.BOLD}📝 Query:{Colors.END} \"{query_short}\"")
+
+        # Format first 100% recall display
+        if first_full_recall_k:
+            recall_display = f"{Colors.GREEN}k={first_full_recall_k}{Colors.END}"
+        else:
+            recall_display = f"{Colors.RED}Never{Colors.END}"
+
+        print(f"   {Colors.CYAN}Category:{Colors.END} {category} | "
+              f"{Colors.CYAN}Difficulty:{Colors.END} {difficulty} | "
+              f"{Colors.CYAN}Expected docs:{Colors.END} {total_relevant} | "
+              f"{Colors.CYAN}First 100% Recall at:{Colors.END} {recall_display}")
+        print(f"{'─' * 120}")
+
+        # Build table for this query across k values
+        table_data = []
+        # Group by k_retrieve (use first k_context for each k_retrieve)
+        k_to_result = {}
+        for r in query_results:
+            k = r['k_retrieve']
+            if k not in k_to_result:
+                k_to_result[k] = r
+
+        for k in sorted(k_to_result.keys()):
+            r = k_to_result[k]
+            recall_color = Colors.GREEN if r['recall@k'] >= 1.0 else (Colors.YELLOW if r['recall@k'] >= 0.8 else Colors.RED)
+            found_status = f"{Colors.GREEN}✅{Colors.END}" if r['relevant_found'] == r['total_relevant'] else f"{Colors.RED}❌ {r['relevant_found']}/{r['total_relevant']}{Colors.END}"
+
+            table_data.append([
+                f"k={k}",
+                f"{recall_color}{r['recall@k']:.0%}{Colors.END}",
+                f"{r['precision@k']:.0%}",
+                f"{r['ndcg@k']:.3f}",
+                f"{r['mrr']:.3f}",
+                f"{r['relevant_found']}/{r['total_relevant']}",
+                found_status,
+                f"{r['latency_ms']:.0f}ms"
+            ])
+
+        headers = ["k_retrieve", "Recall", "Precision", "nDCG", "MRR", "Found", "Status", "Latency"]
+        print(tabulate(table_data, headers=headers, tablefmt="simple"))
+
+
+def print_overall_average_summary(summary: Dict[str, Any]):
+    """Print the overall average summary with colors."""
+    from tabulate import tabulate
+
+    print(f"\n{Colors.BOLD}{'=' * 120}{Colors.END}")
+    print(f"{Colors.BOLD}{'OVERALL AVERAGE STATISTICS':^120}{Colors.END}")
+    print(f"{Colors.BOLD}{'=' * 120}{Colors.END}")
+    print(f"\n{Colors.CYAN}Averages across all queries for each k configuration{Colors.END}\n")
 
     # Sort by k_retrieve, then k_context
     sorted_keys = sorted(summary.keys(),
                         key=lambda k: (summary[k]['k_retrieve'], summary[k]['k_context']))
 
+    table_data = []
     for key in sorted_keys:
         s = summary[key]
         config = f"k_r={s['k_retrieve']}, k_c={s['k_context']}"
-        print(f"{config:<20} "
-              f"{s['avg_precision@k']:<12.3f} "
-              f"{s['avg_recall@k']:<12.3f} "
-              f"{s['avg_f1@k']:<12.3f} "
-              f"{s['avg_ndcg@k']:<12.3f} "
-              f"{s['avg_mrr']:<12.3f} "
-              f"{s['avg_latency_ms']:<12.1f} "
-              f"{s['avg_context_tokens']:<12.0f}")
 
-    print("=" * 100)
+        # Color code the metrics
+        recall_val = s['avg_recall@k']
+        precision_val = s['avg_precision@k']
+        ndcg_val = s['avg_ndcg@k']
+        mrr_val = s['avg_mrr']
+
+        recall_color = Colors.GREEN if recall_val >= 1.0 else (Colors.YELLOW if recall_val >= 0.8 else Colors.RED)
+
+        table_data.append([
+            config,
+            f"{precision_val:.3f}",
+            f"{recall_color}{recall_val:.3f}{Colors.END}",
+            f"{s['avg_f1@k']:.3f}",
+            f"{ndcg_val:.3f}",
+            f"{mrr_val:.3f}",
+            f"{s['avg_latency_ms']:.1f}",
+            f"{s['avg_context_tokens']:.0f}"
+        ])
+
+    headers = [
+        f"{Colors.BOLD}Config{Colors.END}",
+        f"{Colors.BOLD}Precision{Colors.END}",
+        f"{Colors.BOLD}Recall{Colors.END}",
+        f"{Colors.BOLD}F1{Colors.END}",
+        f"{Colors.BOLD}nDCG{Colors.END}",
+        f"{Colors.BOLD}MRR{Colors.END}",
+        f"{Colors.BOLD}Latency(ms){Colors.END}",
+        f"{Colors.BOLD}Ctx Tokens{Colors.END}"
+    ]
+    print(tabulate(table_data, headers=headers, tablefmt="simple"))
+
+    # Find and highlight best configurations
+    if sorted_keys:
+        best_recall_key = max(sorted_keys, key=lambda k: summary[k]['avg_recall@k'])
+        best_ndcg_key = max(sorted_keys, key=lambda k: summary[k]['avg_ndcg@k'])
+        best_f1_key = max(sorted_keys, key=lambda k: summary[k]['avg_f1@k'])
+        fastest_key = min(sorted_keys, key=lambda k: summary[k]['avg_latency_ms'])
+
+        print(f"\n{Colors.BOLD}🏆 Best Configurations:{Colors.END}")
+        print(f"   {Colors.GREEN}Best Recall:{Colors.END} k_r={summary[best_recall_key]['k_retrieve']}, k_c={summary[best_recall_key]['k_context']} → {summary[best_recall_key]['avg_recall@k']:.1%}")
+        print(f"   {Colors.GREEN}Best nDCG:{Colors.END} k_r={summary[best_ndcg_key]['k_retrieve']}, k_c={summary[best_ndcg_key]['k_context']} → {summary[best_ndcg_key]['avg_ndcg@k']:.3f}")
+        print(f"   {Colors.GREEN}Best F1:{Colors.END} k_r={summary[best_f1_key]['k_retrieve']}, k_c={summary[best_f1_key]['k_context']} → {summary[best_f1_key]['avg_f1@k']:.3f}")
+        print(f"   {Colors.GREEN}Fastest:{Colors.END} k_r={summary[fastest_key]['k_retrieve']}, k_c={summary[fastest_key]['k_context']} → {summary[fastest_key]['avg_latency_ms']:.0f}ms")
+
+
+def print_first_full_recall_summary(results: List[Dict[str, Any]]):
+    """Print a summary of when each query first achieves 100% recall."""
+    from tabulate import tabulate
+
+    print(f"\n{Colors.BOLD}{'=' * 120}{Colors.END}")
+    print(f"{Colors.BOLD}{'RECALL ACHIEVEMENT SUMMARY':^120}{Colors.END}")
+    print(f"{Colors.BOLD}{'=' * 120}{Colors.END}")
+    print(f"\n{Colors.CYAN}Minimum k_retrieve required to achieve 100% recall for each query{Colors.END}\n")
+
+    # Get unique queries
+    queries = []
+    seen = set()
+    for r in results:
+        if r['query'] not in seen:
+            queries.append(r['query'])
+            seen.add(r['query'])
+
+    table_data = []
+    for query in queries:
+        query_results = [r for r in results if r['query'] == query]
+        if not query_results:
+            continue
+
+        metadata = query_results[0].get('query_metadata', {})
+        category = metadata.get('category', '-')
+        total_relevant = query_results[0].get('total_relevant', 0)
+
+        first_k = find_first_full_recall_k(results, query)
+
+        query_short = query[:40] + "..." if len(query) > 40 else query
+
+        if first_k:
+            k_display = f"{Colors.GREEN}k={first_k}{Colors.END}"
+            status = f"{Colors.GREEN}✅{Colors.END}"
+        else:
+            k_display = f"{Colors.RED}Never{Colors.END}"
+            status = f"{Colors.RED}❌{Colors.END}"
+
+        table_data.append([
+            query_short,
+            category,
+            total_relevant,
+            k_display,
+            status
+        ])
+
+    headers = ["Query", "Category", "Expected Docs", "First 100% Recall", "Status"]
+    print(tabulate(table_data, headers=headers, tablefmt="simple"))
+
+    # Summary stats
+    achieved_count = sum(1 for q in queries if find_first_full_recall_k(results, q) is not None)
+    print(f"\n{Colors.BOLD}Summary:{Colors.END} {achieved_count}/{len(queries)} queries achieved 100% recall")
+
+
+def print_summary_table(summary: Dict[str, Any], detailed_results: List[Dict[str, Any]] = None, k_retrieve_values: List[int] = None):
+    """Print all summary statistics."""
+    if not detailed_results:
+        # Fallback to old behavior if no detailed results
+        print("\n" + "=" * 100)
+        print("SUMMARY STATISTICS")
+        print("=" * 100)
+
+        print(f"\n{'Config':<20} {'Precision':<12} {'Recall':<12} {'F1':<12} {'nDCG':<12} {'MRR':<12} {'Latency':<12} {'Ctx Tokens':<12}")
+        print("-" * 100)
+
+        sorted_keys = sorted(summary.keys(),
+                            key=lambda k: (summary[k]['k_retrieve'], summary[k]['k_context']))
+
+        for key in sorted_keys:
+            s = summary[key]
+            config = f"k_r={s['k_retrieve']}, k_c={s['k_context']}"
+            print(f"{config:<20} "
+                  f"{s['avg_precision@k']:<12.3f} "
+                  f"{s['avg_recall@k']:<12.3f} "
+                  f"{s['avg_f1@k']:<12.3f} "
+                  f"{s['avg_ndcg@k']:<12.3f} "
+                  f"{s['avg_mrr']:<12.3f} "
+                  f"{s['avg_latency_ms']:<12.1f} "
+                  f"{s['avg_context_tokens']:<12.0f}")
+
+        print("=" * 100)
+        return
+
+    # Get k_retrieve values from results if not provided
+    if not k_retrieve_values:
+        k_retrieve_values = sorted(set(r['k_retrieve'] for r in detailed_results))
+
+    # Print per-query summary first (most detailed)
+    print_per_query_summary(detailed_results, k_retrieve_values)
+
+    # Print recall achievement summary
+    print_first_full_recall_summary(detailed_results)
+
+    # Print overall averages
+    print_overall_average_summary(summary)
 
 
 def print_interpretation_guide():
@@ -605,9 +879,13 @@ Examples:
                 id_column=args.id_column
             )
 
-            # Print summary table
+            # Print summary table with per-query breakdown
             if not args.quiet and "summary" in experiment_data:
-                print_summary_table(experiment_data["summary"])
+                print_summary_table(
+                    experiment_data["summary"],
+                    experiment_data.get("detailed_results", []),
+                    k_retrieve_values
+                )
 
         # Save to file if requested
         if args.output:
