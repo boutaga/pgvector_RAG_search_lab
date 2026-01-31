@@ -353,43 +353,252 @@ def render_sidebar():
 
 def render_rag_architecture_section():
     """Render the interactive RAG architecture diagram with live animation."""
-    st.markdown("## 📊 Understanding the RAG Pipeline")
-    st.markdown("See how your query flows through the system:")
+    import random
 
-    # ASCII Art Diagram
-    st.markdown("""
-    <div style="background-color: #0f172a; border-radius: 12px; padding: 24px; margin: 16px 0;
-                font-family: 'Courier New', monospace; overflow-x: auto;">
-        <pre style="color: #94a3b8; font-size: 0.85rem; line-height: 1.4; margin: 0;">
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        <span style="color: #3b82f6; font-weight: bold;">RAG SEARCH ARCHITECTURE</span>                             │
-│                                                                             │
-│    ┌─────────────┐         ┌──────────────────┐         ┌─────────────┐    │
-│    │             │   (1)   │                  │   (2)   │             │    │
-│    │    <span style="color: #22c55e;">USER</span>     │────────▶│    <span style="color: #eab308;">OpenAI API</span>    │────────▶│ <span style="color: #8b5cf6;">PostgreSQL</span>  │    │
-│    │   "What is  │  Query  │  text-embedding  │  Vector │  + pgvector │    │
-│    │   ML?"      │         │  -3-large (3072) │ Search  │  25k docs   │    │
-│    │             │         │                  │         │             │    │
-│    └─────────────┘         └──────────────────┘         └──────┬──────┘    │
-│           │                     <span style="color: #64748b;">~200ms</span>                         │           │
-│           │                                                    │ (3)       │
-│           │                                                    ▼           │
-│           │                 ┌──────────────────┐    Top-K Documents        │
-│           │        (4)      │                  │         │                 │
-│           └─────────────────│   <span style="color: #f97316;">OpenAI LLM</span>    │◀────────┘                 │
-│               Final Answer  │   GPT-5-mini    │                            │
-│                             │                  │                            │
-│                             └──────────────────┘                            │
-│                                  <span style="color: #64748b;">~800ms</span>                                    │
-│                                                                             │
-│    <span style="color: #64748b;">TOTAL LATENCY: ~1,000-1,500ms per query</span>                               │
-└─────────────────────────────────────────────────────────────────────────────┘
-        </pre>
+    st.markdown("## 📊 Understanding the RAG Pipeline")
+    st.markdown("Click **Run Demo Query** to see how your query flows through the system:")
+
+    # Get current animation state
+    current_step = st.session_state.rag_pipeline_step
+    is_running = st.session_state.rag_pipeline_running
+
+    # Define styles for each component based on animation state
+    # Step 0 = idle, Step 1 = embedding, Step 2 = search, Step 3 = LLM generation, Step 4 = complete
+    def get_card_style(card_step, current_step, is_running):
+        """Get card styling based on animation state."""
+        base_bg = "#1e293b"
+        dim_bg = "#0f172a"
+
+        if not is_running or current_step == 0:
+            # Idle state - all cards normal
+            return {
+                "bg": base_bg,
+                "border": "#334155",
+                "shadow": "none",
+                "opacity": "1",
+                "icon_filter": "grayscale(0%)"
+            }
+        elif current_step == card_step:
+            # This card is currently active - bright and glowing
+            return {
+                "bg": "#1e3a5f",
+                "border": "#3b82f6",
+                "shadow": "0 0 30px rgba(59, 130, 246, 0.5)",
+                "opacity": "1",
+                "icon_filter": "grayscale(0%) brightness(1.2)"
+            }
+        elif current_step > card_step:
+            # This card is completed - green check, slight glow
+            return {
+                "bg": "#052e16",
+                "border": "#22c55e",
+                "shadow": "0 0 15px rgba(34, 197, 94, 0.3)",
+                "opacity": "1",
+                "icon_filter": "grayscale(0%)"
+            }
+        else:
+            # This card is upcoming - dimmed
+            return {
+                "bg": dim_bg,
+                "border": "#1e293b",
+                "shadow": "none",
+                "opacity": "0.5",
+                "icon_filter": "grayscale(50%)"
+            }
+
+    # Card 1: User Query
+    user_style = get_card_style(0, current_step, is_running)
+    # Card 2: Embedding API (Step 1)
+    embed_style = get_card_style(1, current_step, is_running)
+    # Card 3: PostgreSQL/pgvector (Step 2)
+    db_style = get_card_style(2, current_step, is_running)
+    # Card 4: LLM (Step 3)
+    llm_style = get_card_style(3, current_step, is_running)
+
+    # Get timing info for completed steps
+    embed_time = st.session_state.rag_pipeline_times.get("step_1", "~200")
+    search_time = st.session_state.rag_pipeline_times.get("step_2", "~50")
+    llm_time = st.session_state.rag_pipeline_times.get("step_3", "~800")
+
+    # Arrow colors based on state
+    def get_arrow_color(from_step, current_step, is_running):
+        if not is_running:
+            return "#334155"
+        elif current_step > from_step:
+            return "#22c55e"
+        elif current_step == from_step:
+            return "#3b82f6"
+        else:
+            return "#1e293b"
+
+    arrow1_color = get_arrow_color(1, current_step, is_running)
+    arrow2_color = get_arrow_color(2, current_step, is_running)
+    arrow3_color = get_arrow_color(3, current_step, is_running)
+
+    # Render the large responsive diagram (70-80% of screen)
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+                border-radius: 20px; padding: 40px; margin: 20px 0; min-height: 500px;">
+
+        <!-- Title -->
+        <div style="text-align: center; margin-bottom: 40px;">
+            <span style="color: #3b82f6; font-size: 1.5rem; font-weight: 700; letter-spacing: 3px;
+                        text-shadow: 0 0 20px rgba(59, 130, 246, 0.3);">
+                RAG SEARCH ARCHITECTURE
+            </span>
+            <div style="color: #64748b; font-size: 0.9rem; margin-top: 8px;">
+                Retrieval-Augmented Generation Pipeline
+            </div>
+        </div>
+
+        <!-- Top Row: User -> Embedding -> Database -->
+        <div style="display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap;
+                    margin-bottom: 30px;">
+
+            <!-- User Query Card -->
+            <div style="background: {user_style['bg']}; border: 3px solid {user_style['border']};
+                        border-radius: 16px; padding: 28px 24px; min-width: 180px; text-align: center;
+                        box-shadow: {user_style['shadow']}; opacity: {user_style['opacity']};
+                        transition: all 0.4s ease;">
+                <div style="font-size: 3.5rem; margin-bottom: 12px; filter: {user_style['icon_filter']};">👤</div>
+                <div style="color: #22c55e; font-weight: 700; font-size: 1.1rem; letter-spacing: 1px;">USER</div>
+                <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">Query Input</div>
+                <div style="color: #64748b; font-size: 0.75rem; margin-top: 12px; font-style: italic;">
+                    "What is ML?"
+                </div>
+            </div>
+
+            <!-- Arrow 1 -->
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <div style="color: {arrow1_color}; font-size: 2rem; font-weight: bold;
+                            text-shadow: {'0 0 10px ' + arrow1_color if current_step >= 1 else 'none'};">
+                    ───▶
+                </div>
+                <div style="color: {arrow1_color}; font-size: 0.7rem; margin-top: 4px;">(1) Query</div>
+            </div>
+
+            <!-- Embedding API Card -->
+            <div style="background: {embed_style['bg']}; border: 3px solid {embed_style['border']};
+                        border-radius: 16px; padding: 28px 24px; min-width: 200px; text-align: center;
+                        box-shadow: {embed_style['shadow']}; opacity: {embed_style['opacity']};
+                        transition: all 0.4s ease;">
+                <div style="font-size: 3.5rem; margin-bottom: 12px; filter: {embed_style['icon_filter']};">🔢</div>
+                <div style="color: #eab308; font-weight: 700; font-size: 1.1rem; letter-spacing: 1px;">EMBEDDING</div>
+                <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">OpenAI API</div>
+                <div style="color: #64748b; font-size: 0.75rem; margin-top: 4px;">text-embedding-3-large</div>
+                <div style="background: {'#052e16' if current_step > 1 else '#0f172a'}; border-radius: 20px;
+                            padding: 6px 16px; margin-top: 16px; display: inline-block;">
+                    <span style="color: {'#22c55e' if current_step > 1 else '#64748b'}; font-size: 1rem;
+                                font-weight: {'700' if current_step > 1 else '400'};">
+                        {embed_time}ms
+                    </span>
+                </div>
+            </div>
+
+            <!-- Arrow 2 -->
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <div style="color: {arrow2_color}; font-size: 2rem; font-weight: bold;
+                            text-shadow: {'0 0 10px ' + arrow2_color if current_step >= 2 else 'none'};">
+                    ───▶
+                </div>
+                <div style="color: {arrow2_color}; font-size: 0.7rem; margin-top: 4px;">(2) Vector</div>
+            </div>
+
+            <!-- PostgreSQL Card -->
+            <div style="background: {db_style['bg']}; border: 3px solid {db_style['border']};
+                        border-radius: 16px; padding: 28px 24px; min-width: 200px; text-align: center;
+                        box-shadow: {db_style['shadow']}; opacity: {db_style['opacity']};
+                        transition: all 0.4s ease;">
+                <div style="font-size: 3.5rem; margin-bottom: 12px; filter: {db_style['icon_filter']};">🐘</div>
+                <div style="color: #8b5cf6; font-weight: 700; font-size: 1.1rem; letter-spacing: 1px;">POSTGRESQL</div>
+                <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">pgvector Extension</div>
+                <div style="color: #64748b; font-size: 0.75rem; margin-top: 4px;">25,000 Wikipedia docs</div>
+                <div style="background: {'#052e16' if current_step > 2 else '#0f172a'}; border-radius: 20px;
+                            padding: 6px 16px; margin-top: 16px; display: inline-block;">
+                    <span style="color: {'#22c55e' if current_step > 2 else '#64748b'}; font-size: 1rem;
+                                font-weight: {'700' if current_step > 2 else '400'};">
+                        {search_time}ms
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Arrow down from DB to LLM -->
+        <div style="display: flex; justify-content: center; margin: 20px 0;">
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <div style="color: {arrow3_color}; font-size: 1.5rem;
+                            text-shadow: {'0 0 10px ' + arrow3_color if current_step >= 3 else 'none'};">│</div>
+                <div style="color: {arrow3_color}; font-size: 0.8rem; margin: 8px 0; font-weight: 600;">
+                    (3) Top-K Documents
+                </div>
+                <div style="color: {arrow3_color}; font-size: 1.5rem;
+                            text-shadow: {'0 0 10px ' + arrow3_color if current_step >= 3 else 'none'};">▼</div>
+            </div>
+        </div>
+
+        <!-- Bottom Row: LLM + Final Answer -->
+        <div style="display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap;">
+
+            <!-- LLM Card -->
+            <div style="background: {llm_style['bg']}; border: 3px solid {llm_style['border']};
+                        border-radius: 16px; padding: 28px 24px; min-width: 220px; text-align: center;
+                        box-shadow: {llm_style['shadow']}; opacity: {llm_style['opacity']};
+                        transition: all 0.4s ease;">
+                <div style="font-size: 3.5rem; margin-bottom: 12px; filter: {llm_style['icon_filter']};">🤖</div>
+                <div style="color: #f97316; font-weight: 700; font-size: 1.1rem; letter-spacing: 1px;">LLM GENERATION</div>
+                <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">OpenAI GPT-5-mini</div>
+                <div style="color: #64748b; font-size: 0.75rem; margin-top: 4px;">Context + Query → Answer</div>
+                <div style="background: {'#052e16' if current_step > 3 else '#0f172a'}; border-radius: 20px;
+                            padding: 6px 16px; margin-top: 16px; display: inline-block;">
+                    <span style="color: {'#22c55e' if current_step > 3 else '#64748b'}; font-size: 1rem;
+                                font-weight: {'700' if current_step > 3 else '400'};">
+                        {llm_time}ms
+                    </span>
+                </div>
+            </div>
+
+            <!-- Arrow to Answer -->
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <div style="color: {'#22c55e' if current_step >= 4 else '#334155'}; font-size: 2rem; font-weight: bold;
+                            text-shadow: {'0 0 15px rgba(34, 197, 94, 0.5)' if current_step >= 4 else 'none'};">
+                    ───▶
+                </div>
+                <div style="color: {'#22c55e' if current_step >= 4 else '#334155'}; font-size: 0.7rem; margin-top: 4px;">
+                    (4) Answer
+                </div>
+            </div>
+
+            <!-- Answer Card -->
+            <div style="background: {'linear-gradient(135deg, #052e16 0%, #064e3b 100%)' if current_step >= 4 else '#0f172a'};
+                        border: 3px solid {'#22c55e' if current_step >= 4 else '#1e293b'};
+                        border-radius: 16px; padding: 28px 24px; min-width: 180px; text-align: center;
+                        box-shadow: {'0 0 40px rgba(34, 197, 94, 0.4)' if current_step >= 4 else 'none'};
+                        opacity: {'1' if current_step >= 4 or not is_running else '0.4'};
+                        transition: all 0.4s ease;">
+                <div style="font-size: 3.5rem; margin-bottom: 12px;">{'✅' if current_step >= 4 else '📝'}</div>
+                <div style="color: {'#22c55e' if current_step >= 4 else '#64748b'}; font-weight: 700; font-size: 1.1rem;
+                            letter-spacing: 1px;">
+                    {'COMPLETE!' if current_step >= 4 else 'ANSWER'}
+                </div>
+                <div style="color: {'#86efac' if current_step >= 4 else '#475569'}; font-size: 0.85rem; margin-top: 8px;">
+                    {'Response Ready' if current_step >= 4 else 'Waiting...'}
+                </div>
+            </div>
+        </div>
+
+        <!-- Total Time (shown when complete) -->
+        {'<div style="text-align: center; margin-top: 32px; padding-top: 24px; border-top: 2px solid #334155;">' +
+         '<span style="color: #94a3b8; font-size: 1.1rem;">Total Pipeline Latency: </span>' +
+         '<span style="color: #22c55e; font-size: 2rem; font-weight: 700; text-shadow: 0 0 20px rgba(34, 197, 94, 0.4);">' +
+         str(sum(st.session_state.rag_pipeline_times.values())) + 'ms</span>' +
+         '<div style="color: #64748b; font-size: 0.85rem; margin-top: 8px;">Retrieved 10 documents from 25,000</div></div>'
+         if current_step >= 4 else ''}
+
     </div>
     """, unsafe_allow_html=True)
 
-    # Demo Query Section
-    col1, col2 = st.columns([2, 1])
+    # Demo Query Input and Button
+    col1, col2, col3 = st.columns([2, 1, 1])
 
     with col1:
         demo_query = st.text_input(
@@ -403,86 +612,94 @@ def render_rag_architecture_section():
     with col2:
         run_demo = st.button("🚀 Run Demo Query", type="primary", use_container_width=True, key="run_demo_pipeline")
 
-    # Animation / Results Section
+    with col3:
+        if is_running and current_step >= 4:
+            if st.button("🔄 Reset Demo", use_container_width=True, key="reset_demo"):
+                st.session_state.rag_pipeline_running = False
+                st.session_state.rag_pipeline_step = 0
+                st.session_state.rag_pipeline_times = {}
+                st.rerun()
+
+    # Handle Run button click
     if run_demo:
         st.session_state.rag_pipeline_running = True
         st.session_state.rag_pipeline_step = 0
         st.session_state.rag_pipeline_times = {}
+        st.rerun()
 
-    if st.session_state.rag_pipeline_running:
-        # Progress container
-        progress_container = st.container()
+    # Animation logic - advance through steps
+    if is_running and current_step < 4:
+        # Define step timing
+        steps_config = [
+            (1, 180, 220),  # Step 1: Embedding
+            (2, 40, 60),    # Step 2: Search
+            (3, 750, 850),  # Step 3: LLM
+            (4, 0, 0),      # Step 4: Complete (no delay)
+        ]
 
-        with progress_container:
-            st.markdown("""
-            <div style="background-color: #1e293b; border-radius: 8px; padding: 16px; margin: 8px 0;">
-                <div style="color: #f8fafc; font-weight: 600; margin-bottom: 12px;">
-                    🔄 LIVE PIPELINE ANIMATION
-                </div>
-            """, unsafe_allow_html=True)
-
-            # Simulate pipeline steps
-            steps = [
-                ("Generating embedding...", "Embedding generated", 180, 220),
-                ("Searching pgvector...", "Found 10 documents", 40, 60),
-                ("Generating answer...", "Answer ready", 750, 850)
-            ]
-
-            step_results = []
-            for i, (processing_text, done_text, min_ms, max_ms) in enumerate(steps):
-                step_num = i + 1
-
-                if st.session_state.rag_pipeline_step < step_num:
-                    # Show processing state
-                    st.markdown(f"""
-                    <div style="display: flex; align-items: center; margin: 8px 0;">
-                        <span style="color: #eab308; margin-right: 8px;">🔄</span>
-                        <span style="color: #94a3b8;">Step {step_num}: {processing_text}</span>
-                        <span style="color: #64748b; margin-left: auto;">...</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                    # Simulate delay and update
-                    import random
+        next_step = current_step + 1
+        if next_step <= 4:
+            step_idx = next_step - 1
+            if step_idx < len(steps_config):
+                step_num, min_ms, max_ms = steps_config[step_idx]
+                if step_num <= 3:
                     simulated_time = random.randint(min_ms, max_ms)
-                    time.sleep(simulated_time / 1000.0 * 0.3)  # Speed up for demo
+                    time.sleep(simulated_time / 1000.0 * 0.5)  # Slightly slowed for visual effect
                     st.session_state.rag_pipeline_times[f"step_{step_num}"] = simulated_time
-                    st.session_state.rag_pipeline_step = step_num
-                    st.rerun()
-                else:
-                    # Show completed state
-                    elapsed = st.session_state.rag_pipeline_times.get(f"step_{step_num}", min_ms)
-                    st.markdown(f"""
-                    <div style="display: flex; align-items: center; margin: 8px 0;">
-                        <span style="color: #22c55e; margin-right: 8px;">✅</span>
-                        <span style="color: #f8fafc;">Step {step_num}: {done_text}</span>
-                        <span style="color: #22c55e; margin-left: auto; font-weight: 600;">{elapsed}ms</span>
-                    </div>
-                    """, unsafe_allow_html=True)
+                st.session_state.rag_pipeline_step = next_step
+                st.rerun()
 
-            # Show total if all steps complete
-            if st.session_state.rag_pipeline_step >= 3:
-                total_time = sum(st.session_state.rag_pipeline_times.values())
-                st.markdown(f"""
-                <div style="border-top: 1px solid #334155; margin-top: 12px; padding-top: 12px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="color: #f8fafc; font-weight: 600;">Total Pipeline Time:</span>
-                        <span style="color: #3b82f6; font-size: 1.3rem; font-weight: 700;">{total_time}ms</span>
-                    </div>
-                    <div style="color: #64748b; font-size: 0.85rem; margin-top: 4px;">
-                        Found: 10 documents | Model: GPT-5-mini
+    # Status message below diagram
+    if is_running:
+        if current_step == 1:
+            st.info("🔄 **Step 1/3:** Generating vector embedding from your query...")
+        elif current_step == 2:
+            st.info("🔄 **Step 2/3:** Searching pgvector for similar documents...")
+        elif current_step == 3:
+            st.info("🔄 **Step 3/3:** LLM is generating the final answer...")
+        elif current_step >= 4:
+            total_time = sum(st.session_state.rag_pipeline_times.values())
+            st.success(f"✅ **Complete!** Retrieved 10 documents and generated answer in **{total_time}ms**")
+
+            # Show LLM Response Output
+            st.markdown("### 💬 LLM Response")
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+                        border-radius: 12px; padding: 24px; margin: 16px 0;
+                        border-left: 4px solid #22c55e;">
+                <div style="display: flex; align-items: center; margin-bottom: 16px;">
+                    <span style="font-size: 1.5rem; margin-right: 12px;">🤖</span>
+                    <span style="color: #22c55e; font-weight: 600; font-size: 1rem;">GPT-5-mini Response</span>
+                    <span style="color: #64748b; font-size: 0.8rem; margin-left: auto;">
+                        Based on 10 retrieved documents
+                    </span>
+                </div>
+                <div style="color: #f8fafc; font-size: 1rem; line-height: 1.7;">
+                    <strong style="color: #eab308;">Machine Learning</strong> is a subset of artificial intelligence
+                    that enables computers to learn and improve from experience without being explicitly programmed.
+                    It focuses on developing algorithms that can access data, learn from it, and make predictions
+                    or decisions.<br><br>
+                    Key concepts include:
+                    <ul style="color: #94a3b8; margin-top: 12px;">
+                        <li><strong style="color: #f8fafc;">Supervised Learning:</strong> Training with labeled data</li>
+                        <li><strong style="color: #f8fafc;">Unsupervised Learning:</strong> Finding patterns in unlabeled data</li>
+                        <li><strong style="color: #f8fafc;">Neural Networks:</strong> Deep learning architectures inspired by the brain</li>
+                    </ul>
+                </div>
+                <div style="border-top: 1px solid #334155; margin-top: 20px; padding-top: 16px;">
+                    <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                        <div style="color: #64748b; font-size: 0.8rem;">
+                            <span style="color: #94a3b8;">Sources:</span> Artificial Intelligence, Neural Network,
+                            Deep Learning, Data Science...
+                        </div>
+                        <div style="color: #64748b; font-size: 0.8rem;">
+                            <span style="color: #3b82f6;">Tokens:</span> ~180 |
+                            <span style="color: #22c55e;">Latency:</span> {st.session_state.rag_pipeline_times.get('step_3', 800)}ms
+                        </div>
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
-
-                # Reset button
-                if st.button("🔄 Reset Demo", key="reset_demo"):
-                    st.session_state.rag_pipeline_running = False
-                    st.session_state.rag_pipeline_step = 0
-                    st.session_state.rag_pipeline_times = {}
-                    st.rerun()
-
-            st.markdown("</div>", unsafe_allow_html=True)
+            </div>
+            """, unsafe_allow_html=True)
 
     st.markdown("---")
 
