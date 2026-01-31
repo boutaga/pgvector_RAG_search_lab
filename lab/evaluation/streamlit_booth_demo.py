@@ -352,501 +352,502 @@ def render_sidebar():
 # ============================================================================
 
 def render_rag_architecture_section():
-    """Render the interactive RAG architecture diagram with live animation."""
+    """Render the full-page interactive RAG architecture with query input and answer output."""
     import random
-
-    st.markdown("## 📊 Understanding the RAG Pipeline")
-    st.markdown("Click **Run Demo Query** to see how your query flows through the system:")
 
     # Get current animation state
     current_step = st.session_state.rag_pipeline_step
     is_running = st.session_state.rag_pipeline_running
 
-    # Define styles for each component based on animation state
-    def get_card_style(card_step, current_step, is_running):
-        """Get card styling based on animation state."""
-        base_bg = "#1e293b"
-        dim_bg = "#0f172a"
+    # Store query in session state
+    if 'demo_query_text' not in st.session_state:
+        st.session_state.demo_query_text = "What is machine learning?"
 
+    # Title
+    st.markdown('''<div style="text-align: center; margin-bottom: 20px;">
+        <span style="color: #3b82f6; font-size: 1.8rem; font-weight: 700; letter-spacing: 3px; text-shadow: 0 0 20px rgba(59, 130, 246, 0.3);">RAG SEARCH ARCHITECTURE</span>
+        <div style="color: #64748b; font-size: 1rem; margin-top: 8px;">Interactive Retrieval-Augmented Generation Demo</div>
+    </div>''', unsafe_allow_html=True)
+
+    # Define card styles based on animation state
+    def get_style(card_step):
         if not is_running or current_step == 0:
-            return {"bg": base_bg, "border": "#334155", "shadow": "none", "opacity": "1", "icon_filter": "grayscale(0%)"}
+            return {"bg": "#1e293b", "border": "#334155", "shadow": "none", "opacity": "1"}
         elif current_step == card_step:
-            return {"bg": "#1e3a5f", "border": "#3b82f6", "shadow": "0 0 30px rgba(59, 130, 246, 0.5)", "opacity": "1", "icon_filter": "grayscale(0%) brightness(1.2)"}
+            return {"bg": "#1e3a5f", "border": "#3b82f6", "shadow": "0 0 30px rgba(59, 130, 246, 0.5)", "opacity": "1"}
         elif current_step > card_step:
-            return {"bg": "#052e16", "border": "#22c55e", "shadow": "0 0 15px rgba(34, 197, 94, 0.3)", "opacity": "1", "icon_filter": "grayscale(0%)"}
+            return {"bg": "#052e16", "border": "#22c55e", "shadow": "0 0 15px rgba(34, 197, 94, 0.3)", "opacity": "1"}
         else:
-            return {"bg": dim_bg, "border": "#1e293b", "shadow": "none", "opacity": "0.5", "icon_filter": "grayscale(50%)"}
+            return {"bg": "#0f172a", "border": "#1e293b", "shadow": "none", "opacity": "0.5"}
 
-    # Get styles for each card
-    user_style = get_card_style(0, current_step, is_running)
-    embed_style = get_card_style(1, current_step, is_running)
-    db_style = get_card_style(2, current_step, is_running)
-    llm_style = get_card_style(3, current_step, is_running)
+    embed_style = get_style(1)
+    db_style = get_style(2)
+    llm_style = get_style(3)
 
     # Get timing info
     embed_time = st.session_state.rag_pipeline_times.get("step_1", "~200")
     search_time = st.session_state.rag_pipeline_times.get("step_2", "~50")
     llm_time = st.session_state.rag_pipeline_times.get("step_3", "~800")
 
-    # Arrow colors
-    def get_arrow_color(from_step):
-        if not is_running:
-            return "#334155"
-        elif current_step > from_step:
-            return "#22c55e"
-        elif current_step == from_step:
-            return "#3b82f6"
+    # Determine query type for sample data and metrics
+    query_text = st.session_state.demo_query_text.lower()
+    is_ml_query = "machine learning" in query_text
+    is_telephone_query = "telephone" in query_text or "bell" in query_text
+    is_whale_query = "whale" in query_text
+    is_neural_query = "neural" in query_text or "deep learning" in query_text
+
+    # Sample retrieved articles and metrics based on query type
+    if is_ml_query:
+        retrieved_articles = [
+            {"title": "Artificial Intelligence", "score": 0.89, "used": False, "note": "mentions ML"},
+            {"title": "Neural Network", "score": 0.85, "used": False, "note": "mentions ML"},
+            {"title": "Data Mining", "score": 0.78, "used": False, "note": "tangential"},
+        ]
+        rag_grounded = False
+        metrics = {"recall": 0.50, "precision": 0.00, "ndcg": 0.42, "tuning": "CORPUS GAP"}
+    elif is_telephone_query:
+        retrieved_articles = [
+            {"title": "Alexander Graham Bell", "score": 0.95, "used": True, "note": "inventor"},
+            {"title": "Telephone", "score": 0.93, "used": True, "note": "direct match"},
+            {"title": "History of Communication", "score": 0.81, "used": True, "note": "context"},
+        ]
+        rag_grounded = True
+        metrics = {"recall": 1.00, "precision": 1.00, "ndcg": 1.00, "tuning": "PERFECT"}
+    elif is_whale_query:
+        retrieved_articles = [
+            {"title": "Whale", "score": 0.96, "used": True, "note": "direct match"},
+            {"title": "Blue Whale", "score": 0.91, "used": True, "note": "species"},
+            {"title": "Marine Mammal", "score": 0.84, "used": True, "note": "category"},
+        ]
+        rag_grounded = True
+        metrics = {"recall": 1.00, "precision": 0.75, "ndcg": 0.92, "tuning": "GOOD"}
+    elif is_neural_query:
+        retrieved_articles = [
+            {"title": "Neural Network", "score": 0.97, "used": True, "note": "direct match"},
+            {"title": "Deep Learning", "score": 0.94, "used": True, "note": "related"},
+            {"title": "Artificial Intelligence", "score": 0.88, "used": True, "note": "parent topic"},
+        ]
+        rag_grounded = True
+        metrics = {"recall": 1.00, "precision": 1.00, "ndcg": 1.00, "tuning": "PERFECT"}
+    else:
+        # Generic query - simulate reasonable results
+        import hashlib
+        query_hash = int(hashlib.md5(query_text.encode()).hexdigest()[:8], 16)
+        recall_val = 0.6 + (query_hash % 40) / 100  # 0.60 to 1.00
+        precision_val = 0.5 + (query_hash % 50) / 100  # 0.50 to 1.00
+        ndcg_val = 0.5 + (query_hash % 50) / 100
+
+        # Extract potential topic from query
+        words = [w for w in query_text.split() if len(w) > 3 and w not in ['what', 'where', 'when', 'who', 'how', 'about', 'tell', 'explain', 'describe']]
+        topic = words[0].title() if words else "Topic"
+
+        retrieved_articles = [
+            {"title": f"{topic} (Wikipedia)", "score": round(0.85 + (query_hash % 10) / 100, 2), "used": recall_val > 0.7, "note": "potential match"},
+            {"title": f"History of {topic}", "score": round(0.75 + (query_hash % 15) / 100, 2), "used": recall_val > 0.8, "note": "related"},
+            {"title": f"{topic} Overview", "score": round(0.70 + (query_hash % 10) / 100, 2), "used": True, "note": "context"},
+        ]
+        rag_grounded = recall_val > 0.7
+
+        if recall_val >= 0.95:
+            tuning_status = "PERFECT"
+        elif recall_val >= 0.80:
+            tuning_status = "GOOD"
+        elif recall_val >= 0.60:
+            tuning_status = "NEEDS TUNING"
         else:
-            return "#1e293b"
+            tuning_status = "POOR"
 
-    arrow1_color = get_arrow_color(1)
-    arrow2_color = get_arrow_color(2)
-    arrow3_color = get_arrow_color(3)
+        metrics = {"recall": round(recall_val, 2), "precision": round(precision_val, 2), "ndcg": round(ndcg_val, 2), "tuning": tuning_status}
 
-    # Pre-compute conditional values
-    arrow1_shadow = f"0 0 10px {arrow1_color}" if current_step >= 1 else "none"
-    arrow2_shadow = f"0 0 10px {arrow2_color}" if current_step >= 2 else "none"
-    arrow3_shadow = f"0 0 10px {arrow3_color}" if current_step >= 3 else "none"
+    # ========== MAIN LAYOUT: Two columns ==========
+    left_col, right_col = st.columns([1, 1])
 
-    embed_time_bg = "#052e16" if current_step > 1 else "#0f172a"
-    embed_time_color = "#22c55e" if current_step > 1 else "#64748b"
-    embed_time_weight = "700" if current_step > 1 else "400"
+    # ========== LEFT COLUMN: Query Input + Pipeline ==========
+    with left_col:
+        st.markdown("### 💬 Your Question")
 
-    search_time_bg = "#052e16" if current_step > 2 else "#0f172a"
-    search_time_color = "#22c55e" if current_step > 2 else "#64748b"
-    search_time_weight = "700" if current_step > 2 else "400"
-
-    llm_time_bg = "#052e16" if current_step > 3 else "#0f172a"
-    llm_time_color = "#22c55e" if current_step > 3 else "#64748b"
-    llm_time_weight = "700" if current_step > 3 else "400"
-
-    final_arrow_color = "#22c55e" if current_step >= 4 else "#334155"
-    final_arrow_shadow = "0 0 15px rgba(34, 197, 94, 0.5)" if current_step >= 4 else "none"
-
-    answer_bg = "linear-gradient(135deg, #052e16 0%, #064e3b 100%)" if current_step >= 4 else "#0f172a"
-    answer_border = "#22c55e" if current_step >= 4 else "#1e293b"
-    answer_shadow = "0 0 40px rgba(34, 197, 94, 0.4)" if current_step >= 4 else "none"
-    answer_opacity = "1" if current_step >= 4 or not is_running else "0.4"
-    answer_icon = "✅" if current_step >= 4 else "📝"
-    answer_title_color = "#22c55e" if current_step >= 4 else "#64748b"
-    answer_title = "COMPLETE!" if current_step >= 4 else "ANSWER"
-    answer_subtitle_color = "#86efac" if current_step >= 4 else "#475569"
-    answer_subtitle = "Response Ready" if current_step >= 4 else "Waiting..."
-
-    # Build total time section
-    total_time_html = ""
-    if current_step >= 4:
-        total_time = sum(st.session_state.rag_pipeline_times.values())
-        total_time_html = f'''<div style="text-align: center; margin-top: 32px; padding-top: 24px; border-top: 2px solid #334155;">
-            <span style="color: #94a3b8; font-size: 1.1rem;">Total Pipeline Latency: </span>
-            <span style="color: #22c55e; font-size: 2rem; font-weight: 700; text-shadow: 0 0 20px rgba(34, 197, 94, 0.4);">{total_time}ms</span>
-            <div style="color: #64748b; font-size: 0.85rem; margin-top: 8px;">Retrieved 10 documents from 25,000</div>
-        </div>'''
-
-    # Build the HTML
-    diagram_html = f'''<div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-radius: 20px; padding: 40px; margin: 20px 0; min-height: 500px;">
-        <div style="text-align: center; margin-bottom: 40px;">
-            <span style="color: #3b82f6; font-size: 1.5rem; font-weight: 700; letter-spacing: 3px; text-shadow: 0 0 20px rgba(59, 130, 246, 0.3);">RAG SEARCH ARCHITECTURE</span>
-            <div style="color: #64748b; font-size: 0.9rem; margin-top: 8px;">Retrieval-Augmented Generation Pipeline</div>
-        </div>
-        <div style="display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap; margin-bottom: 30px;">
-            <div style="background: {user_style['bg']}; border: 3px solid {user_style['border']}; border-radius: 16px; padding: 28px 24px; min-width: 180px; text-align: center; box-shadow: {user_style['shadow']}; opacity: {user_style['opacity']}; transition: all 0.4s ease;">
-                <div style="font-size: 3.5rem; margin-bottom: 12px; filter: {user_style['icon_filter']};">👤</div>
-                <div style="color: #22c55e; font-weight: 700; font-size: 1.1rem; letter-spacing: 1px;">USER</div>
-                <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">Query Input</div>
-                <div style="color: #64748b; font-size: 0.75rem; margin-top: 12px; font-style: italic;">"What is ML?"</div>
-            </div>
-            <div style="display: flex; flex-direction: column; align-items: center;">
-                <div style="color: {arrow1_color}; font-size: 2rem; font-weight: bold; text-shadow: {arrow1_shadow};">───▶</div>
-                <div style="color: {arrow1_color}; font-size: 0.7rem; margin-top: 4px;">(1) Query</div>
-            </div>
-            <div style="background: {embed_style['bg']}; border: 3px solid {embed_style['border']}; border-radius: 16px; padding: 28px 24px; min-width: 200px; text-align: center; box-shadow: {embed_style['shadow']}; opacity: {embed_style['opacity']}; transition: all 0.4s ease;">
-                <div style="font-size: 3.5rem; margin-bottom: 12px; filter: {embed_style['icon_filter']};">🔢</div>
-                <div style="color: #eab308; font-weight: 700; font-size: 1.1rem; letter-spacing: 1px;">EMBEDDING</div>
-                <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">OpenAI API</div>
-                <div style="color: #64748b; font-size: 0.75rem; margin-top: 4px;">text-embedding-3-large</div>
-                <div style="background: {embed_time_bg}; border-radius: 20px; padding: 6px 16px; margin-top: 16px; display: inline-block;">
-                    <span style="color: {embed_time_color}; font-size: 1rem; font-weight: {embed_time_weight};">{embed_time}ms</span>
-                </div>
-            </div>
-            <div style="display: flex; flex-direction: column; align-items: center;">
-                <div style="color: {arrow2_color}; font-size: 2rem; font-weight: bold; text-shadow: {arrow2_shadow};">───▶</div>
-                <div style="color: {arrow2_color}; font-size: 0.7rem; margin-top: 4px;">(2) Vector</div>
-            </div>
-            <div style="background: {db_style['bg']}; border: 3px solid {db_style['border']}; border-radius: 16px; padding: 28px 24px; min-width: 200px; text-align: center; box-shadow: {db_style['shadow']}; opacity: {db_style['opacity']}; transition: all 0.4s ease;">
-                <div style="font-size: 3.5rem; margin-bottom: 12px; filter: {db_style['icon_filter']};">🐘</div>
-                <div style="color: #8b5cf6; font-weight: 700; font-size: 1.1rem; letter-spacing: 1px;">POSTGRESQL</div>
-                <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">pgvector Extension</div>
-                <div style="color: #64748b; font-size: 0.75rem; margin-top: 4px;">25,000 Wikipedia docs</div>
-                <div style="background: {search_time_bg}; border-radius: 20px; padding: 6px 16px; margin-top: 16px; display: inline-block;">
-                    <span style="color: {search_time_color}; font-size: 1rem; font-weight: {search_time_weight};">{search_time}ms</span>
-                </div>
-            </div>
-        </div>
-        <div style="display: flex; justify-content: center; margin: 20px 0;">
-            <div style="display: flex; flex-direction: column; align-items: center;">
-                <div style="color: {arrow3_color}; font-size: 1.5rem; text-shadow: {arrow3_shadow};">│</div>
-                <div style="color: {arrow3_color}; font-size: 0.8rem; margin: 8px 0; font-weight: 600;">(3) Top-K Documents</div>
-                <div style="color: {arrow3_color}; font-size: 1.5rem; text-shadow: {arrow3_shadow};">▼</div>
-            </div>
-        </div>
-        <div style="display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap;">
-            <div style="background: {llm_style['bg']}; border: 3px solid {llm_style['border']}; border-radius: 16px; padding: 28px 24px; min-width: 220px; text-align: center; box-shadow: {llm_style['shadow']}; opacity: {llm_style['opacity']}; transition: all 0.4s ease;">
-                <div style="font-size: 3.5rem; margin-bottom: 12px; filter: {llm_style['icon_filter']};">🤖</div>
-                <div style="color: #f97316; font-weight: 700; font-size: 1.1rem; letter-spacing: 1px;">LLM GENERATION</div>
-                <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">OpenAI GPT-5-mini</div>
-                <div style="color: #64748b; font-size: 0.75rem; margin-top: 4px;">Context + Query → Answer</div>
-                <div style="background: {llm_time_bg}; border-radius: 20px; padding: 6px 16px; margin-top: 16px; display: inline-block;">
-                    <span style="color: {llm_time_color}; font-size: 1rem; font-weight: {llm_time_weight};">{llm_time}ms</span>
-                </div>
-            </div>
-            <div style="display: flex; flex-direction: column; align-items: center;">
-                <div style="color: {final_arrow_color}; font-size: 2rem; font-weight: bold; text-shadow: {final_arrow_shadow};">───▶</div>
-                <div style="color: {final_arrow_color}; font-size: 0.7rem; margin-top: 4px;">(4) Answer</div>
-            </div>
-            <div style="background: {answer_bg}; border: 3px solid {answer_border}; border-radius: 16px; padding: 28px 24px; min-width: 180px; text-align: center; box-shadow: {answer_shadow}; opacity: {answer_opacity}; transition: all 0.4s ease;">
-                <div style="font-size: 3.5rem; margin-bottom: 12px;">{answer_icon}</div>
-                <div style="color: {answer_title_color}; font-weight: 700; font-size: 1.1rem; letter-spacing: 1px;">{answer_title}</div>
-                <div style="color: {answer_subtitle_color}; font-size: 0.85rem; margin-top: 8px;">{answer_subtitle}</div>
-            </div>
-        </div>
-        {total_time_html}
-    </div>'''
-
-    st.markdown(diagram_html, unsafe_allow_html=True)
-
-    # Demo Query Input and Button
-    col1, col2, col3 = st.columns([2, 1, 1])
-
-    with col1:
+        # Query input
         demo_query = st.text_input(
-            "Demo Query:",
-            value="What is machine learning?",
+            "Enter your question:",
+            value=st.session_state.demo_query_text,
             key="demo_query_input",
-            label_visibility="collapsed",
-            placeholder="Enter a query to see the pipeline in action..."
+            placeholder="Ask anything about Wikipedia articles..."
         )
 
-    with col2:
-        run_demo = st.button("🚀 Run Demo Query", type="primary", use_container_width=True, key="run_demo_pipeline")
+        # Update stored query
+        if demo_query != st.session_state.demo_query_text:
+            st.session_state.demo_query_text = demo_query
 
-    with col3:
-        if is_running and current_step >= 4:
-            if st.button("🔄 Reset Demo", use_container_width=True, key="reset_demo"):
-                st.session_state.rag_pipeline_running = False
-                st.session_state.rag_pipeline_step = 0
-                st.session_state.rag_pipeline_times = {}
-                st.rerun()
+        # Run button
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            run_demo = st.button("🚀 Run RAG Query", type="primary", use_container_width=True, key="run_demo_pipeline")
+        with col_btn2:
+            if is_running and current_step >= 4:
+                if st.button("🔄 Reset", use_container_width=True, key="reset_demo"):
+                    st.session_state.rag_pipeline_running = False
+                    st.session_state.rag_pipeline_step = 0
+                    st.session_state.rag_pipeline_times = {}
+                    st.rerun()
 
-    # Handle Run button click
-    if run_demo:
-        st.session_state.rag_pipeline_running = True
-        st.session_state.rag_pipeline_step = 0
-        st.session_state.rag_pipeline_times = {}
-        st.rerun()
+        # Handle Run button click
+        if run_demo:
+            st.session_state.rag_pipeline_running = True
+            st.session_state.rag_pipeline_step = 0
+            st.session_state.rag_pipeline_times = {}
+            st.rerun()
 
-    # Animation logic - advance through steps
-    if is_running and current_step < 4:
-        # Define step timing
-        steps_config = [
-            (1, 180, 220),  # Step 1: Embedding
-            (2, 40, 60),    # Step 2: Search
-            (3, 750, 850),  # Step 3: LLM
-            (4, 0, 0),      # Step 4: Complete (no delay)
-        ]
+        st.markdown("---")
 
-        next_step = current_step + 1
-        if next_step <= 4:
-            step_idx = next_step - 1
-            if step_idx < len(steps_config):
-                step_num, min_ms, max_ms = steps_config[step_idx]
-                if step_num <= 3:
-                    simulated_time = random.randint(min_ms, max_ms)
-                    time.sleep(simulated_time / 1000.0 * 0.5)  # Slightly slowed for visual effect
-                    st.session_state.rag_pipeline_times[f"step_{step_num}"] = simulated_time
-                st.session_state.rag_pipeline_step = next_step
-                st.rerun()
+        # Pipeline visualization
+        st.markdown("### 🔄 RAG Pipeline")
 
-    # Status message below diagram
-    if is_running:
-        if current_step == 1:
-            st.info("🔄 **Step 1/3:** Generating vector embedding from your query...")
-        elif current_step == 2:
-            st.info("🔄 **Step 2/3:** Searching pgvector for similar documents...")
-        elif current_step == 3:
-            st.info("🔄 **Step 3/3:** LLM is generating the final answer...")
-        elif current_step >= 4:
+        # Step 1: Embedding
+        embed_color = "#22c55e" if current_step > 1 else "#3b82f6" if current_step == 1 else "#64748b"
+        embed_icon = "✅" if current_step > 1 else "🔄" if current_step == 1 else "⬜"
+        embed_time_display = f"{embed_time}ms" if current_step > 1 else "..." if current_step == 1 else "~200ms"
+
+        st.markdown(f'''<div style="background: {embed_style['bg']}; border: 2px solid {embed_style['border']}; border-radius: 12px; padding: 16px; margin: 8px 0; box-shadow: {embed_style['shadow']}; opacity: {embed_style['opacity']};">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 1.5rem;">🔢</span>
+                <div style="flex: 1;">
+                    <div style="color: #eab308; font-weight: 600;">1. EMBEDDING</div>
+                    <div style="color: #94a3b8; font-size: 0.8rem;">text-embedding-3-large (3072 dims)</div>
+                </div>
+                <div style="text-align: right;">
+                    <span style="font-size: 1.2rem;">{embed_icon}</span>
+                    <div style="color: {embed_color}; font-weight: 600;">{embed_time_display}</div>
+                </div>
+            </div>
+        </div>''', unsafe_allow_html=True)
+
+        # Step 2: PostgreSQL Search
+        db_color = "#22c55e" if current_step > 2 else "#3b82f6" if current_step == 2 else "#64748b"
+        db_icon = "✅" if current_step > 2 else "🔄" if current_step == 2 else "⬜"
+        db_time_display = f"{search_time}ms" if current_step > 2 else "..." if current_step == 2 else "~50ms"
+
+        st.markdown(f'''<div style="background: {db_style['bg']}; border: 2px solid {db_style['border']}; border-radius: 12px; padding: 16px; margin: 8px 0; box-shadow: {db_style['shadow']}; opacity: {db_style['opacity']};">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 1.5rem;">🐘</span>
+                <div style="flex: 1;">
+                    <div style="color: #8b5cf6; font-weight: 600;">2. POSTGRESQL + pgvector</div>
+                    <div style="color: #94a3b8; font-size: 0.8rem;">Vector similarity search (25k docs)</div>
+                </div>
+                <div style="text-align: right;">
+                    <span style="font-size: 1.2rem;">{db_icon}</span>
+                    <div style="color: {db_color}; font-weight: 600;">{db_time_display}</div>
+                </div>
+            </div>
+        </div>''', unsafe_allow_html=True)
+
+        # Show retrieved articles (appears after step 2)
+        if current_step >= 2:
+            st.markdown("**📄 Retrieved Articles:**")
+            for art in retrieved_articles:
+                used_badge = "✓" if art["used"] else "✗"
+                used_color = "#22c55e" if art["used"] else "#ef4444"
+                badge_bg = "#052e16" if art["used"] else "#450a0a"
+                st.markdown(f'''<div style="background: #1e293b; border-radius: 6px; padding: 8px 12px; margin: 4px 0; display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <span style="color: #f8fafc; font-weight: 500;">{art["title"]}</span>
+                        <span style="color: #64748b; font-size: 0.75rem; margin-left: 8px;">({art["note"]})</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="color: #94a3b8; font-size: 0.8rem;">score: {art["score"]}</span>
+                        <span style="background: {badge_bg}; color: {used_color}; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">{used_badge} {"USED" if art["used"] else "NOT USED"}</span>
+                    </div>
+                </div>''', unsafe_allow_html=True)
+
+        # Step 3: LLM Generation
+        llm_color = "#22c55e" if current_step > 3 else "#3b82f6" if current_step == 3 else "#64748b"
+        llm_icon = "✅" if current_step > 3 else "🔄" if current_step == 3 else "⬜"
+        llm_time_display = f"{llm_time}ms" if current_step > 3 else "..." if current_step == 3 else "~800ms"
+
+        st.markdown(f'''<div style="background: {llm_style['bg']}; border: 2px solid {llm_style['border']}; border-radius: 12px; padding: 16px; margin: 8px 0; box-shadow: {llm_style['shadow']}; opacity: {llm_style['opacity']};">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 1.5rem;">🤖</span>
+                <div style="flex: 1;">
+                    <div style="color: #f97316; font-weight: 600;">3. LLM GENERATION</div>
+                    <div style="color: #94a3b8; font-size: 0.8rem;">GPT-5-mini with retrieved context</div>
+                </div>
+                <div style="text-align: right;">
+                    <span style="font-size: 1.2rem;">{llm_icon}</span>
+                    <div style="color: {llm_color}; font-weight: 600;">{llm_time_display}</div>
+                </div>
+            </div>
+        </div>''', unsafe_allow_html=True)
+
+        # Total time
+        if current_step >= 4:
             total_time = sum(st.session_state.rag_pipeline_times.values())
-            st.success(f"✅ **Complete!** Retrieved 10 documents and generated answer in **{total_time}ms**")
+            st.markdown(f'''<div style="background: #052e16; border: 2px solid #22c55e; border-radius: 12px; padding: 16px; margin: 16px 0; text-align: center;">
+                <div style="color: #22c55e; font-size: 1.5rem; font-weight: 700;">Total: {total_time}ms</div>
+                <div style="color: #86efac; font-size: 0.85rem;">Pipeline complete</div>
+            </div>''', unsafe_allow_html=True)
 
-            # Show LLM Response Output with Source Attribution
-            st.markdown("### 💬 LLM Response")
+    # ========== RIGHT COLUMN: Answer Output ==========
+    with right_col:
+        st.markdown("### 📝 LLM Answer")
 
-            # Determine if this is a RAG-grounded response or LLM knowledge
-            # For "machine learning" query, we know from Act 3 there's no dedicated article
-            demo_query_lower = demo_query.lower().strip()
-            is_ml_query = "machine learning" in demo_query_lower
-
-            # Source attribution banner
-            if is_ml_query:
-                # No dedicated ML article - response is from LLM knowledge
-                source_banner = '''<div style="background: linear-gradient(90deg, #7c2d12 0%, #450a0a 100%); border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 2px solid #dc2626; display: flex; align-items: center; gap: 16px;">
-                    <div style="font-size: 2rem;">⚠️</div>
+        if current_step >= 4:
+            # Source indicator
+            if rag_grounded:
+                source_html = '''<div style="background: linear-gradient(90deg, #052e16 0%, #064e3b 100%); border-radius: 8px; padding: 12px; margin-bottom: 16px; border: 2px solid #22c55e; display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 1.5rem;">✅</span>
                     <div style="flex: 1;">
-                        <div style="color: #fca5a5; font-weight: 700; font-size: 1rem;">SOURCE: LLM GENERAL KNOWLEDGE</div>
-                        <div style="color: #fecaca; font-size: 0.85rem; margin-top: 4px;">No dedicated "Machine Learning" article found in corpus. Response is based on LLM pre-trained knowledge, NOT retrieved documents.</div>
+                        <div style="color: #86efac; font-weight: 700;">RAG-GROUNDED RESPONSE</div>
+                        <div style="color: #bbf7d0; font-size: 0.8rem;">Answer uses retrieved documents</div>
                     </div>
-                    <div style="background: #450a0a; border-radius: 20px; padding: 8px 16px; border: 1px solid #dc2626;">
-                        <span style="color: #f87171; font-weight: 600; font-size: 0.9rem;">0% RAG</span>
-                    </div>
-                </div>'''
-                response_border = "#dc2626"
-                retrieved_docs_section = '''<div style="background: #1c1917; border-radius: 8px; padding: 16px; margin-top: 16px; border: 1px solid #44403c;">
-                    <div style="color: #a8a29e; font-weight: 600; margin-bottom: 12px;">📄 Retrieved Documents (Related but NOT about ML):</div>
-                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                        <span style="background: #292524; padding: 6px 12px; border-radius: 6px; color: #78716c; font-size: 0.8rem; border: 1px solid #44403c;">❌ Artificial Intelligence (mentions ML)</span>
-                        <span style="background: #292524; padding: 6px 12px; border-radius: 6px; color: #78716c; font-size: 0.8rem; border: 1px solid #44403c;">❌ Neural Network (mentions ML)</span>
-                        <span style="background: #292524; padding: 6px 12px; border-radius: 6px; color: #78716c; font-size: 0.8rem; border: 1px solid #44403c;">❌ Data Mining (tangential)</span>
-                    </div>
-                    <div style="color: #78716c; font-size: 0.75rem; margin-top: 12px; font-style: italic;">These documents mention "machine learning" but are not dedicated articles about the topic.</div>
+                    <span style="background: #052e16; color: #22c55e; padding: 4px 12px; border-radius: 12px; font-weight: 600; border: 1px solid #22c55e;">100% RAG</span>
                 </div>'''
             else:
-                # Other queries - assume RAG-grounded response
-                source_banner = '''<div style="background: linear-gradient(90deg, #052e16 0%, #064e3b 100%); border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 2px solid #22c55e; display: flex; align-items: center; gap: 16px;">
-                    <div style="font-size: 2rem;">✅</div>
+                source_html = '''<div style="background: linear-gradient(90deg, #7c2d12 0%, #450a0a 100%); border-radius: 8px; padding: 12px; margin-bottom: 16px; border: 2px solid #dc2626; display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 1.5rem;">⚠️</span>
                     <div style="flex: 1;">
-                        <div style="color: #86efac; font-weight: 700; font-size: 1rem;">SOURCE: RAG-GROUNDED RESPONSE</div>
-                        <div style="color: #bbf7d0; font-size: 0.85rem; margin-top: 4px;">Response is generated using retrieved documents from the PostgreSQL database. Information is grounded in your corpus data.</div>
+                        <div style="color: #fca5a5; font-weight: 700;">LLM GENERAL KNOWLEDGE</div>
+                        <div style="color: #fecaca; font-size: 0.8rem;">No dedicated article found in corpus</div>
                     </div>
-                    <div style="background: #052e16; border-radius: 20px; padding: 8px 16px; border: 1px solid #22c55e;">
-                        <span style="color: #22c55e; font-weight: 600; font-size: 0.9rem;">100% RAG</span>
-                    </div>
-                </div>'''
-                response_border = "#22c55e"
-                retrieved_docs_section = '''<div style="background: #052e16; border-radius: 8px; padding: 16px; margin-top: 16px; border: 1px solid #166534;">
-                    <div style="color: #86efac; font-weight: 600; margin-bottom: 12px;">📄 Retrieved Documents Used:</div>
-                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                        <span style="background: #064e3b; padding: 6px 12px; border-radius: 6px; color: #6ee7b7; font-size: 0.8rem; border: 1px solid #059669;">✓ Relevant Article 1 (score: 0.92)</span>
-                        <span style="background: #064e3b; padding: 6px 12px; border-radius: 6px; color: #6ee7b7; font-size: 0.8rem; border: 1px solid #059669;">✓ Relevant Article 2 (score: 0.88)</span>
-                        <span style="background: #064e3b; padding: 6px 12px; border-radius: 6px; color: #6ee7b7; font-size: 0.8rem; border: 1px solid #059669;">✓ Relevant Article 3 (score: 0.85)</span>
-                    </div>
-                    <div style="color: #6ee7b7; font-size: 0.75rem; margin-top: 12px; font-style: italic;">Response is grounded in these retrieved documents from your corpus.</div>
+                    <span style="background: #450a0a; color: #f87171; padding: 4px 12px; border-radius: 12px; font-weight: 600; border: 1px solid #dc2626;">0% RAG</span>
                 </div>'''
 
-            # Pre-compute conditional values
-            source_label = "⚠️ Based on general knowledge" if is_ml_query else "✅ Based on retrieved documents"
-            grounding_html = '<span style="color: #f87171;">LLM Pre-trained Knowledge</span>' if is_ml_query else '<span style="color: #22c55e;">Corpus Documents</span>'
+            st.markdown(source_html, unsafe_allow_html=True)
+
+            # Generate appropriate answer based on query
+            if is_ml_query:
+                answer_text = '''<strong style="color: #eab308;">Machine Learning</strong> is a subset of artificial intelligence that enables computers to learn and improve from experience without being explicitly programmed.<br><br>
+                Key types include:<br>
+                • <strong>Supervised Learning</strong> - Training with labeled data<br>
+                • <strong>Unsupervised Learning</strong> - Finding patterns in unlabeled data<br>
+                • <strong>Reinforcement Learning</strong> - Learning through trial and error'''
+            elif is_telephone_query:
+                answer_text = '''<strong style="color: #eab308;">Alexander Graham Bell</strong> invented the telephone in 1876. He was a Scottish-born scientist and inventor who received the first U.S. patent for the telephone.<br><br>
+                Key facts:<br>
+                • Patent granted: March 7, 1876<br>
+                • First words spoken: "Mr. Watson, come here, I want to see you"<br>
+                • Bell also founded AT&T'''
+            elif is_whale_query:
+                answer_text = '''<strong style="color: #eab308;">Whales</strong> are marine mammals belonging to the order Cetacea. They are the largest animals on Earth.<br><br>
+                Key facts:<br>
+                • <strong>Blue Whale</strong> - Largest animal ever (up to 100 feet)<br>
+                • Whales are warm-blooded and breathe air<br>
+                • They communicate using complex songs'''
+            elif is_neural_query:
+                answer_text = '''<strong style="color: #eab308;">Neural Networks</strong> are computing systems inspired by biological neural networks in the brain.<br><br>
+                Key concepts:<br>
+                • <strong>Neurons</strong> - Basic computational units<br>
+                • <strong>Layers</strong> - Input, hidden, and output layers<br>
+                • <strong>Deep Learning</strong> - Networks with many hidden layers'''
+            else:
+                # Dynamic answer for any query
+                topic = retrieved_articles[0]["title"].replace(" (Wikipedia)", "") if retrieved_articles else "the topic"
+                answer_text = f'''Based on the retrieved documents about <strong style="color: #eab308;">{topic}</strong>, here is what I found:<br><br>
+                The search retrieved {len(retrieved_articles)} relevant documents from the Wikipedia corpus. '''
+                if rag_grounded:
+                    answer_text += f'''The information is grounded in articles like "{retrieved_articles[0]["title"]}" (similarity: {retrieved_articles[0]["score"]}).<br><br>
+                    <em style="color: #94a3b8;">This is a simulated response. In production, GPT-5-mini would synthesize a complete answer from the retrieved context.</em>'''
+                else:
+                    answer_text += '''However, no highly relevant articles were found, so the response relies more on general knowledge.<br><br>
+                    <em style="color: #94a3b8;">Consider expanding your corpus to improve coverage for this topic.</em>'''
+
+            # Answer box
+            border_color = "#22c55e" if rag_grounded else "#dc2626"
+            st.markdown(f'''<div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 12px; padding: 20px; border-left: 4px solid {border_color};">
+                <div style="color: #f8fafc; font-size: 1rem; line-height: 1.8;">{answer_text}</div>
+            </div>''', unsafe_allow_html=True)
+
+            # Metadata
             llm_latency = st.session_state.rag_pipeline_times.get('step_3', 800)
+            grounding_text = "Corpus Documents" if rag_grounded else "LLM Pre-trained Knowledge"
+            grounding_color = "#22c55e" if rag_grounded else "#f87171"
 
-            response_html = f'''{source_banner}
-            <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 12px; padding: 24px; margin: 16px 0; border-left: 4px solid {response_border};">
-                <div style="display: flex; align-items: center; margin-bottom: 16px;">
-                    <span style="font-size: 1.5rem; margin-right: 12px;">🤖</span>
-                    <span style="color: {response_border}; font-weight: 600; font-size: 1rem;">GPT-5-mini Response</span>
-                    <span style="color: #64748b; font-size: 0.8rem; margin-left: auto;">{source_label}</span>
-                </div>
-                <div style="color: #f8fafc; font-size: 1rem; line-height: 1.7;">
-                    <strong style="color: #eab308;">Machine Learning</strong> is a subset of artificial intelligence that enables computers to learn and improve from experience without being explicitly programmed. It focuses on developing algorithms that can access data, learn from it, and make predictions or decisions.<br><br>
-                    Key concepts include:
-                    <ul style="color: #94a3b8; margin-top: 12px;">
-                        <li><strong style="color: #f8fafc;">Supervised Learning:</strong> Training with labeled data</li>
-                        <li><strong style="color: #f8fafc;">Unsupervised Learning:</strong> Finding patterns in unlabeled data</li>
-                        <li><strong style="color: #f8fafc;">Neural Networks:</strong> Deep learning architectures inspired by the brain</li>
-                    </ul>
-                </div>
-                {retrieved_docs_section}
-                <div style="border-top: 1px solid #334155; margin-top: 20px; padding-top: 16px;">
-                    <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-                        <div style="color: #64748b; font-size: 0.8rem;">
-                            <span style="color: #94a3b8;">Grounding:</span> {grounding_html}
-                        </div>
-                        <div style="color: #64748b; font-size: 0.8rem;">
-                            <span style="color: #3b82f6;">Tokens:</span> ~180 |
-                            <span style="color: #22c55e;">Latency:</span> {llm_latency}ms
-                        </div>
-                    </div>
-                </div>
-            </div>'''
+            st.markdown(f'''<div style="background: #0f172a; border-radius: 8px; padding: 12px; margin-top: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                <span style="color: #64748b; font-size: 0.85rem;">Grounding: <span style="color: {grounding_color}; font-weight: 600;">{grounding_text}</span></span>
+                <span style="color: #64748b; font-size: 0.85rem;">Tokens: ~180 | Latency: <span style="color: #22c55e;">{llm_latency}ms</span></span>
+            </div>''', unsafe_allow_html=True)
 
-            st.markdown(response_html, unsafe_allow_html=True)
+            # ========== METRICS DISPLAY ==========
+            st.markdown("### 📊 Search Quality Metrics")
+
+            # Determine colors based on metric values
+            def get_metric_color(value, thresholds=(0.7, 0.9)):
+                if value >= thresholds[1]:
+                    return "#22c55e"  # green
+                elif value >= thresholds[0]:
+                    return "#eab308"  # yellow
+                else:
+                    return "#ef4444"  # red
+
+            recall_color = get_metric_color(metrics["recall"])
+            precision_color = get_metric_color(metrics["precision"])
+            ndcg_color = get_metric_color(metrics["ndcg"])
+
+            # Tuning status badge
+            tuning_status = metrics["tuning"]
+            if tuning_status == "PERFECT":
+                tuning_bg = "#052e16"
+                tuning_border = "#22c55e"
+                tuning_color = "#22c55e"
+                tuning_icon = "✅"
+            elif tuning_status == "GOOD":
+                tuning_bg = "#052e16"
+                tuning_border = "#22c55e"
+                tuning_color = "#86efac"
+                tuning_icon = "👍"
+            elif tuning_status == "NEEDS TUNING":
+                tuning_bg = "#422006"
+                tuning_border = "#eab308"
+                tuning_color = "#eab308"
+                tuning_icon = "⚠️"
+            elif tuning_status == "CORPUS GAP":
+                tuning_bg = "#450a0a"
+                tuning_border = "#dc2626"
+                tuning_color = "#f87171"
+                tuning_icon = "🔴"
+            else:
+                tuning_bg = "#450a0a"
+                tuning_border = "#ef4444"
+                tuning_color = "#ef4444"
+                tuning_icon = "❌"
+
+            # Metrics cards
+            st.markdown(f'''<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px;">
+                <div style="background: #1e293b; border-radius: 8px; padding: 16px; text-align: center; border-top: 3px solid {recall_color};">
+                    <div style="color: #94a3b8; font-size: 0.8rem; margin-bottom: 4px;">Recall</div>
+                    <div style="color: {recall_color}; font-size: 1.8rem; font-weight: 700;">{metrics["recall"]:.0%}</div>
+                    <div style="color: #64748b; font-size: 0.7rem;">Found / Expected</div>
+                </div>
+                <div style="background: #1e293b; border-radius: 8px; padding: 16px; text-align: center; border-top: 3px solid {precision_color};">
+                    <div style="color: #94a3b8; font-size: 0.8rem; margin-bottom: 4px;">Precision</div>
+                    <div style="color: {precision_color}; font-size: 1.8rem; font-weight: 700;">{metrics["precision"]:.0%}</div>
+                    <div style="color: #64748b; font-size: 0.7rem;">Relevant / Retrieved</div>
+                </div>
+                <div style="background: #1e293b; border-radius: 8px; padding: 16px; text-align: center; border-top: 3px solid {ndcg_color};">
+                    <div style="color: #94a3b8; font-size: 0.8rem; margin-bottom: 4px;">nDCG</div>
+                    <div style="color: {ndcg_color}; font-size: 1.8rem; font-weight: 700;">{metrics["ndcg"]:.2f}</div>
+                    <div style="color: #64748b; font-size: 0.7rem;">Ranking Quality</div>
+                </div>
+            </div>''', unsafe_allow_html=True)
+
+            # Tuning recommendation
+            st.markdown(f'''<div style="background: {tuning_bg}; border: 2px solid {tuning_border}; border-radius: 8px; padding: 12px; margin-top: 12px; display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 1.5rem;">{tuning_icon}</span>
+                <div style="flex: 1;">
+                    <div style="color: {tuning_color}; font-weight: 700;">Status: {tuning_status}</div>
+                    <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 2px;">'''
+            + ('''Search parameters are optimal. No tuning required.''' if tuning_status == "PERFECT"
+               else '''Good results. Minor optimizations possible.''' if tuning_status == "GOOD"
+               else '''Consider adjusting k_retrieve or trying hybrid search.''' if tuning_status == "NEEDS TUNING"
+               else '''Missing documents in corpus. Add content before tuning search.''' if tuning_status == "CORPUS GAP"
+               else '''Significant tuning required. Check strategy in Act 2.''')
+            + '''</div>
+                </div>
+            </div>''', unsafe_allow_html=True)
 
             # Educational callout for ML query
             if is_ml_query:
-                callout_html = '''<div style="background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%); border-radius: 8px; padding: 16px; margin-top: 16px; border-left: 4px solid #3b82f6;">
+                st.markdown('''<div style="background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%); border-radius: 8px; padding: 16px; margin-top: 16px; border-left: 4px solid #3b82f6;">
                     <div style="color: #93c5fd; font-weight: 600; margin-bottom: 8px;">💡 This is exactly the problem we investigate in Act 3!</div>
-                    <div style="color: #94a3b8; font-size: 0.9rem;">The RAG system retrieved documents that <em>mention</em> "machine learning" but there is <strong style="color: #f8fafc;">no dedicated article about ML</strong> in our 25k Wikipedia subset. The LLM falls back to its general knowledge, which may be outdated or hallucinated.<br><br><strong style="color: #fbbf24;">This is a corpus coverage problem, not a search algorithm problem!</strong></div>
-                </div>'''
-                st.markdown(callout_html, unsafe_allow_html=True)
+                    <div style="color: #94a3b8; font-size: 0.9rem;">The RAG system retrieved documents that <em>mention</em> "machine learning" but there is <strong style="color: #f8fafc;">no dedicated article about ML</strong> in our 25k Wikipedia subset.<br><br><strong style="color: #fbbf24;">This is a corpus coverage problem, not a search algorithm problem!</strong></div>
+                </div>''', unsafe_allow_html=True)
 
-    st.markdown("---")
+        else:
+            # Waiting state
+            if is_running:
+                if current_step == 1:
+                    status = "Generating embedding..."
+                elif current_step == 2:
+                    status = "Searching database..."
+                elif current_step == 3:
+                    status = "Generating answer..."
+                else:
+                    status = "Initializing..."
+
+                st.markdown(f'''<div style="background: #1e293b; border-radius: 12px; padding: 40px; text-align: center; border: 2px dashed #334155;">
+                    <div style="font-size: 3rem; margin-bottom: 16px;">🔄</div>
+                    <div style="color: #3b82f6; font-size: 1.2rem; font-weight: 600;">{status}</div>
+                    <div style="color: #64748b; margin-top: 8px;">Please wait...</div>
+                </div>''', unsafe_allow_html=True)
+            else:
+                st.markdown('''<div style="background: #1e293b; border-radius: 12px; padding: 40px; text-align: center; border: 2px dashed #334155;">
+                    <div style="font-size: 3rem; margin-bottom: 16px;">📝</div>
+                    <div style="color: #64748b; font-size: 1.1rem;">Enter a question and click<br><strong style="color: #3b82f6;">"Run RAG Query"</strong><br>to see the answer</div>
+                </div>''', unsafe_allow_html=True)
+
+        # Sample queries hint
+        st.markdown("---")
+        st.markdown("**💡 Try these queries:**")
+        sample_queries = [
+            "What is machine learning?",
+            "Who invented the telephone?",
+            "Tell me about whales"
+        ]
+        for sq in sample_queries:
+            if st.button(f"📌 {sq}", key=f"sample_{sq[:10]}", use_container_width=True):
+                st.session_state.demo_query_text = sq
+                st.rerun()
+
+    # Animation logic - advance through steps
+    if is_running and current_step < 4:
+        steps_config = [(1, 180, 220), (2, 40, 60), (3, 750, 850), (4, 0, 0)]
+        next_step = current_step + 1
+        if next_step <= 4:
+            step_num, min_ms, max_ms = steps_config[next_step - 1]
+            if step_num <= 3:
+                simulated_time = random.randint(min_ms, max_ms)
+                time.sleep(simulated_time / 1000.0 * 0.5)
+                st.session_state.rag_pipeline_times[f"step_{step_num}"] = simulated_time
+            st.session_state.rag_pipeline_step = next_step
+            st.rerun()
 
 
 def render_welcome():
-    """Render the Welcome tab with metric explanations and DBA persona."""
+    """Render the Welcome tab with full-page RAG demo."""
     st.session_state.visited_tabs.add('welcome')
     st.session_state.current_tab = 'welcome'
 
-    # Persona Banner
-    st.markdown("""
-    <div class="persona-banner">
-        <div style="font-size: 3rem;">👨‍💻</div>
+    # Compact Persona Banner
+    st.markdown('''<div style="background: linear-gradient(90deg, #1e3a5f 0%, #0f172a 100%); border-radius: 8px; padding: 12px 20px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 2rem;">👨‍💻</span>
         <div>
-            <div style="font-size: 1.3rem; font-weight: 600; color: #f8fafc;">
-                Welcome, Database Administrator!
-            </div>
-            <div style="color: #94a3b8; margin-top: 4px;">
-                Your team has deployed a RAG search system. Users are complaining some queries
-                "don't find the right documents." Let's investigate together.
-            </div>
+            <span style="color: #f8fafc; font-weight: 600;">Welcome, Database Administrator!</span>
+            <span style="color: #94a3b8; margin-left: 8px;">Try the interactive RAG demo below to see how search quality affects answers.</span>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+    </div>''', unsafe_allow_html=True)
 
-    # RAG Architecture Diagram with Live Animation
+    # RAG Architecture Diagram - MAIN FOCUS
     render_rag_architecture_section()
 
-    st.markdown("## 📖 Before We Start: Understanding the Metrics")
-    st.markdown("""
-    To diagnose search quality issues, we need to understand three key metrics.
-    Don't worry - we'll explain them in plain English!
-    """)
+    # Metric explanations in expander (secondary - collapsed by default)
+    with st.expander("📖 Understanding the Metrics (Recall, Precision, nDCG)", expanded=False):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown('''<div style="background: #1e293b; border-radius: 8px; padding: 16px; border-left: 3px solid #22c55e; height: 150px;">
+                <div style="font-size: 1.5rem; text-align: center;">🎯</div>
+                <div style="text-align: center; color: #22c55e; font-weight: 600; margin: 8px 0;">Recall</div>
+                <div style="color: #f8fafc; font-size: 0.85rem; text-align: center;">"Did we find all relevant docs?"</div>
+                <div style="color: #94a3b8; font-size: 0.8rem; text-align: center; margin-top: 8px;">Found / Total Expected</div>
+            </div>''', unsafe_allow_html=True)
+        with col2:
+            st.markdown('''<div style="background: #1e293b; border-radius: 8px; padding: 16px; border-left: 3px solid #eab308; height: 150px;">
+                <div style="font-size: 1.5rem; text-align: center;">📊</div>
+                <div style="text-align: center; color: #eab308; font-weight: 600; margin: 8px 0;">Precision</div>
+                <div style="color: #f8fafc; font-size: 0.85rem; text-align: center;">"How much was relevant?"</div>
+                <div style="color: #94a3b8; font-size: 0.8rem; text-align: center; margin-top: 8px;">Relevant / Retrieved</div>
+            </div>''', unsafe_allow_html=True)
+        with col3:
+            st.markdown('''<div style="background: #1e293b; border-radius: 8px; padding: 16px; border-left: 3px solid #3b82f6; height: 150px;">
+                <div style="font-size: 1.5rem; text-align: center;">📈</div>
+                <div style="text-align: center; color: #3b82f6; font-weight: 600; margin: 8px 0;">nDCG</div>
+                <div style="color: #f8fafc; font-size: 0.85rem; text-align: center;">"Best results at top?"</div>
+                <div style="color: #94a3b8; font-size: 0.8rem; text-align: center; margin-top: 8px;">0.0 (worst) to 1.0 (perfect)</div>
+            </div>''', unsafe_allow_html=True)
+        st.markdown("**When to focus on each:** Precision for factual queries, Recall for exploratory queries.")
 
-    # Metric Explanation Cards
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.markdown("""
-        <div class="metric-explain" style="border-left-color: #22c55e;">
-            <div style="font-size: 2.5rem; text-align: center;">🎯</div>
-            <h3 style="text-align: center; color: #22c55e; margin: 12px 0;">Recall</h3>
-            <p style="color: #f8fafc; font-size: 1.1rem; text-align: center;">
-                "Did we find all the relevant documents?"
-            </p>
-            <hr style="border-color: #334155; margin: 16px 0;">
-            <p style="color: #94a3b8; font-size: 0.9rem;">
-                <strong>Example:</strong> If there are 4 relevant articles about "whales"
-                and we found 3 of them:
-            </p>
-            <p style="color: #22c55e; font-size: 1.5rem; text-align: center; margin-top: 8px;">
-                Recall = 75%
-            </p>
-            <p style="color: #64748b; font-size: 0.8rem; text-align: center;">
-                (3 found ÷ 4 total = 0.75)
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col2:
-        st.markdown("""
-        <div class="metric-explain" style="border-left-color: #eab308;">
-            <div style="font-size: 2.5rem; text-align: center;">📊</div>
-            <h3 style="text-align: center; color: #eab308; margin: 12px 0;">Precision</h3>
-            <p style="color: #f8fafc; font-size: 1.1rem; text-align: center;">
-                "Of what we found, how much was relevant?"
-            </p>
-            <hr style="border-color: #334155; margin: 16px 0;">
-            <p style="color: #94a3b8; font-size: 0.9rem;">
-                <strong>Example:</strong> If we retrieved 10 documents but only 3
-                were actually about "whales":
-            </p>
-            <p style="color: #eab308; font-size: 1.5rem; text-align: center; margin-top: 8px;">
-                Precision = 30%
-            </p>
-            <p style="color: #64748b; font-size: 0.8rem; text-align: center;">
-                (3 relevant ÷ 10 retrieved = 0.30)
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col3:
-        st.markdown("""
-        <div class="metric-explain" style="border-left-color: #3b82f6;">
-            <div style="font-size: 2.5rem; text-align: center;">📈</div>
-            <h3 style="text-align: center; color: #3b82f6; margin: 12px 0;">nDCG</h3>
-            <p style="color: #f8fafc; font-size: 1.1rem; text-align: center;">
-                "Are the best results at the top?"
-            </p>
-            <hr style="border-color: #334155; margin: 16px 0;">
-            <p style="color: #94a3b8; font-size: 0.9rem;">
-                <strong>Example:</strong> Finding the "Whale" article at position 1
-                is better than finding it at position 10.
-            </p>
-            <p style="color: #3b82f6; font-size: 1.5rem; text-align: center; margin-top: 8px;">
-                nDCG = 0.0 to 1.0
-            </p>
-            <p style="color: #64748b; font-size: 0.8rem; text-align: center;">
-                (1.0 = perfect ranking)
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    # Quick Quiz
-    st.markdown("### 🧠 Quick Check: Which metric matters most?")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("""
-        <div style="background-color: #1e293b; border-radius: 8px; padding: 16px; margin: 8px 0;">
-            <strong style="color: #f8fafc;">Scenario A:</strong>
-            <span style="color: #94a3b8;">User asks "Who invented the telephone?"</span>
-            <br><br>
-            <span style="color: #64748b;">They need THE answer, not 100 related articles.</span>
-            <br><br>
-            <span style="color: #3b82f6;">→ <strong>Precision</strong> and <strong>nDCG</strong> matter most</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col2:
-        st.markdown("""
-        <div style="background-color: #1e293b; border-radius: 8px; padding: 16px; margin: 8px 0;">
-            <strong style="color: #f8fafc;">Scenario B:</strong>
-            <span style="color: #94a3b8;">User asks "Tell me about machine learning"</span>
-            <br><br>
-            <span style="color: #64748b;">They want comprehensive coverage of the topic.</span>
-            <br><br>
-            <span style="color: #22c55e;">→ <strong>Recall</strong> matters most</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    # The Mission
-    st.markdown("### 🎯 Your Mission")
-
-    st.markdown("""
-    <div style="background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
-                border-radius: 12px; padding: 24px; margin: 16px 0;">
-        <p style="color: #f8fafc; font-size: 1.1rem; margin: 0;">
-            We have <strong>4 test queries</strong> with known "ground truth" - documents that
-            SHOULD be returned. Your job is to:
-        </p>
-        <ol style="color: #94a3b8; margin-top: 16px; padding-left: 24px;">
-            <li style="margin: 8px 0;">Run each query and check if we achieve <strong>100% Recall</strong></li>
-            <li style="margin: 8px 0;">Identify which queries are <strong>struggling</strong></li>
-            <li style="margin: 8px 0;">Try different <strong>search strategies</strong> to fix them</li>
-            <li style="margin: 8px 0;">Discover why some queries <strong>can't be fixed</strong> with search alone</li>
-        </ol>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Start button
-    st.markdown("---")
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("🚀 Start the Investigation →", type="primary", use_container_width=True):
-            st.session_state.current_step = 1
-            st.rerun()
-
-    # Hint
-    st.markdown("""
-    <div class="hint-box">
-        💡 <strong>Tip:</strong> Click the button above or use the tabs to navigate.
-        You can always come back to this page to review the metrics.
-    </div>
-    """, unsafe_allow_html=True)
+    # Navigation hint
+    st.markdown('''<div style="background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%); border-radius: 8px; padding: 16px; margin-top: 16px; text-align: center;">
+        <span style="color: #f8fafc;">Ready for the investigation?</span>
+        <span style="color: #3b82f6; font-weight: 600;"> Use the tabs above to explore Act 1, 2, and 3.</span>
+    </div>''', unsafe_allow_html=True)
 
 
 # ============================================================================
