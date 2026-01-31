@@ -363,65 +363,33 @@ def render_rag_architecture_section():
     is_running = st.session_state.rag_pipeline_running
 
     # Define styles for each component based on animation state
-    # Step 0 = idle, Step 1 = embedding, Step 2 = search, Step 3 = LLM generation, Step 4 = complete
     def get_card_style(card_step, current_step, is_running):
         """Get card styling based on animation state."""
         base_bg = "#1e293b"
         dim_bg = "#0f172a"
 
         if not is_running or current_step == 0:
-            # Idle state - all cards normal
-            return {
-                "bg": base_bg,
-                "border": "#334155",
-                "shadow": "none",
-                "opacity": "1",
-                "icon_filter": "grayscale(0%)"
-            }
+            return {"bg": base_bg, "border": "#334155", "shadow": "none", "opacity": "1", "icon_filter": "grayscale(0%)"}
         elif current_step == card_step:
-            # This card is currently active - bright and glowing
-            return {
-                "bg": "#1e3a5f",
-                "border": "#3b82f6",
-                "shadow": "0 0 30px rgba(59, 130, 246, 0.5)",
-                "opacity": "1",
-                "icon_filter": "grayscale(0%) brightness(1.2)"
-            }
+            return {"bg": "#1e3a5f", "border": "#3b82f6", "shadow": "0 0 30px rgba(59, 130, 246, 0.5)", "opacity": "1", "icon_filter": "grayscale(0%) brightness(1.2)"}
         elif current_step > card_step:
-            # This card is completed - green check, slight glow
-            return {
-                "bg": "#052e16",
-                "border": "#22c55e",
-                "shadow": "0 0 15px rgba(34, 197, 94, 0.3)",
-                "opacity": "1",
-                "icon_filter": "grayscale(0%)"
-            }
+            return {"bg": "#052e16", "border": "#22c55e", "shadow": "0 0 15px rgba(34, 197, 94, 0.3)", "opacity": "1", "icon_filter": "grayscale(0%)"}
         else:
-            # This card is upcoming - dimmed
-            return {
-                "bg": dim_bg,
-                "border": "#1e293b",
-                "shadow": "none",
-                "opacity": "0.5",
-                "icon_filter": "grayscale(50%)"
-            }
+            return {"bg": dim_bg, "border": "#1e293b", "shadow": "none", "opacity": "0.5", "icon_filter": "grayscale(50%)"}
 
-    # Card 1: User Query
+    # Get styles for each card
     user_style = get_card_style(0, current_step, is_running)
-    # Card 2: Embedding API (Step 1)
     embed_style = get_card_style(1, current_step, is_running)
-    # Card 3: PostgreSQL/pgvector (Step 2)
     db_style = get_card_style(2, current_step, is_running)
-    # Card 4: LLM (Step 3)
     llm_style = get_card_style(3, current_step, is_running)
 
-    # Get timing info for completed steps
+    # Get timing info
     embed_time = st.session_state.rag_pipeline_times.get("step_1", "~200")
     search_time = st.session_state.rag_pipeline_times.get("step_2", "~50")
     llm_time = st.session_state.rag_pipeline_times.get("step_3", "~800")
 
-    # Arrow colors based on state
-    def get_arrow_color(from_step, current_step, is_running):
+    # Arrow colors
+    def get_arrow_color(from_step):
         if not is_running:
             return "#334155"
         elif current_step > from_step:
@@ -431,171 +399,121 @@ def render_rag_architecture_section():
         else:
             return "#1e293b"
 
-    arrow1_color = get_arrow_color(1, current_step, is_running)
-    arrow2_color = get_arrow_color(2, current_step, is_running)
-    arrow3_color = get_arrow_color(3, current_step, is_running)
+    arrow1_color = get_arrow_color(1)
+    arrow2_color = get_arrow_color(2)
+    arrow3_color = get_arrow_color(3)
 
-    # Render the large responsive diagram (70-80% of screen)
-    st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-                border-radius: 20px; padding: 40px; margin: 20px 0; min-height: 500px;">
+    # Pre-compute conditional values
+    arrow1_shadow = f"0 0 10px {arrow1_color}" if current_step >= 1 else "none"
+    arrow2_shadow = f"0 0 10px {arrow2_color}" if current_step >= 2 else "none"
+    arrow3_shadow = f"0 0 10px {arrow3_color}" if current_step >= 3 else "none"
 
-        <!-- Title -->
+    embed_time_bg = "#052e16" if current_step > 1 else "#0f172a"
+    embed_time_color = "#22c55e" if current_step > 1 else "#64748b"
+    embed_time_weight = "700" if current_step > 1 else "400"
+
+    search_time_bg = "#052e16" if current_step > 2 else "#0f172a"
+    search_time_color = "#22c55e" if current_step > 2 else "#64748b"
+    search_time_weight = "700" if current_step > 2 else "400"
+
+    llm_time_bg = "#052e16" if current_step > 3 else "#0f172a"
+    llm_time_color = "#22c55e" if current_step > 3 else "#64748b"
+    llm_time_weight = "700" if current_step > 3 else "400"
+
+    final_arrow_color = "#22c55e" if current_step >= 4 else "#334155"
+    final_arrow_shadow = "0 0 15px rgba(34, 197, 94, 0.5)" if current_step >= 4 else "none"
+
+    answer_bg = "linear-gradient(135deg, #052e16 0%, #064e3b 100%)" if current_step >= 4 else "#0f172a"
+    answer_border = "#22c55e" if current_step >= 4 else "#1e293b"
+    answer_shadow = "0 0 40px rgba(34, 197, 94, 0.4)" if current_step >= 4 else "none"
+    answer_opacity = "1" if current_step >= 4 or not is_running else "0.4"
+    answer_icon = "✅" if current_step >= 4 else "📝"
+    answer_title_color = "#22c55e" if current_step >= 4 else "#64748b"
+    answer_title = "COMPLETE!" if current_step >= 4 else "ANSWER"
+    answer_subtitle_color = "#86efac" if current_step >= 4 else "#475569"
+    answer_subtitle = "Response Ready" if current_step >= 4 else "Waiting..."
+
+    # Build total time section
+    total_time_html = ""
+    if current_step >= 4:
+        total_time = sum(st.session_state.rag_pipeline_times.values())
+        total_time_html = f'''<div style="text-align: center; margin-top: 32px; padding-top: 24px; border-top: 2px solid #334155;">
+            <span style="color: #94a3b8; font-size: 1.1rem;">Total Pipeline Latency: </span>
+            <span style="color: #22c55e; font-size: 2rem; font-weight: 700; text-shadow: 0 0 20px rgba(34, 197, 94, 0.4);">{total_time}ms</span>
+            <div style="color: #64748b; font-size: 0.85rem; margin-top: 8px;">Retrieved 10 documents from 25,000</div>
+        </div>'''
+
+    # Build the HTML
+    diagram_html = f'''<div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-radius: 20px; padding: 40px; margin: 20px 0; min-height: 500px;">
         <div style="text-align: center; margin-bottom: 40px;">
-            <span style="color: #3b82f6; font-size: 1.5rem; font-weight: 700; letter-spacing: 3px;
-                        text-shadow: 0 0 20px rgba(59, 130, 246, 0.3);">
-                RAG SEARCH ARCHITECTURE
-            </span>
-            <div style="color: #64748b; font-size: 0.9rem; margin-top: 8px;">
-                Retrieval-Augmented Generation Pipeline
-            </div>
+            <span style="color: #3b82f6; font-size: 1.5rem; font-weight: 700; letter-spacing: 3px; text-shadow: 0 0 20px rgba(59, 130, 246, 0.3);">RAG SEARCH ARCHITECTURE</span>
+            <div style="color: #64748b; font-size: 0.9rem; margin-top: 8px;">Retrieval-Augmented Generation Pipeline</div>
         </div>
-
-        <!-- Top Row: User -> Embedding -> Database -->
-        <div style="display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap;
-                    margin-bottom: 30px;">
-
-            <!-- User Query Card -->
-            <div style="background: {user_style['bg']}; border: 3px solid {user_style['border']};
-                        border-radius: 16px; padding: 28px 24px; min-width: 180px; text-align: center;
-                        box-shadow: {user_style['shadow']}; opacity: {user_style['opacity']};
-                        transition: all 0.4s ease;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap; margin-bottom: 30px;">
+            <div style="background: {user_style['bg']}; border: 3px solid {user_style['border']}; border-radius: 16px; padding: 28px 24px; min-width: 180px; text-align: center; box-shadow: {user_style['shadow']}; opacity: {user_style['opacity']}; transition: all 0.4s ease;">
                 <div style="font-size: 3.5rem; margin-bottom: 12px; filter: {user_style['icon_filter']};">👤</div>
                 <div style="color: #22c55e; font-weight: 700; font-size: 1.1rem; letter-spacing: 1px;">USER</div>
                 <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">Query Input</div>
-                <div style="color: #64748b; font-size: 0.75rem; margin-top: 12px; font-style: italic;">
-                    "What is ML?"
-                </div>
+                <div style="color: #64748b; font-size: 0.75rem; margin-top: 12px; font-style: italic;">"What is ML?"</div>
             </div>
-
-            <!-- Arrow 1 -->
             <div style="display: flex; flex-direction: column; align-items: center;">
-                <div style="color: {arrow1_color}; font-size: 2rem; font-weight: bold;
-                            text-shadow: {'0 0 10px ' + arrow1_color if current_step >= 1 else 'none'};">
-                    ───▶
-                </div>
+                <div style="color: {arrow1_color}; font-size: 2rem; font-weight: bold; text-shadow: {arrow1_shadow};">───▶</div>
                 <div style="color: {arrow1_color}; font-size: 0.7rem; margin-top: 4px;">(1) Query</div>
             </div>
-
-            <!-- Embedding API Card -->
-            <div style="background: {embed_style['bg']}; border: 3px solid {embed_style['border']};
-                        border-radius: 16px; padding: 28px 24px; min-width: 200px; text-align: center;
-                        box-shadow: {embed_style['shadow']}; opacity: {embed_style['opacity']};
-                        transition: all 0.4s ease;">
+            <div style="background: {embed_style['bg']}; border: 3px solid {embed_style['border']}; border-radius: 16px; padding: 28px 24px; min-width: 200px; text-align: center; box-shadow: {embed_style['shadow']}; opacity: {embed_style['opacity']}; transition: all 0.4s ease;">
                 <div style="font-size: 3.5rem; margin-bottom: 12px; filter: {embed_style['icon_filter']};">🔢</div>
                 <div style="color: #eab308; font-weight: 700; font-size: 1.1rem; letter-spacing: 1px;">EMBEDDING</div>
                 <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">OpenAI API</div>
                 <div style="color: #64748b; font-size: 0.75rem; margin-top: 4px;">text-embedding-3-large</div>
-                <div style="background: {'#052e16' if current_step > 1 else '#0f172a'}; border-radius: 20px;
-                            padding: 6px 16px; margin-top: 16px; display: inline-block;">
-                    <span style="color: {'#22c55e' if current_step > 1 else '#64748b'}; font-size: 1rem;
-                                font-weight: {'700' if current_step > 1 else '400'};">
-                        {embed_time}ms
-                    </span>
+                <div style="background: {embed_time_bg}; border-radius: 20px; padding: 6px 16px; margin-top: 16px; display: inline-block;">
+                    <span style="color: {embed_time_color}; font-size: 1rem; font-weight: {embed_time_weight};">{embed_time}ms</span>
                 </div>
             </div>
-
-            <!-- Arrow 2 -->
             <div style="display: flex; flex-direction: column; align-items: center;">
-                <div style="color: {arrow2_color}; font-size: 2rem; font-weight: bold;
-                            text-shadow: {'0 0 10px ' + arrow2_color if current_step >= 2 else 'none'};">
-                    ───▶
-                </div>
+                <div style="color: {arrow2_color}; font-size: 2rem; font-weight: bold; text-shadow: {arrow2_shadow};">───▶</div>
                 <div style="color: {arrow2_color}; font-size: 0.7rem; margin-top: 4px;">(2) Vector</div>
             </div>
-
-            <!-- PostgreSQL Card -->
-            <div style="background: {db_style['bg']}; border: 3px solid {db_style['border']};
-                        border-radius: 16px; padding: 28px 24px; min-width: 200px; text-align: center;
-                        box-shadow: {db_style['shadow']}; opacity: {db_style['opacity']};
-                        transition: all 0.4s ease;">
+            <div style="background: {db_style['bg']}; border: 3px solid {db_style['border']}; border-radius: 16px; padding: 28px 24px; min-width: 200px; text-align: center; box-shadow: {db_style['shadow']}; opacity: {db_style['opacity']}; transition: all 0.4s ease;">
                 <div style="font-size: 3.5rem; margin-bottom: 12px; filter: {db_style['icon_filter']};">🐘</div>
                 <div style="color: #8b5cf6; font-weight: 700; font-size: 1.1rem; letter-spacing: 1px;">POSTGRESQL</div>
                 <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">pgvector Extension</div>
                 <div style="color: #64748b; font-size: 0.75rem; margin-top: 4px;">25,000 Wikipedia docs</div>
-                <div style="background: {'#052e16' if current_step > 2 else '#0f172a'}; border-radius: 20px;
-                            padding: 6px 16px; margin-top: 16px; display: inline-block;">
-                    <span style="color: {'#22c55e' if current_step > 2 else '#64748b'}; font-size: 1rem;
-                                font-weight: {'700' if current_step > 2 else '400'};">
-                        {search_time}ms
-                    </span>
+                <div style="background: {search_time_bg}; border-radius: 20px; padding: 6px 16px; margin-top: 16px; display: inline-block;">
+                    <span style="color: {search_time_color}; font-size: 1rem; font-weight: {search_time_weight};">{search_time}ms</span>
                 </div>
             </div>
         </div>
-
-        <!-- Arrow down from DB to LLM -->
         <div style="display: flex; justify-content: center; margin: 20px 0;">
             <div style="display: flex; flex-direction: column; align-items: center;">
-                <div style="color: {arrow3_color}; font-size: 1.5rem;
-                            text-shadow: {'0 0 10px ' + arrow3_color if current_step >= 3 else 'none'};">│</div>
-                <div style="color: {arrow3_color}; font-size: 0.8rem; margin: 8px 0; font-weight: 600;">
-                    (3) Top-K Documents
-                </div>
-                <div style="color: {arrow3_color}; font-size: 1.5rem;
-                            text-shadow: {'0 0 10px ' + arrow3_color if current_step >= 3 else 'none'};">▼</div>
+                <div style="color: {arrow3_color}; font-size: 1.5rem; text-shadow: {arrow3_shadow};">│</div>
+                <div style="color: {arrow3_color}; font-size: 0.8rem; margin: 8px 0; font-weight: 600;">(3) Top-K Documents</div>
+                <div style="color: {arrow3_color}; font-size: 1.5rem; text-shadow: {arrow3_shadow};">▼</div>
             </div>
         </div>
-
-        <!-- Bottom Row: LLM + Final Answer -->
         <div style="display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap;">
-
-            <!-- LLM Card -->
-            <div style="background: {llm_style['bg']}; border: 3px solid {llm_style['border']};
-                        border-radius: 16px; padding: 28px 24px; min-width: 220px; text-align: center;
-                        box-shadow: {llm_style['shadow']}; opacity: {llm_style['opacity']};
-                        transition: all 0.4s ease;">
+            <div style="background: {llm_style['bg']}; border: 3px solid {llm_style['border']}; border-radius: 16px; padding: 28px 24px; min-width: 220px; text-align: center; box-shadow: {llm_style['shadow']}; opacity: {llm_style['opacity']}; transition: all 0.4s ease;">
                 <div style="font-size: 3.5rem; margin-bottom: 12px; filter: {llm_style['icon_filter']};">🤖</div>
                 <div style="color: #f97316; font-weight: 700; font-size: 1.1rem; letter-spacing: 1px;">LLM GENERATION</div>
                 <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px;">OpenAI GPT-5-mini</div>
                 <div style="color: #64748b; font-size: 0.75rem; margin-top: 4px;">Context + Query → Answer</div>
-                <div style="background: {'#052e16' if current_step > 3 else '#0f172a'}; border-radius: 20px;
-                            padding: 6px 16px; margin-top: 16px; display: inline-block;">
-                    <span style="color: {'#22c55e' if current_step > 3 else '#64748b'}; font-size: 1rem;
-                                font-weight: {'700' if current_step > 3 else '400'};">
-                        {llm_time}ms
-                    </span>
+                <div style="background: {llm_time_bg}; border-radius: 20px; padding: 6px 16px; margin-top: 16px; display: inline-block;">
+                    <span style="color: {llm_time_color}; font-size: 1rem; font-weight: {llm_time_weight};">{llm_time}ms</span>
                 </div>
             </div>
-
-            <!-- Arrow to Answer -->
             <div style="display: flex; flex-direction: column; align-items: center;">
-                <div style="color: {'#22c55e' if current_step >= 4 else '#334155'}; font-size: 2rem; font-weight: bold;
-                            text-shadow: {'0 0 15px rgba(34, 197, 94, 0.5)' if current_step >= 4 else 'none'};">
-                    ───▶
-                </div>
-                <div style="color: {'#22c55e' if current_step >= 4 else '#334155'}; font-size: 0.7rem; margin-top: 4px;">
-                    (4) Answer
-                </div>
+                <div style="color: {final_arrow_color}; font-size: 2rem; font-weight: bold; text-shadow: {final_arrow_shadow};">───▶</div>
+                <div style="color: {final_arrow_color}; font-size: 0.7rem; margin-top: 4px;">(4) Answer</div>
             </div>
-
-            <!-- Answer Card -->
-            <div style="background: {'linear-gradient(135deg, #052e16 0%, #064e3b 100%)' if current_step >= 4 else '#0f172a'};
-                        border: 3px solid {'#22c55e' if current_step >= 4 else '#1e293b'};
-                        border-radius: 16px; padding: 28px 24px; min-width: 180px; text-align: center;
-                        box-shadow: {'0 0 40px rgba(34, 197, 94, 0.4)' if current_step >= 4 else 'none'};
-                        opacity: {'1' if current_step >= 4 or not is_running else '0.4'};
-                        transition: all 0.4s ease;">
-                <div style="font-size: 3.5rem; margin-bottom: 12px;">{'✅' if current_step >= 4 else '📝'}</div>
-                <div style="color: {'#22c55e' if current_step >= 4 else '#64748b'}; font-weight: 700; font-size: 1.1rem;
-                            letter-spacing: 1px;">
-                    {'COMPLETE!' if current_step >= 4 else 'ANSWER'}
-                </div>
-                <div style="color: {'#86efac' if current_step >= 4 else '#475569'}; font-size: 0.85rem; margin-top: 8px;">
-                    {'Response Ready' if current_step >= 4 else 'Waiting...'}
-                </div>
+            <div style="background: {answer_bg}; border: 3px solid {answer_border}; border-radius: 16px; padding: 28px 24px; min-width: 180px; text-align: center; box-shadow: {answer_shadow}; opacity: {answer_opacity}; transition: all 0.4s ease;">
+                <div style="font-size: 3.5rem; margin-bottom: 12px;">{answer_icon}</div>
+                <div style="color: {answer_title_color}; font-weight: 700; font-size: 1.1rem; letter-spacing: 1px;">{answer_title}</div>
+                <div style="color: {answer_subtitle_color}; font-size: 0.85rem; margin-top: 8px;">{answer_subtitle}</div>
             </div>
         </div>
+        {total_time_html}
+    </div>'''
 
-        <!-- Total Time (shown when complete) -->
-        {'<div style="text-align: center; margin-top: 32px; padding-top: 24px; border-top: 2px solid #334155;">' +
-         '<span style="color: #94a3b8; font-size: 1.1rem;">Total Pipeline Latency: </span>' +
-         '<span style="color: #22c55e; font-size: 2rem; font-weight: 700; text-shadow: 0 0 20px rgba(34, 197, 94, 0.4);">' +
-         str(sum(st.session_state.rag_pipeline_times.values())) + 'ms</span>' +
-         '<div style="color: #64748b; font-size: 0.85rem; margin-top: 8px;">Retrieved 10 documents from 25,000</div></div>'
-         if current_step >= 4 else ''}
-
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(diagram_html, unsafe_allow_html=True)
 
     # Demo Query Input and Button
     col1, col2, col3 = st.columns([2, 1, 1])
@@ -672,118 +590,63 @@ def render_rag_architecture_section():
             # Source attribution banner
             if is_ml_query:
                 # No dedicated ML article - response is from LLM knowledge
-                source_banner = """
-                <div style="background: linear-gradient(90deg, #7c2d12 0%, #450a0a 100%);
-                            border-radius: 8px; padding: 16px; margin-bottom: 16px;
-                            border: 2px solid #dc2626; display: flex; align-items: center; gap: 16px;">
+                source_banner = '''<div style="background: linear-gradient(90deg, #7c2d12 0%, #450a0a 100%); border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 2px solid #dc2626; display: flex; align-items: center; gap: 16px;">
                     <div style="font-size: 2rem;">⚠️</div>
                     <div style="flex: 1;">
-                        <div style="color: #fca5a5; font-weight: 700; font-size: 1rem;">
-                            SOURCE: LLM GENERAL KNOWLEDGE
-                        </div>
-                        <div style="color: #fecaca; font-size: 0.85rem; margin-top: 4px;">
-                            No dedicated "Machine Learning" article found in corpus. Response is based on
-                            LLM's pre-trained knowledge, NOT retrieved documents.
-                        </div>
+                        <div style="color: #fca5a5; font-weight: 700; font-size: 1rem;">SOURCE: LLM GENERAL KNOWLEDGE</div>
+                        <div style="color: #fecaca; font-size: 0.85rem; margin-top: 4px;">No dedicated "Machine Learning" article found in corpus. Response is based on LLM pre-trained knowledge, NOT retrieved documents.</div>
                     </div>
-                    <div style="background: #450a0a; border-radius: 20px; padding: 8px 16px;
-                                border: 1px solid #dc2626;">
+                    <div style="background: #450a0a; border-radius: 20px; padding: 8px 16px; border: 1px solid #dc2626;">
                         <span style="color: #f87171; font-weight: 600; font-size: 0.9rem;">0% RAG</span>
                     </div>
-                </div>
-                """
+                </div>'''
                 response_border = "#dc2626"
-                retrieved_docs_section = """
-                <div style="background: #1c1917; border-radius: 8px; padding: 16px; margin-top: 16px;
-                            border: 1px solid #44403c;">
-                    <div style="color: #a8a29e; font-weight: 600; margin-bottom: 12px;">
-                        📄 Retrieved Documents (Related but NOT about ML):
-                    </div>
+                retrieved_docs_section = '''<div style="background: #1c1917; border-radius: 8px; padding: 16px; margin-top: 16px; border: 1px solid #44403c;">
+                    <div style="color: #a8a29e; font-weight: 600; margin-bottom: 12px;">📄 Retrieved Documents (Related but NOT about ML):</div>
                     <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                        <span style="background: #292524; padding: 6px 12px; border-radius: 6px;
-                                    color: #78716c; font-size: 0.8rem; border: 1px solid #44403c;">
-                            ❌ Artificial Intelligence (mentions ML)
-                        </span>
-                        <span style="background: #292524; padding: 6px 12px; border-radius: 6px;
-                                    color: #78716c; font-size: 0.8rem; border: 1px solid #44403c;">
-                            ❌ Neural Network (mentions ML)
-                        </span>
-                        <span style="background: #292524; padding: 6px 12px; border-radius: 6px;
-                                    color: #78716c; font-size: 0.8rem; border: 1px solid #44403c;">
-                            ❌ Data Mining (tangential)
-                        </span>
+                        <span style="background: #292524; padding: 6px 12px; border-radius: 6px; color: #78716c; font-size: 0.8rem; border: 1px solid #44403c;">❌ Artificial Intelligence (mentions ML)</span>
+                        <span style="background: #292524; padding: 6px 12px; border-radius: 6px; color: #78716c; font-size: 0.8rem; border: 1px solid #44403c;">❌ Neural Network (mentions ML)</span>
+                        <span style="background: #292524; padding: 6px 12px; border-radius: 6px; color: #78716c; font-size: 0.8rem; border: 1px solid #44403c;">❌ Data Mining (tangential)</span>
                     </div>
-                    <div style="color: #78716c; font-size: 0.75rem; margin-top: 12px; font-style: italic;">
-                        These documents mention "machine learning" but are not dedicated articles about the topic.
-                    </div>
-                </div>
-                """
+                    <div style="color: #78716c; font-size: 0.75rem; margin-top: 12px; font-style: italic;">These documents mention "machine learning" but are not dedicated articles about the topic.</div>
+                </div>'''
             else:
                 # Other queries - assume RAG-grounded response
-                source_banner = """
-                <div style="background: linear-gradient(90deg, #052e16 0%, #064e3b 100%);
-                            border-radius: 8px; padding: 16px; margin-bottom: 16px;
-                            border: 2px solid #22c55e; display: flex; align-items: center; gap: 16px;">
+                source_banner = '''<div style="background: linear-gradient(90deg, #052e16 0%, #064e3b 100%); border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 2px solid #22c55e; display: flex; align-items: center; gap: 16px;">
                     <div style="font-size: 2rem;">✅</div>
                     <div style="flex: 1;">
-                        <div style="color: #86efac; font-weight: 700; font-size: 1rem;">
-                            SOURCE: RAG-GROUNDED RESPONSE
-                        </div>
-                        <div style="color: #bbf7d0; font-size: 0.85rem; margin-top: 4px;">
-                            Response is generated using retrieved documents from the PostgreSQL database.
-                            Information is grounded in your corpus data.
-                        </div>
+                        <div style="color: #86efac; font-weight: 700; font-size: 1rem;">SOURCE: RAG-GROUNDED RESPONSE</div>
+                        <div style="color: #bbf7d0; font-size: 0.85rem; margin-top: 4px;">Response is generated using retrieved documents from the PostgreSQL database. Information is grounded in your corpus data.</div>
                     </div>
-                    <div style="background: #052e16; border-radius: 20px; padding: 8px 16px;
-                                border: 1px solid #22c55e;">
+                    <div style="background: #052e16; border-radius: 20px; padding: 8px 16px; border: 1px solid #22c55e;">
                         <span style="color: #22c55e; font-weight: 600; font-size: 0.9rem;">100% RAG</span>
                     </div>
-                </div>
-                """
+                </div>'''
                 response_border = "#22c55e"
-                retrieved_docs_section = """
-                <div style="background: #052e16; border-radius: 8px; padding: 16px; margin-top: 16px;
-                            border: 1px solid #166534;">
-                    <div style="color: #86efac; font-weight: 600; margin-bottom: 12px;">
-                        📄 Retrieved Documents Used:
-                    </div>
+                retrieved_docs_section = '''<div style="background: #052e16; border-radius: 8px; padding: 16px; margin-top: 16px; border: 1px solid #166534;">
+                    <div style="color: #86efac; font-weight: 600; margin-bottom: 12px;">📄 Retrieved Documents Used:</div>
                     <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                        <span style="background: #064e3b; padding: 6px 12px; border-radius: 6px;
-                                    color: #6ee7b7; font-size: 0.8rem; border: 1px solid #059669;">
-                            ✓ Relevant Article 1 (score: 0.92)
-                        </span>
-                        <span style="background: #064e3b; padding: 6px 12px; border-radius: 6px;
-                                    color: #6ee7b7; font-size: 0.8rem; border: 1px solid #059669;">
-                            ✓ Relevant Article 2 (score: 0.88)
-                        </span>
-                        <span style="background: #064e3b; padding: 6px 12px; border-radius: 6px;
-                                    color: #6ee7b7; font-size: 0.8rem; border: 1px solid #059669;">
-                            ✓ Relevant Article 3 (score: 0.85)
-                        </span>
+                        <span style="background: #064e3b; padding: 6px 12px; border-radius: 6px; color: #6ee7b7; font-size: 0.8rem; border: 1px solid #059669;">✓ Relevant Article 1 (score: 0.92)</span>
+                        <span style="background: #064e3b; padding: 6px 12px; border-radius: 6px; color: #6ee7b7; font-size: 0.8rem; border: 1px solid #059669;">✓ Relevant Article 2 (score: 0.88)</span>
+                        <span style="background: #064e3b; padding: 6px 12px; border-radius: 6px; color: #6ee7b7; font-size: 0.8rem; border: 1px solid #059669;">✓ Relevant Article 3 (score: 0.85)</span>
                     </div>
-                    <div style="color: #6ee7b7; font-size: 0.75rem; margin-top: 12px; font-style: italic;">
-                        Response is grounded in these retrieved documents from your corpus.
-                    </div>
-                </div>
-                """
+                    <div style="color: #6ee7b7; font-size: 0.75rem; margin-top: 12px; font-style: italic;">Response is grounded in these retrieved documents from your corpus.</div>
+                </div>'''
 
-            st.markdown(f"""
-            {source_banner}
-            <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-                        border-radius: 12px; padding: 24px; margin: 16px 0;
-                        border-left: 4px solid {response_border};">
+            # Pre-compute conditional values
+            source_label = "⚠️ Based on general knowledge" if is_ml_query else "✅ Based on retrieved documents"
+            grounding_html = '<span style="color: #f87171;">LLM Pre-trained Knowledge</span>' if is_ml_query else '<span style="color: #22c55e;">Corpus Documents</span>'
+            llm_latency = st.session_state.rag_pipeline_times.get('step_3', 800)
+
+            response_html = f'''{source_banner}
+            <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 12px; padding: 24px; margin: 16px 0; border-left: 4px solid {response_border};">
                 <div style="display: flex; align-items: center; margin-bottom: 16px;">
                     <span style="font-size: 1.5rem; margin-right: 12px;">🤖</span>
                     <span style="color: {response_border}; font-weight: 600; font-size: 1rem;">GPT-5-mini Response</span>
-                    <span style="color: #64748b; font-size: 0.8rem; margin-left: auto;">
-                        {'⚠️ Based on general knowledge' if is_ml_query else '✅ Based on retrieved documents'}
-                    </span>
+                    <span style="color: #64748b; font-size: 0.8rem; margin-left: auto;">{source_label}</span>
                 </div>
                 <div style="color: #f8fafc; font-size: 1rem; line-height: 1.7;">
-                    <strong style="color: #eab308;">Machine Learning</strong> is a subset of artificial intelligence
-                    that enables computers to learn and improve from experience without being explicitly programmed.
-                    It focuses on developing algorithms that can access data, learn from it, and make predictions
-                    or decisions.<br><br>
+                    <strong style="color: #eab308;">Machine Learning</strong> is a subset of artificial intelligence that enables computers to learn and improve from experience without being explicitly programmed. It focuses on developing algorithms that can access data, learn from it, and make predictions or decisions.<br><br>
                     Key concepts include:
                     <ul style="color: #94a3b8; margin-top: 12px;">
                         <li><strong style="color: #f8fafc;">Supervised Learning:</strong> Training with labeled data</li>
@@ -795,36 +658,25 @@ def render_rag_architecture_section():
                 <div style="border-top: 1px solid #334155; margin-top: 20px; padding-top: 16px;">
                     <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
                         <div style="color: #64748b; font-size: 0.8rem;">
-                            <span style="color: #94a3b8;">Grounding:</span>
-                            {'<span style="color: #f87171;">LLM Pre-trained Knowledge</span>' if is_ml_query else '<span style="color: #22c55e;">Corpus Documents</span>'}
+                            <span style="color: #94a3b8;">Grounding:</span> {grounding_html}
                         </div>
                         <div style="color: #64748b; font-size: 0.8rem;">
                             <span style="color: #3b82f6;">Tokens:</span> ~180 |
-                            <span style="color: #22c55e;">Latency:</span> {st.session_state.rag_pipeline_times.get('step_3', 800)}ms
+                            <span style="color: #22c55e;">Latency:</span> {llm_latency}ms
                         </div>
                     </div>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
+            </div>'''
+
+            st.markdown(response_html, unsafe_allow_html=True)
 
             # Educational callout for ML query
             if is_ml_query:
-                st.markdown("""
-                <div style="background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
-                            border-radius: 8px; padding: 16px; margin-top: 16px;
-                            border-left: 4px solid #3b82f6;">
-                    <div style="color: #93c5fd; font-weight: 600; margin-bottom: 8px;">
-                        💡 This is exactly the problem we investigate in Act 3!
-                    </div>
-                    <div style="color: #94a3b8; font-size: 0.9rem;">
-                        The RAG system retrieved documents that <em>mention</em> "machine learning" but there's
-                        <strong style="color: #f8fafc;">no dedicated article about ML</strong> in our 25k Wikipedia subset.
-                        The LLM falls back to its general knowledge, which may be outdated or hallucinated.
-                        <br><br>
-                        <strong style="color: #fbbf24;">This is a corpus coverage problem, not a search algorithm problem!</strong>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                callout_html = '''<div style="background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%); border-radius: 8px; padding: 16px; margin-top: 16px; border-left: 4px solid #3b82f6;">
+                    <div style="color: #93c5fd; font-weight: 600; margin-bottom: 8px;">💡 This is exactly the problem we investigate in Act 3!</div>
+                    <div style="color: #94a3b8; font-size: 0.9rem;">The RAG system retrieved documents that <em>mention</em> "machine learning" but there is <strong style="color: #f8fafc;">no dedicated article about ML</strong> in our 25k Wikipedia subset. The LLM falls back to its general knowledge, which may be outdated or hallucinated.<br><br><strong style="color: #fbbf24;">This is a corpus coverage problem, not a search algorithm problem!</strong></div>
+                </div>'''
+                st.markdown(callout_html, unsafe_allow_html=True)
 
     st.markdown("---")
 
