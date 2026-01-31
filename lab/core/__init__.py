@@ -21,6 +21,12 @@ from .search import (
 )
 from .ranking import RankingService
 from .generation import GenerationService
+from .timing import (
+    TimingBreakdown,
+    TimedEmbedder,
+    TimedVectorSearch,
+    TimedDatabaseService
+)
 
 __all__ = [
     'ConfigService',
@@ -34,7 +40,11 @@ __all__ = [
     'HybridSearch',
     'AdaptiveSearch',
     'RankingService',
-    'GenerationService'
+    'GenerationService',
+    'TimingBreakdown',
+    'TimedEmbedder',
+    'TimedVectorSearch',
+    'TimedDatabaseService'
 ]
 
 __version__ = '0.1.0'

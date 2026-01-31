@@ -63,6 +63,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from lab.core.database import DatabaseService
 from lab.core.embeddings import OpenAIEmbedder
 from lab.core.search import VectorSearch, SearchResult
+from lab.core.timing import TimedVectorSearch, TimingBreakdown
 from lab.evaluation.evaluator import TestCase, RetrievalEvaluator
 
 
@@ -243,6 +244,272 @@ def run_single_experiment(
     print(f"✓ Completed {len(results_summary)} experiments")
 
     return results_summary
+
+
+def run_single_experiment_with_timing(
+    test_cases: List[TestCase],
+    db_url: str,
+    table_name: str,
+    vector_column: str,
+    content_columns: List[str],
+    k_retrieve: int,
+    k_context: int,
+    id_column: str = "id",
+    progress_callback: Optional[callable] = None
+) -> List[Dict[str, Any]]:
+    """
+    Run retrieval experiment with detailed timing breakdown.
+
+    This function is designed for the Streamlit K-Balance UI, providing
+    separate timing for embedding generation vs database queries.
+
+    Args:
+        test_cases: List of test cases with queries and ground truth
+        db_url: PostgreSQL connection string
+        table_name: Table containing documents (e.g., 'articles')
+        vector_column: Column with dense embeddings (e.g., 'content_vector_3072')
+        content_columns: Columns to return as content (e.g., ['title', 'content'])
+        k_retrieve: Number of candidates to retrieve from vector database
+        k_context: Number of documents to include in final context
+        id_column: Name of ID column (default: 'id')
+        progress_callback: Optional callback function(current, total) for progress updates
+
+    Returns:
+        List of dictionaries with metrics and timing breakdown for each query
+    """
+    # Initialize services
+    db_service = DatabaseService(connection_string=db_url)
+    embedder = OpenAIEmbedder()
+
+    # Create base vector search
+    base_search = VectorSearch(
+        db_service=db_service,
+        embedding_service=embedder,
+        table_name=table_name,
+        vector_column=vector_column,
+        content_columns=content_columns,
+        id_column=id_column
+    )
+
+    # Wrap with timing instrumentation
+    timed_search = TimedVectorSearch(base_search)
+
+    results_summary: List[Dict[str, Any]] = []
+
+    for i, case in enumerate(test_cases):
+        if progress_callback:
+            progress_callback(i, len(test_cases))
+
+        # Perform timed vector search
+        try:
+            search_results: List[SearchResult] = timed_search.search(
+                case.query, top_k=k_retrieve
+            )
+        except Exception as exc:
+            print(f"  Error during search: {exc}")
+            continue
+
+        # Get timing breakdown
+        timing = timed_search.get_timing_breakdown()
+
+        # Extract retrieved IDs
+        retrieved_ids = [res.id for res in search_results]
+
+        # Compute retrieval metrics at k_retrieve
+        precision = RetrievalEvaluator.precision_at_k(
+            retrieved_ids, case.expected_doc_ids, k_retrieve
+        )
+        recall = RetrievalEvaluator.recall_at_k(
+            retrieved_ids, case.expected_doc_ids, k_retrieve
+        )
+        f1 = RetrievalEvaluator.f1_at_k(
+            retrieved_ids, case.expected_doc_ids, k_retrieve
+        )
+        ndcg = RetrievalEvaluator.ndcg_at_k(
+            retrieved_ids, case.expected_doc_ids, k_retrieve
+        )
+        mrr = RetrievalEvaluator.mean_reciprocal_rank(
+            retrieved_ids, case.expected_doc_ids
+        )
+
+        # Build context of top k_context documents
+        context_docs = search_results[:k_context]
+        context_tokens = estimate_context_tokens(context_docs)
+
+        # Count relevant documents found
+        relevant_found = len(set(retrieved_ids[:k_retrieve]) & set(case.expected_doc_ids))
+        total_relevant = len(case.expected_doc_ids)
+
+        results_summary.append({
+            "query": case.query,
+            "query_metadata": case.metadata,
+            "k_retrieve": k_retrieve,
+            "k_context": k_context,
+            "precision@k": round(precision, 4),
+            "recall@k": round(recall, 4),
+            "f1@k": round(f1, 4),
+            "ndcg@k": round(ndcg, 4),
+            "mrr": round(mrr, 4),
+            # Total latency for backward compatibility
+            "latency_ms": round(timing.total_time_ms, 1),
+            # Detailed timing breakdown
+            "embed_time_ms": round(timing.embed_time_ms, 1),
+            "db_time_ms": round(timing.db_time_ms, 1),
+            "context_tokens": context_tokens,
+            "relevant_found": relevant_found,
+            "total_relevant": total_relevant,
+            "total_retrieved": len(retrieved_ids)
+        })
+
+    # Close database connections
+    db_service.close()
+
+    if progress_callback:
+        progress_callback(len(test_cases), len(test_cases))
+
+    return results_summary
+
+
+def run_multi_k_experiment_with_timing(
+    test_cases: List[TestCase],
+    db_url: str,
+    table_name: str,
+    vector_column: str,
+    content_columns: List[str],
+    k_retrieve_values: List[int],
+    k_context_values: List[int],
+    id_column: str = "id",
+    progress_callback: Optional[callable] = None
+) -> Dict[str, Any]:
+    """
+    Run experiments across multiple k value combinations with timing breakdown.
+
+    Designed for the Streamlit K-Balance UI with progress tracking.
+
+    Args:
+        test_cases: Test cases to evaluate
+        db_url: Database connection string
+        table_name: Table name
+        vector_column: Vector column name
+        content_columns: Content columns
+        k_retrieve_values: List of k_retrieve values to test
+        k_context_values: List of k_context values to test
+        id_column: ID column name
+        progress_callback: Optional callback function(current, total, message)
+
+    Returns:
+        Dictionary with all experiment results and summary statistics
+    """
+    all_results = []
+    total_configs = sum(1 for k_ret in k_retrieve_values
+                        for k_ctx in k_context_values if k_ctx <= k_ret)
+    config_num = 0
+
+    for k_ret in k_retrieve_values:
+        for k_ctx in k_context_values:
+            if k_ctx > k_ret:
+                continue
+
+            config_num += 1
+
+            if progress_callback:
+                progress_callback(
+                    config_num - 1,
+                    total_configs,
+                    f"Testing k_retrieve={k_ret}, k_context={k_ctx}"
+                )
+
+            results = run_single_experiment_with_timing(
+                test_cases=test_cases,
+                db_url=db_url,
+                table_name=table_name,
+                vector_column=vector_column,
+                content_columns=content_columns,
+                k_retrieve=k_ret,
+                k_context=k_ctx,
+                id_column=id_column
+            )
+
+            all_results.extend(results)
+
+    if progress_callback:
+        progress_callback(total_configs, total_configs, "Complete!")
+
+    # Compute summary statistics with timing
+    summary = compute_summary_statistics_with_timing(
+        all_results, k_retrieve_values, k_context_values
+    )
+
+    return {
+        "metadata": {
+            "table_name": table_name,
+            "vector_column": vector_column,
+            "num_test_cases": len(test_cases),
+            "k_retrieve_values": k_retrieve_values,
+            "k_context_values": k_context_values
+        },
+        "detailed_results": all_results,
+        "summary": summary
+    }
+
+
+def compute_summary_statistics_with_timing(
+    results: List[Dict[str, Any]],
+    k_retrieve_values: List[int],
+    k_context_values: List[int]
+) -> Dict[str, Any]:
+    """
+    Compute summary statistics including timing breakdown.
+
+    Args:
+        results: List of experiment results
+        k_retrieve_values: List of k_retrieve values tested
+        k_context_values: List of k_context values tested
+
+    Returns:
+        Dictionary with summary statistics including timing
+    """
+    import numpy as np
+
+    summary = {}
+
+    for k_ret in k_retrieve_values:
+        for k_ctx in k_context_values:
+            if k_ctx > k_ret:
+                continue
+
+            key = f"k_ret_{k_ret}_ctx_{k_ctx}"
+
+            # Filter results for this combination
+            filtered = [r for r in results
+                       if r["k_retrieve"] == k_ret and r["k_context"] == k_ctx]
+
+            if not filtered:
+                continue
+
+            # Compute means including timing
+            summary[key] = {
+                "k_retrieve": k_ret,
+                "k_context": k_ctx,
+                "num_queries": len(filtered),
+                "avg_precision@k": round(np.mean([r["precision@k"] for r in filtered]), 4),
+                "avg_recall@k": round(np.mean([r["recall@k"] for r in filtered]), 4),
+                "avg_f1@k": round(np.mean([r["f1@k"] for r in filtered]), 4),
+                "avg_ndcg@k": round(np.mean([r["ndcg@k"] for r in filtered]), 4),
+                "avg_mrr": round(np.mean([r["mrr"] for r in filtered]), 4),
+                "avg_latency_ms": round(np.mean([r["latency_ms"] for r in filtered]), 1),
+                # Timing breakdown
+                "avg_embed_time_ms": round(np.mean([r.get("embed_time_ms", 0) for r in filtered]), 1),
+                "avg_db_time_ms": round(np.mean([r.get("db_time_ms", 0) for r in filtered]), 1),
+                "avg_context_tokens": round(np.mean([r["context_tokens"] for r in filtered]), 0),
+                # Standard deviations
+                "std_precision@k": round(np.std([r["precision@k"] for r in filtered]), 4),
+                "std_recall@k": round(np.std([r["recall@k"] for r in filtered]), 4),
+                "std_ndcg@k": round(np.std([r["ndcg@k"] for r in filtered]), 4),
+                "std_latency_ms": round(np.std([r["latency_ms"] for r in filtered]), 1)
+            }
+
+    return summary
 
 
 def run_multi_k_experiment(
