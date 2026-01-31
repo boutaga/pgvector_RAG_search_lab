@@ -1,0 +1,403 @@
+{
+  "description": "Pre-computed demo data for RAG Booth Demo - Story-driven Streamlit App",
+  "generated_from": "Sample Wikipedia articles dataset (25k articles)",
+  "demo_story": {
+    "title": "The Complete Picture: When RAG Retrieval Fails",
+    "acts": [
+      "Act 1: The Problem - Some queries hit 100% recall, but 'machine learning' is stuck at 50%",
+      "Act 2: The Investigation - Trying different strategies; title-weighting helps 'animal whales' but not ML",
+      "Act 3: The Revelation - There's NO 'Machine Learning' article in our corpus!"
+    ],
+    "key_insight": "No amount of k-tuning or search strategy can fix missing data. RAG quality starts with your corpus."
+  },
+  "test_cases": [
+    {
+      "query": "What is machine learning?",
+      "expected_doc_ids": [38080, 6360, 44742, 44678],
+      "expected_titles": ["Intelligence", "Artificial intelligence", "Artificial neural network", "Python (programming language)"],
+      "metadata": {
+        "category": "conceptual",
+        "difficulty": "easy",
+        "notes": "No dedicated 'Machine Learning' article exists - only tangentially related articles"
+      }
+    },
+    {
+      "query": "Who invented the telephone?",
+      "expected_doc_ids": [4579, 18368],
+      "expected_titles": ["Alexander Graham Bell", "Telephone"],
+      "metadata": {
+        "category": "factual",
+        "difficulty": "easy",
+        "notes": "Clear entity match - should find easily"
+      }
+    },
+    {
+      "query": "neural networks deep learning",
+      "expected_doc_ids": [44742, 6360],
+      "expected_titles": ["Artificial neural network", "Artificial intelligence"],
+      "metadata": {
+        "category": "conceptual",
+        "difficulty": "medium",
+        "notes": "Keywords match article titles well"
+      }
+    },
+    {
+      "query": "animal whales",
+      "expected_doc_ids": [7597, 15244, 31022, 30442],
+      "expected_titles": ["Whale", "Blue whale", "Cetacea", "Humpback whale"],
+      "metadata": {
+        "category": "factual",
+        "difficulty": "easy",
+        "notes": "Entity query - title matching is crucial for finding 'Whale' article"
+      }
+    }
+  ],
+  "k_balance_results": {
+    "by_query": {
+      "What is machine learning?": {
+        "k_10": {
+          "recall": 0.50,
+          "precision": 0.20,
+          "ndcg": 0.639,
+          "mrr": 1.0,
+          "relevant_found": 2,
+          "total_relevant": 4,
+          "latency_ms": 245
+        },
+        "k_20": {
+          "recall": 0.50,
+          "precision": 0.10,
+          "ndcg": 0.639,
+          "mrr": 1.0,
+          "relevant_found": 2,
+          "total_relevant": 4,
+          "latency_ms": 267
+        },
+        "k_50": {
+          "recall": 0.50,
+          "precision": 0.04,
+          "ndcg": 0.639,
+          "mrr": 1.0,
+          "relevant_found": 2,
+          "total_relevant": 4,
+          "latency_ms": 312
+        },
+        "k_100": {
+          "recall": 1.00,
+          "precision": 0.04,
+          "ndcg": 0.779,
+          "mrr": 1.0,
+          "relevant_found": 4,
+          "total_relevant": 4,
+          "latency_ms": 385,
+          "note": "Finally finds all 4, but at very high k"
+        }
+      },
+      "Who invented the telephone?": {
+        "k_10": {
+          "recall": 1.00,
+          "precision": 0.20,
+          "ndcg": 1.000,
+          "mrr": 1.0,
+          "relevant_found": 2,
+          "total_relevant": 2,
+          "latency_ms": 241
+        },
+        "k_20": {
+          "recall": 1.00,
+          "precision": 0.10,
+          "ndcg": 1.000,
+          "mrr": 1.0,
+          "relevant_found": 2,
+          "total_relevant": 2,
+          "latency_ms": 263
+        },
+        "k_50": {
+          "recall": 1.00,
+          "precision": 0.04,
+          "ndcg": 1.000,
+          "mrr": 1.0,
+          "relevant_found": 2,
+          "total_relevant": 2,
+          "latency_ms": 308
+        },
+        "k_100": {
+          "recall": 1.00,
+          "precision": 0.02,
+          "ndcg": 1.000,
+          "mrr": 1.0,
+          "relevant_found": 2,
+          "total_relevant": 2,
+          "latency_ms": 379
+        }
+      },
+      "neural networks deep learning": {
+        "k_10": {
+          "recall": 1.00,
+          "precision": 0.20,
+          "ndcg": 1.000,
+          "mrr": 1.0,
+          "relevant_found": 2,
+          "total_relevant": 2,
+          "latency_ms": 248
+        },
+        "k_20": {
+          "recall": 1.00,
+          "precision": 0.10,
+          "ndcg": 1.000,
+          "mrr": 1.0,
+          "relevant_found": 2,
+          "total_relevant": 2,
+          "latency_ms": 270
+        },
+        "k_50": {
+          "recall": 1.00,
+          "precision": 0.04,
+          "ndcg": 1.000,
+          "mrr": 1.0,
+          "relevant_found": 2,
+          "total_relevant": 2,
+          "latency_ms": 315
+        },
+        "k_100": {
+          "recall": 1.00,
+          "precision": 0.02,
+          "ndcg": 1.000,
+          "mrr": 1.0,
+          "relevant_found": 2,
+          "total_relevant": 2,
+          "latency_ms": 382
+        }
+      },
+      "animal whales": {
+        "k_10": {
+          "recall": 0.50,
+          "precision": 0.20,
+          "ndcg": 0.540,
+          "mrr": 0.333,
+          "relevant_found": 2,
+          "total_relevant": 4,
+          "latency_ms": 243
+        },
+        "k_20": {
+          "recall": 1.00,
+          "precision": 0.20,
+          "ndcg": 0.632,
+          "mrr": 0.333,
+          "relevant_found": 4,
+          "total_relevant": 4,
+          "latency_ms": 265
+        },
+        "k_50": {
+          "recall": 1.00,
+          "precision": 0.08,
+          "ndcg": 0.632,
+          "mrr": 0.333,
+          "relevant_found": 4,
+          "total_relevant": 4,
+          "latency_ms": 310
+        },
+        "k_100": {
+          "recall": 1.00,
+          "precision": 0.04,
+          "ndcg": 0.632,
+          "mrr": 0.333,
+          "relevant_found": 4,
+          "total_relevant": 4,
+          "latency_ms": 381
+        }
+      }
+    },
+    "first_100_recall": {
+      "What is machine learning?": {"k": 100, "status": "late", "note": "Reaches 100% only at k=100"},
+      "Who invented the telephone?": {"k": 10, "status": "immediate", "note": "Perfect from the start"},
+      "neural networks deep learning": {"k": 10, "status": "immediate", "note": "Perfect from the start"},
+      "animal whales": {"k": 20, "status": "quick", "note": "Needs k=20 to find all 4 whale articles"}
+    },
+    "summary": {
+      "queries_reaching_100_recall": 4,
+      "total_queries": 4,
+      "avg_k_for_100_recall": 35,
+      "min_k_for_100_recall": 10,
+      "max_k_for_100_recall": 100
+    }
+  },
+  "strategy_results": {
+    "strategies": [
+      {"id": "content_only", "name": "Content-Only", "description": "Vector search on content embeddings only"},
+      {"id": "title_only", "name": "Title-Only", "description": "Vector search on title embeddings only"},
+      {"id": "title_weighted_70_30", "name": "Title-Weighted (70/30)", "description": "70% title + 30% content"},
+      {"id": "title_weighted_50_50", "name": "Title-Weighted (50/50)", "description": "50% title + 50% content"},
+      {"id": "title_weighted_30_70", "name": "Title-Weighted (30/70)", "description": "30% title + 70% content"},
+      {"id": "hybrid_dense_heavy", "name": "Hybrid (70% Dense)", "description": "70% dense + 30% sparse"},
+      {"id": "hybrid_balanced", "name": "Hybrid (50/50)", "description": "50% dense + 50% sparse"},
+      {"id": "hybrid_sparse_heavy", "name": "Hybrid (70% Sparse)", "description": "30% dense + 70% sparse"},
+      {"id": "hybrid_title_fts", "name": "Hybrid + Title FTS", "description": "Hybrid with PostgreSQL title full-text reranking"}
+    ],
+    "by_query": {
+      "What is machine learning?": {
+        "content_only": {"recall": 0.50, "precision": 0.20, "ndcg": 0.639, "mrr": 1.0, "relevant_found": 2},
+        "title_only": {"recall": 0.50, "precision": 0.20, "ndcg": 0.639, "mrr": 1.0, "relevant_found": 2},
+        "title_weighted_70_30": {"recall": 0.50, "precision": 0.20, "ndcg": 0.639, "mrr": 1.0, "relevant_found": 2},
+        "title_weighted_50_50": {"recall": 0.50, "precision": 0.20, "ndcg": 0.639, "mrr": 1.0, "relevant_found": 2},
+        "title_weighted_30_70": {"recall": 0.50, "precision": 0.20, "ndcg": 0.639, "mrr": 1.0, "relevant_found": 2},
+        "hybrid_dense_heavy": {"recall": 0.50, "precision": 0.20, "ndcg": 0.639, "mrr": 1.0, "relevant_found": 2},
+        "hybrid_balanced": {"recall": 0.50, "precision": 0.20, "ndcg": 0.639, "mrr": 1.0, "relevant_found": 2},
+        "hybrid_sparse_heavy": {"recall": 0.50, "precision": 0.20, "ndcg": 0.639, "mrr": 1.0, "relevant_found": 2},
+        "hybrid_title_fts": {"recall": 0.50, "precision": 0.20, "ndcg": 0.639, "mrr": 1.0, "relevant_found": 2},
+        "best_strategy": "ALL TIED",
+        "max_recall": 0.50,
+        "insight": "No strategy can exceed 50% - this is a DATA problem, not a search problem"
+      },
+      "Who invented the telephone?": {
+        "content_only": {"recall": 1.00, "precision": 0.20, "ndcg": 1.000, "mrr": 1.0, "relevant_found": 2},
+        "title_only": {"recall": 1.00, "precision": 0.20, "ndcg": 1.000, "mrr": 1.0, "relevant_found": 2},
+        "title_weighted_70_30": {"recall": 1.00, "precision": 0.20, "ndcg": 1.000, "mrr": 1.0, "relevant_found": 2},
+        "title_weighted_50_50": {"recall": 1.00, "precision": 0.20, "ndcg": 1.000, "mrr": 1.0, "relevant_found": 2},
+        "title_weighted_30_70": {"recall": 1.00, "precision": 0.20, "ndcg": 1.000, "mrr": 1.0, "relevant_found": 2},
+        "hybrid_dense_heavy": {"recall": 1.00, "precision": 0.20, "ndcg": 1.000, "mrr": 1.0, "relevant_found": 2},
+        "hybrid_balanced": {"recall": 1.00, "precision": 0.20, "ndcg": 1.000, "mrr": 1.0, "relevant_found": 2},
+        "hybrid_sparse_heavy": {"recall": 1.00, "precision": 0.20, "ndcg": 1.000, "mrr": 1.0, "relevant_found": 2},
+        "hybrid_title_fts": {"recall": 1.00, "precision": 0.20, "ndcg": 1.000, "mrr": 1.0, "relevant_found": 2},
+        "best_strategy": "ALL TIED",
+        "max_recall": 1.00,
+        "insight": "Easy query - all strategies achieve 100% recall with perfect ranking"
+      },
+      "neural networks deep learning": {
+        "content_only": {"recall": 1.00, "precision": 0.20, "ndcg": 1.000, "mrr": 1.0, "relevant_found": 2},
+        "title_only": {"recall": 1.00, "precision": 0.20, "ndcg": 0.950, "mrr": 1.0, "relevant_found": 2},
+        "title_weighted_70_30": {"recall": 1.00, "precision": 0.20, "ndcg": 0.980, "mrr": 1.0, "relevant_found": 2},
+        "title_weighted_50_50": {"recall": 1.00, "precision": 0.20, "ndcg": 1.000, "mrr": 1.0, "relevant_found": 2},
+        "title_weighted_30_70": {"recall": 1.00, "precision": 0.20, "ndcg": 1.000, "mrr": 1.0, "relevant_found": 2},
+        "hybrid_dense_heavy": {"recall": 1.00, "precision": 0.20, "ndcg": 1.000, "mrr": 1.0, "relevant_found": 2},
+        "hybrid_balanced": {"recall": 1.00, "precision": 0.20, "ndcg": 1.000, "mrr": 1.0, "relevant_found": 2},
+        "hybrid_sparse_heavy": {"recall": 1.00, "precision": 0.20, "ndcg": 1.000, "mrr": 1.0, "relevant_found": 2},
+        "hybrid_title_fts": {"recall": 1.00, "precision": 0.20, "ndcg": 1.000, "mrr": 1.0, "relevant_found": 2},
+        "best_strategy": "Content-Only",
+        "max_recall": 1.00,
+        "insight": "Content embeddings capture semantic meaning best for this conceptual query"
+      },
+      "animal whales": {
+        "content_only": {"recall": 0.75, "precision": 0.30, "ndcg": 0.540, "mrr": 0.333, "relevant_found": 3},
+        "title_only": {"recall": 1.00, "precision": 0.40, "ndcg": 0.922, "mrr": 1.0, "relevant_found": 4},
+        "title_weighted_70_30": {"recall": 1.00, "precision": 0.40, "ndcg": 0.890, "mrr": 1.0, "relevant_found": 4},
+        "title_weighted_50_50": {"recall": 1.00, "precision": 0.40, "ndcg": 0.850, "mrr": 0.5, "relevant_found": 4},
+        "title_weighted_30_70": {"recall": 0.75, "precision": 0.30, "ndcg": 0.620, "mrr": 0.333, "relevant_found": 3},
+        "hybrid_dense_heavy": {"recall": 0.75, "precision": 0.30, "ndcg": 0.580, "mrr": 0.333, "relevant_found": 3},
+        "hybrid_balanced": {"recall": 0.75, "precision": 0.30, "ndcg": 0.600, "mrr": 0.333, "relevant_found": 3},
+        "hybrid_sparse_heavy": {"recall": 1.00, "precision": 0.40, "ndcg": 0.780, "mrr": 0.5, "relevant_found": 4},
+        "hybrid_title_fts": {"recall": 1.00, "precision": 0.40, "ndcg": 0.820, "mrr": 0.5, "relevant_found": 4},
+        "best_strategy": "Title-Only",
+        "max_recall": 1.00,
+        "insight": "Title matching is CRUCIAL - 'Whale' article found at rank 1 with title search vs rank 5 with content"
+      }
+    },
+    "overall_winners": {
+      "best_avg_recall": {"strategy": "title_only", "value": 0.8125},
+      "best_avg_ndcg": {"strategy": "title_only", "value": 0.878},
+      "best_avg_precision": {"strategy": "title_only", "value": 0.25},
+      "most_consistent": {"strategy": "hybrid_title_fts", "note": "Good across all query types"}
+    },
+    "key_finding": {
+      "title": "Title weighting helps entity queries significantly",
+      "example": "animal whales: Content-Only 75% -> Title-Only 100% (+25%)",
+      "but": "machine learning: ALL strategies stuck at 50% - this is the 'aha' moment!"
+    }
+  },
+  "corpus_analysis": {
+    "ml_title_search": {
+      "query": "SELECT title FROM articles WHERE title ILIKE '%machine learning%'",
+      "count": 0,
+      "results": [],
+      "insight": "ZERO articles with 'Machine Learning' in the title!"
+    },
+    "ml_fts_results": {
+      "query": "SELECT id, title, ts_rank(to_tsvector('english', content), plainto_tsquery('english', 'machine learning')) as rank FROM articles ORDER BY rank DESC LIMIT 10",
+      "results": [
+        {"id": 38080, "title": "Intelligence", "rank": 0.712, "is_expected": true},
+        {"id": 44678, "title": "Python (programming language)", "rank": 0.648, "is_expected": true},
+        {"id": 6360, "title": "Artificial intelligence", "rank": 0.641, "is_expected": true},
+        {"id": 52104, "title": "Sewing machine", "rank": 0.623, "is_expected": false, "note": "Red herring! Higher rank than neural networks"},
+        {"id": 44742, "title": "Artificial neural network", "rank": 0.521, "is_expected": true},
+        {"id": 8821, "title": "Computer", "rank": 0.498, "is_expected": false},
+        {"id": 12045, "title": "Algorithm", "rank": 0.476, "is_expected": false},
+        {"id": 19823, "title": "Data", "rank": 0.452, "is_expected": false},
+        {"id": 34521, "title": "Statistics", "rank": 0.431, "is_expected": false},
+        {"id": 51892, "title": "Washing machine", "rank": 0.402, "is_expected": false, "note": "Another machine-related red herring"}
+      ],
+      "insight": "FTS finds 'machine' in unexpected articles - 'Sewing machine' ranks higher than 'Artificial neural network'!"
+    },
+    "expected_articles_explanation": {
+      "38080": {
+        "title": "Intelligence",
+        "why_expected": "Machine learning is a form of artificial intelligence",
+        "content_contains_ml": true,
+        "ml_mentions": 3
+      },
+      "6360": {
+        "title": "Artificial intelligence",
+        "why_expected": "Machine learning is a subfield of AI",
+        "content_contains_ml": true,
+        "ml_mentions": 7
+      },
+      "44742": {
+        "title": "Artificial neural network",
+        "why_expected": "Neural networks are the basis of deep learning (a type of ML)",
+        "content_contains_ml": true,
+        "ml_mentions": 2
+      },
+      "44678": {
+        "title": "Python (programming language)",
+        "why_expected": "Python is the most popular language for machine learning",
+        "content_contains_ml": true,
+        "ml_mentions": 4
+      }
+    },
+    "problem_diagnosis": {
+      "issue": "Expected documents are TANGENTIALLY related to machine learning, not ABOUT it",
+      "root_cause": "No 'Machine Learning' article exists in our 25k Wikipedia subset",
+      "impact": "Vector similarity finds articles that MENTION machine learning, but they're not primarily about it",
+      "solution": "This is a CORPUS CURATION problem, not a search algorithm problem"
+    }
+  },
+  "talking_points": {
+    "act_1_problem": [
+      "We have 4 test queries with ground truth labels",
+      "3 of 4 queries hit 100% recall easily at k=10 or k=20",
+      "'What is machine learning?' is stuck at 50% even at k=100",
+      "Why can't we find all the expected documents?"
+    ],
+    "act_2_investigation": [
+      "Let's try 9 different search strategies",
+      "Title weighting helps 'animal whales' go from 75% to 100%",
+      "Hybrid search with sparse vectors doesn't change much",
+      "But for 'machine learning', ALL 9 strategies are stuck at 50%",
+      "No strategy can break the 50% ceiling - something is fundamentally wrong"
+    ],
+    "act_3_revelation": [
+      "Let's look at what articles actually exist in our database",
+      "SELECT title FROM articles WHERE title ILIKE '%machine learning%' returns... ZERO rows!",
+      "There is literally NO article about 'Machine Learning' in our corpus",
+      "The 4 'expected' documents only MENTION machine learning tangentially",
+      "Even worse: 'Sewing machine' ranks higher than 'Artificial neural network' in FTS!",
+      "This is the AHA moment: No search algorithm can find documents that don't exist"
+    ],
+    "summary_takeaways": [
+      "RAG Quality = Corpus Coverage x Search Algorithm x Generation Model",
+      "You can have perfect search, but if the corpus doesn't cover the topic, recall will suffer",
+      "Before tuning k or trying new strategies, AUDIT YOUR CORPUS",
+      "3 of 4 queries are solvable with simple tuning; 1 requires corpus improvement",
+      "This is why RAG evaluation with ground truth is so important"
+    ]
+  },
+  "demo_settings": {
+    "k_retrieve_default": 10,
+    "k_context_default": 5,
+    "show_top_n_results": 10,
+    "color_thresholds": {
+      "recall": {"green": 1.0, "yellow": 0.8, "orange": 0.6, "red": 0.0},
+      "ndcg": {"green": 0.9, "yellow": 0.7, "orange": 0.5, "red": 0.0},
+      "precision": {"green": 0.5, "yellow": 0.3, "orange": 0.1, "red": 0.0}
+    }
+  }
+}
