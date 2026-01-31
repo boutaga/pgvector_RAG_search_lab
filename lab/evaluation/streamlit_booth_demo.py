@@ -244,6 +244,13 @@ def init_session_state():
         st.session_state.live_mode = False
     if 'visited_tabs' not in st.session_state:
         st.session_state.visited_tabs = set()
+    # RAG pipeline animation state
+    if 'rag_pipeline_step' not in st.session_state:
+        st.session_state.rag_pipeline_step = 0
+    if 'rag_pipeline_running' not in st.session_state:
+        st.session_state.rag_pipeline_running = False
+    if 'rag_pipeline_times' not in st.session_state:
+        st.session_state.rag_pipeline_times = {}
 
 
 # ============================================================================
@@ -344,6 +351,142 @@ def render_sidebar():
 # Welcome Tab - Metric Explanations
 # ============================================================================
 
+def render_rag_architecture_section():
+    """Render the interactive RAG architecture diagram with live animation."""
+    st.markdown("## 📊 Understanding the RAG Pipeline")
+    st.markdown("See how your query flows through the system:")
+
+    # ASCII Art Diagram
+    st.markdown("""
+    <div style="background-color: #0f172a; border-radius: 12px; padding: 24px; margin: 16px 0;
+                font-family: 'Courier New', monospace; overflow-x: auto;">
+        <pre style="color: #94a3b8; font-size: 0.85rem; line-height: 1.4; margin: 0;">
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        <span style="color: #3b82f6; font-weight: bold;">RAG SEARCH ARCHITECTURE</span>                             │
+│                                                                             │
+│    ┌─────────────┐         ┌──────────────────┐         ┌─────────────┐    │
+│    │             │   (1)   │                  │   (2)   │             │    │
+│    │    <span style="color: #22c55e;">USER</span>     │────────▶│    <span style="color: #eab308;">OpenAI API</span>    │────────▶│ <span style="color: #8b5cf6;">PostgreSQL</span>  │    │
+│    │   "What is  │  Query  │  text-embedding  │  Vector │  + pgvector │    │
+│    │   ML?"      │         │  -3-large (3072) │ Search  │  25k docs   │    │
+│    │             │         │                  │         │             │    │
+│    └─────────────┘         └──────────────────┘         └──────┬──────┘    │
+│           │                     <span style="color: #64748b;">~200ms</span>                         │           │
+│           │                                                    │ (3)       │
+│           │                                                    ▼           │
+│           │                 ┌──────────────────┐    Top-K Documents        │
+│           │        (4)      │                  │         │                 │
+│           └─────────────────│   <span style="color: #f97316;">OpenAI LLM</span>    │◀────────┘                 │
+│               Final Answer  │   GPT-5-mini    │                            │
+│                             │                  │                            │
+│                             └──────────────────┘                            │
+│                                  <span style="color: #64748b;">~800ms</span>                                    │
+│                                                                             │
+│    <span style="color: #64748b;">TOTAL LATENCY: ~1,000-1,500ms per query</span>                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+        </pre>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Demo Query Section
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        demo_query = st.text_input(
+            "Demo Query:",
+            value="What is machine learning?",
+            key="demo_query_input",
+            label_visibility="collapsed",
+            placeholder="Enter a query to see the pipeline in action..."
+        )
+
+    with col2:
+        run_demo = st.button("🚀 Run Demo Query", type="primary", use_container_width=True, key="run_demo_pipeline")
+
+    # Animation / Results Section
+    if run_demo:
+        st.session_state.rag_pipeline_running = True
+        st.session_state.rag_pipeline_step = 0
+        st.session_state.rag_pipeline_times = {}
+
+    if st.session_state.rag_pipeline_running:
+        # Progress container
+        progress_container = st.container()
+
+        with progress_container:
+            st.markdown("""
+            <div style="background-color: #1e293b; border-radius: 8px; padding: 16px; margin: 8px 0;">
+                <div style="color: #f8fafc; font-weight: 600; margin-bottom: 12px;">
+                    🔄 LIVE PIPELINE ANIMATION
+                </div>
+            """, unsafe_allow_html=True)
+
+            # Simulate pipeline steps
+            steps = [
+                ("Generating embedding...", "Embedding generated", 180, 220),
+                ("Searching pgvector...", "Found 10 documents", 40, 60),
+                ("Generating answer...", "Answer ready", 750, 850)
+            ]
+
+            step_results = []
+            for i, (processing_text, done_text, min_ms, max_ms) in enumerate(steps):
+                step_num = i + 1
+
+                if st.session_state.rag_pipeline_step < step_num:
+                    # Show processing state
+                    st.markdown(f"""
+                    <div style="display: flex; align-items: center; margin: 8px 0;">
+                        <span style="color: #eab308; margin-right: 8px;">🔄</span>
+                        <span style="color: #94a3b8;">Step {step_num}: {processing_text}</span>
+                        <span style="color: #64748b; margin-left: auto;">...</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    # Simulate delay and update
+                    import random
+                    simulated_time = random.randint(min_ms, max_ms)
+                    time.sleep(simulated_time / 1000.0 * 0.3)  # Speed up for demo
+                    st.session_state.rag_pipeline_times[f"step_{step_num}"] = simulated_time
+                    st.session_state.rag_pipeline_step = step_num
+                    st.rerun()
+                else:
+                    # Show completed state
+                    elapsed = st.session_state.rag_pipeline_times.get(f"step_{step_num}", min_ms)
+                    st.markdown(f"""
+                    <div style="display: flex; align-items: center; margin: 8px 0;">
+                        <span style="color: #22c55e; margin-right: 8px;">✅</span>
+                        <span style="color: #f8fafc;">Step {step_num}: {done_text}</span>
+                        <span style="color: #22c55e; margin-left: auto; font-weight: 600;">{elapsed}ms</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            # Show total if all steps complete
+            if st.session_state.rag_pipeline_step >= 3:
+                total_time = sum(st.session_state.rag_pipeline_times.values())
+                st.markdown(f"""
+                <div style="border-top: 1px solid #334155; margin-top: 12px; padding-top: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #f8fafc; font-weight: 600;">Total Pipeline Time:</span>
+                        <span style="color: #3b82f6; font-size: 1.3rem; font-weight: 700;">{total_time}ms</span>
+                    </div>
+                    <div style="color: #64748b; font-size: 0.85rem; margin-top: 4px;">
+                        Found: 10 documents | Model: GPT-5-mini
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Reset button
+                if st.button("🔄 Reset Demo", key="reset_demo"):
+                    st.session_state.rag_pipeline_running = False
+                    st.session_state.rag_pipeline_step = 0
+                    st.session_state.rag_pipeline_times = {}
+                    st.rerun()
+
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("---")
+
+
 def render_welcome():
     """Render the Welcome tab with metric explanations and DBA persona."""
     st.session_state.visited_tabs.add('welcome')
@@ -364,6 +507,9 @@ def render_welcome():
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+    # RAG Architecture Diagram with Live Animation
+    render_rag_architecture_section()
 
     st.markdown("## 📖 Before We Start: Understanding the Metrics")
     st.markdown("""
@@ -536,9 +682,9 @@ def render_act1_problem():
     k_results = get_k_balance_results(st.session_state.demo_data)
     by_query = k_results.get("by_query", {})
 
-    # K-value selector
+    # K-value selector with Run All button inline
     st.markdown("### ⚙️ Search Settings")
-    col1, col2, col3 = st.columns([1, 1, 2])
+    col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
         k_retrieve = st.select_slider(
             "k_retrieve (candidate pool size)",
@@ -554,6 +700,10 @@ def render_act1_problem():
             <span style="color: #3b82f6; font-size: 1.5rem; font-weight: 600; margin-left: 8px;">{k_retrieve}</span>
         </div>
         """, unsafe_allow_html=True)
+
+    with col3:
+        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+        run_all_clicked = st.button("🚀 Run All Queries", type="primary", use_container_width=True, key="run_all_act1_top")
 
     st.markdown("---")
 
@@ -653,20 +803,18 @@ def render_act1_problem():
 
     st.markdown("---")
 
-    # Run All button
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("🚀 Run All Queries", type="primary", use_container_width=True):
-            progress_bar = st.progress(0)
-            for idx, test_case in enumerate(test_cases):
-                query = test_case["query"]
-                k_key = f"k_{k_retrieve}"
-                result_key = f"{query}_{k_retrieve}"
-                query_data = by_query.get(query, {}).get(k_key, {})
-                st.session_state.query_results[result_key] = query_data
-                progress_bar.progress((idx + 1) / len(test_cases))
-                time.sleep(0.3)
-            st.rerun()
+    # Handle Run All button click (button is in the settings row above)
+    if run_all_clicked:
+        progress_bar = st.progress(0)
+        for idx, test_case in enumerate(test_cases):
+            query = test_case["query"]
+            k_key = f"k_{k_retrieve}"
+            result_key = f"{query}_{k_retrieve}"
+            query_data = by_query.get(query, {}).get(k_key, {})
+            st.session_state.query_results[result_key] = query_data
+            progress_bar.progress((idx + 1) / len(test_cases))
+            time.sleep(0.3)
+        st.rerun()
 
     # Summary after running queries
     if len(st.session_state.query_results) >= len(test_cases):
@@ -750,15 +898,22 @@ def render_act2_investigation():
     by_query = strategy_results.get("by_query", {})
     test_cases = get_test_cases(st.session_state.demo_data)
 
-    # Query selector
-    st.markdown("### 📝 Select a Query to Investigate")
+    # Query selector with Run All button inline
+    st.markdown("### ⚙️ Investigation Settings")
 
     query_options = [tc["query"] for tc in test_cases]
-    selected_idx = st.selectbox(
-        "Choose query:",
-        range(len(query_options)),
-        format_func=lambda i: f"{i+1}. {query_options[i]}"
-    )
+
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        selected_idx = st.selectbox(
+            "Choose query:",
+            range(len(query_options)),
+            format_func=lambda i: f"{i+1}. {query_options[i]}"
+        )
+    with col2:
+        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+        run_all_strategies_clicked = st.button("🚀 Run All 9", type="primary", use_container_width=True, key="run_all_act2_top")
+
     selected_query = query_options[selected_idx]
     st.session_state.selected_query = selected_query
 
@@ -852,20 +1007,18 @@ def render_act2_investigation():
                     </div>
                     """, unsafe_allow_html=True)
 
-    # Run All Strategies button
+    # Handle Run All Strategies button click (button is in the settings row above)
     st.markdown("---")
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("🚀 Run All 9 Strategies", type="primary", use_container_width=True):
-            progress = st.progress(0)
-            for idx, strategy in enumerate(strategies):
-                s_id = strategy["id"]
-                strategy_key = f"{selected_query}_{s_id}"
-                s_metrics = query_data.get(s_id, {})
-                st.session_state.strategy_results_cache[strategy_key] = s_metrics
-                progress.progress((idx + 1) / len(strategies))
-                time.sleep(0.1)
-            st.rerun()
+    if run_all_strategies_clicked:
+        progress = st.progress(0)
+        for idx, strategy in enumerate(strategies):
+            s_id = strategy["id"]
+            strategy_key = f"{selected_query}_{s_id}"
+            s_metrics = query_data.get(s_id, {})
+            st.session_state.strategy_results_cache[strategy_key] = s_metrics
+            progress.progress((idx + 1) / len(strategies))
+            time.sleep(0.1)
+        st.rerun()
 
     # Results comparison chart
     if any(f"{selected_query}_{s['id']}" in st.session_state.strategy_results_cache for s in strategies):
