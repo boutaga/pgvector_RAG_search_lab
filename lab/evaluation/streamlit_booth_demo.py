@@ -757,17 +757,18 @@ def render_act3_revelation():
 
     st.markdown("### The Root Cause")
 
+    issue_text = problem_diagnosis.get('issue', '')
+    root_cause_text = problem_diagnosis.get('root_cause', '')
+    impact_text = problem_diagnosis.get('impact', '')
+    solution_text = problem_diagnosis.get('solution', '')
+
     st.markdown(f"""
-    <div class="callout insight">
+    <div style="background-color: #052e16; border-radius: 8px; padding: 16px; margin: 16px 0; border-left: 4px solid #22c55e;">
         <h4 style="margin-top: 0; color: #22c55e;">Problem Diagnosis</h4>
-
-        <p><strong>Issue:</strong> {problem_diagnosis.get('issue', '')}</p>
-
-        <p><strong>Root Cause:</strong> {problem_diagnosis.get('root_cause', '')}</p>
-
-        <p><strong>Impact:</strong> {problem_diagnosis.get('impact', '')}</p>
-
-        <p><strong>Solution:</strong> {problem_diagnosis.get('solution', '')}</p>
+        <p style="margin: 8px 0;"><strong style="color: #f8fafc;">Issue:</strong> <span style="color: #94a3b8;">{issue_text}</span></p>
+        <p style="margin: 8px 0;"><strong style="color: #f8fafc;">Root Cause:</strong> <span style="color: #94a3b8;">{root_cause_text}</span></p>
+        <p style="margin: 8px 0;"><strong style="color: #f8fafc;">Impact:</strong> <span style="color: #94a3b8;">{impact_text}</span></p>
+        <p style="margin: 8px 0;"><strong style="color: #f8fafc;">Solution:</strong> <span style="color: #94a3b8;">{solution_text}</span></p>
     </div>
     """, unsafe_allow_html=True)
 
