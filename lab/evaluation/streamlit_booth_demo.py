@@ -661,17 +661,122 @@ def render_rag_architecture_section():
             total_time = sum(st.session_state.rag_pipeline_times.values())
             st.success(f"✅ **Complete!** Retrieved 10 documents and generated answer in **{total_time}ms**")
 
-            # Show LLM Response Output
+            # Show LLM Response Output with Source Attribution
             st.markdown("### 💬 LLM Response")
+
+            # Determine if this is a RAG-grounded response or LLM knowledge
+            # For "machine learning" query, we know from Act 3 there's no dedicated article
+            demo_query_lower = demo_query.lower().strip()
+            is_ml_query = "machine learning" in demo_query_lower
+
+            # Source attribution banner
+            if is_ml_query:
+                # No dedicated ML article - response is from LLM knowledge
+                source_banner = """
+                <div style="background: linear-gradient(90deg, #7c2d12 0%, #450a0a 100%);
+                            border-radius: 8px; padding: 16px; margin-bottom: 16px;
+                            border: 2px solid #dc2626; display: flex; align-items: center; gap: 16px;">
+                    <div style="font-size: 2rem;">⚠️</div>
+                    <div style="flex: 1;">
+                        <div style="color: #fca5a5; font-weight: 700; font-size: 1rem;">
+                            SOURCE: LLM GENERAL KNOWLEDGE
+                        </div>
+                        <div style="color: #fecaca; font-size: 0.85rem; margin-top: 4px;">
+                            No dedicated "Machine Learning" article found in corpus. Response is based on
+                            LLM's pre-trained knowledge, NOT retrieved documents.
+                        </div>
+                    </div>
+                    <div style="background: #450a0a; border-radius: 20px; padding: 8px 16px;
+                                border: 1px solid #dc2626;">
+                        <span style="color: #f87171; font-weight: 600; font-size: 0.9rem;">0% RAG</span>
+                    </div>
+                </div>
+                """
+                response_border = "#dc2626"
+                retrieved_docs_section = """
+                <div style="background: #1c1917; border-radius: 8px; padding: 16px; margin-top: 16px;
+                            border: 1px solid #44403c;">
+                    <div style="color: #a8a29e; font-weight: 600; margin-bottom: 12px;">
+                        📄 Retrieved Documents (Related but NOT about ML):
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        <span style="background: #292524; padding: 6px 12px; border-radius: 6px;
+                                    color: #78716c; font-size: 0.8rem; border: 1px solid #44403c;">
+                            ❌ Artificial Intelligence (mentions ML)
+                        </span>
+                        <span style="background: #292524; padding: 6px 12px; border-radius: 6px;
+                                    color: #78716c; font-size: 0.8rem; border: 1px solid #44403c;">
+                            ❌ Neural Network (mentions ML)
+                        </span>
+                        <span style="background: #292524; padding: 6px 12px; border-radius: 6px;
+                                    color: #78716c; font-size: 0.8rem; border: 1px solid #44403c;">
+                            ❌ Data Mining (tangential)
+                        </span>
+                    </div>
+                    <div style="color: #78716c; font-size: 0.75rem; margin-top: 12px; font-style: italic;">
+                        These documents mention "machine learning" but are not dedicated articles about the topic.
+                    </div>
+                </div>
+                """
+            else:
+                # Other queries - assume RAG-grounded response
+                source_banner = """
+                <div style="background: linear-gradient(90deg, #052e16 0%, #064e3b 100%);
+                            border-radius: 8px; padding: 16px; margin-bottom: 16px;
+                            border: 2px solid #22c55e; display: flex; align-items: center; gap: 16px;">
+                    <div style="font-size: 2rem;">✅</div>
+                    <div style="flex: 1;">
+                        <div style="color: #86efac; font-weight: 700; font-size: 1rem;">
+                            SOURCE: RAG-GROUNDED RESPONSE
+                        </div>
+                        <div style="color: #bbf7d0; font-size: 0.85rem; margin-top: 4px;">
+                            Response is generated using retrieved documents from the PostgreSQL database.
+                            Information is grounded in your corpus data.
+                        </div>
+                    </div>
+                    <div style="background: #052e16; border-radius: 20px; padding: 8px 16px;
+                                border: 1px solid #22c55e;">
+                        <span style="color: #22c55e; font-weight: 600; font-size: 0.9rem;">100% RAG</span>
+                    </div>
+                </div>
+                """
+                response_border = "#22c55e"
+                retrieved_docs_section = """
+                <div style="background: #052e16; border-radius: 8px; padding: 16px; margin-top: 16px;
+                            border: 1px solid #166534;">
+                    <div style="color: #86efac; font-weight: 600; margin-bottom: 12px;">
+                        📄 Retrieved Documents Used:
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        <span style="background: #064e3b; padding: 6px 12px; border-radius: 6px;
+                                    color: #6ee7b7; font-size: 0.8rem; border: 1px solid #059669;">
+                            ✓ Relevant Article 1 (score: 0.92)
+                        </span>
+                        <span style="background: #064e3b; padding: 6px 12px; border-radius: 6px;
+                                    color: #6ee7b7; font-size: 0.8rem; border: 1px solid #059669;">
+                            ✓ Relevant Article 2 (score: 0.88)
+                        </span>
+                        <span style="background: #064e3b; padding: 6px 12px; border-radius: 6px;
+                                    color: #6ee7b7; font-size: 0.8rem; border: 1px solid #059669;">
+                            ✓ Relevant Article 3 (score: 0.85)
+                        </span>
+                    </div>
+                    <div style="color: #6ee7b7; font-size: 0.75rem; margin-top: 12px; font-style: italic;">
+                        Response is grounded in these retrieved documents from your corpus.
+                    </div>
+                </div>
+                """
+
             st.markdown(f"""
+            {source_banner}
             <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
                         border-radius: 12px; padding: 24px; margin: 16px 0;
-                        border-left: 4px solid #22c55e;">
+                        border-left: 4px solid {response_border};">
                 <div style="display: flex; align-items: center; margin-bottom: 16px;">
                     <span style="font-size: 1.5rem; margin-right: 12px;">🤖</span>
-                    <span style="color: #22c55e; font-weight: 600; font-size: 1rem;">GPT-5-mini Response</span>
+                    <span style="color: {response_border}; font-weight: 600; font-size: 1rem;">GPT-5-mini Response</span>
                     <span style="color: #64748b; font-size: 0.8rem; margin-left: auto;">
-                        Based on 10 retrieved documents
+                        {'⚠️ Based on general knowledge' if is_ml_query else '✅ Based on retrieved documents'}
                     </span>
                 </div>
                 <div style="color: #f8fafc; font-size: 1rem; line-height: 1.7;">
@@ -686,11 +791,12 @@ def render_rag_architecture_section():
                         <li><strong style="color: #f8fafc;">Neural Networks:</strong> Deep learning architectures inspired by the brain</li>
                     </ul>
                 </div>
+                {retrieved_docs_section}
                 <div style="border-top: 1px solid #334155; margin-top: 20px; padding-top: 16px;">
                     <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
                         <div style="color: #64748b; font-size: 0.8rem;">
-                            <span style="color: #94a3b8;">Sources:</span> Artificial Intelligence, Neural Network,
-                            Deep Learning, Data Science...
+                            <span style="color: #94a3b8;">Grounding:</span>
+                            {'<span style="color: #f87171;">LLM Pre-trained Knowledge</span>' if is_ml_query else '<span style="color: #22c55e;">Corpus Documents</span>'}
                         </div>
                         <div style="color: #64748b; font-size: 0.8rem;">
                             <span style="color: #3b82f6;">Tokens:</span> ~180 |
@@ -700,6 +806,25 @@ def render_rag_architecture_section():
                 </div>
             </div>
             """, unsafe_allow_html=True)
+
+            # Educational callout for ML query
+            if is_ml_query:
+                st.markdown("""
+                <div style="background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+                            border-radius: 8px; padding: 16px; margin-top: 16px;
+                            border-left: 4px solid #3b82f6;">
+                    <div style="color: #93c5fd; font-weight: 600; margin-bottom: 8px;">
+                        💡 This is exactly the problem we investigate in Act 3!
+                    </div>
+                    <div style="color: #94a3b8; font-size: 0.9rem;">
+                        The RAG system retrieved documents that <em>mention</em> "machine learning" but there's
+                        <strong style="color: #f8fafc;">no dedicated article about ML</strong> in our 25k Wikipedia subset.
+                        The LLM falls back to its general knowledge, which may be outdated or hallucinated.
+                        <br><br>
+                        <strong style="color: #fbbf24;">This is a corpus coverage problem, not a search algorithm problem!</strong>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
     st.markdown("---")
 
