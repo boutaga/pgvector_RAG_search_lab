@@ -46,6 +46,11 @@ WHERE content_hash IS NULL;
 -- 2. Versioned embeddings table
 -- ---------------------------------------------------------------------------
 
+-- Note: vector(1536) matches text-embedding-3-small (default model).
+-- If upgrading to text-embedding-3-large (3072 dims), you must ALTER
+-- the column dimension first:
+--   ALTER TABLE article_embeddings_versioned
+--       ALTER COLUMN embedding TYPE vector(3072);
 CREATE TABLE IF NOT EXISTS article_embeddings_versioned (
     id              BIGSERIAL PRIMARY KEY,
     article_id      INTEGER NOT NULL REFERENCES articles(id) ON DELETE CASCADE,

@@ -21,7 +21,12 @@ import sys
 import psycopg
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from quality_feedback_loop import run_quality_check, find_poor_queries, force_reembed
+from quality_feedback_loop import (
+    find_affected_articles,
+    find_poor_queries,
+    force_reembed,
+    run_quality_check,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -169,7 +174,6 @@ def demo_quality_drift(db_url: str, num_queries: int):
         print("-" * 40)
         affected_ids = set()
         for pq in poor_queries[:10]:
-            from quality_feedback_loop import find_affected_articles
             affected = find_affected_articles(conn, pq["query_text"])
             for row in affected:
                 affected_ids.add(row[0])

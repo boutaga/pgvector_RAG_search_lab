@@ -22,6 +22,7 @@ import os
 import sys
 
 import psycopg
+from psycopg import sql
 
 logging.basicConfig(
     level=logging.INFO,
@@ -89,7 +90,9 @@ def create_version_index(db_url: str, model_version: str):
     demonstrate the concept with the existing 1536-dim column.
     """
     dims = MODEL_DIMENSIONS.get(model_version, 1536)
-    index_name = f"ix_embed_diskann_{model_version.replace('-', '_')}"
+    # Sanitize index name: only allow alphanumeric and underscores
+    safe_suffix = "".join(c if c.isalnum() else "_" for c in model_version)
+    index_name = f"ix_embed_diskann_{safe_suffix}"
 
     log.info("Creating DiskANN index '%s' for model %s (%d dims)",
              index_name, model_version, dims)
@@ -98,12 +101,15 @@ def create_version_index(db_url: str, model_version: str):
         # DiskANN index creation can take a while on large datasets
         conn.autocommit = True
         with conn.cursor() as cur:
-            cur.execute(f"""
-                CREATE INDEX IF NOT EXISTS {index_name}
-                ON article_embeddings_versioned
-                USING diskann (embedding)
-                WHERE is_current = true AND model_version = %s
-            """, (model_version,))
+            cur.execute(
+                sql.SQL("""
+                    CREATE INDEX IF NOT EXISTS {}
+                    ON article_embeddings_versioned
+                    USING diskann (embedding)
+                    WHERE is_current = true AND model_version = %s
+                """).format(sql.Identifier(index_name)),
+                (model_version,),
+            )
 
     log.info("Index '%s' created successfully", index_name)
 
@@ -131,20 +137,23 @@ def compare_versions(db_url: str, old_model: str, new_model: str,
     log.info("Comparing %s vs %s with %d test queries",
              old_model, new_model, len(test_queries))
 
-    # We need an embedding for the query — use old model for consistency
     from openai import OpenAI
-    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key:
+        log.error("OPENAI_API_KEY environment variable is required for compare")
+        return
+    client = OpenAI(api_key=api_key)
 
     with psycopg.connect(db_url) as conn:
         for query in test_queries:
-            # Generate query embedding
-            resp = client.embeddings.create(input=[query], model=old_model)
-            query_emb = resp.data[0].embedding
-
             print(f"\nQuery: '{query}'")
             print("-" * 50)
 
             for model in [old_model, new_model]:
+                # Generate query embedding with the matching model
+                resp = client.embeddings.create(input=[query], model=model)
+                query_emb = resp.data[0].embedding
+
                 with conn.cursor() as cur:
                     cur.execute("""
                         SELECT e.article_id, a.title,

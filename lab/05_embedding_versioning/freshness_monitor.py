@@ -314,22 +314,21 @@ def main():
     parser.add_argument("--db-url", type=str, default=DB_URL, help="Database URL")
     args = parser.parse_args()
 
-    with psycopg.connect(args.db_url) as conn:
-        if args.report:
-            full_report(args.db_url)
-        elif args.stale:
-            print_section("Stale Articles")
-            rows = query_stale(conn)
-            print_table(
-                ["ID", "Title", "Current Hash", "Embed Hash", "Content Updated", "Embed Created"],
-                rows,
-            )
-        elif args.queue:
-            print_section("Queue Health")
-            rows = query_queue_health(conn)
-            print_table(["Status", "Count", "Oldest", "Newest"], rows)
-        else:
-            full_report(args.db_url)
+    if args.report or not (args.stale or args.queue):
+        full_report(args.db_url)
+    else:
+        with psycopg.connect(args.db_url) as conn:
+            if args.stale:
+                print_section("Stale Articles")
+                rows = query_stale(conn)
+                print_table(
+                    ["ID", "Title", "Current Hash", "Embed Hash", "Content Updated", "Embed Created"],
+                    rows,
+                )
+            elif args.queue:
+                print_section("Queue Health")
+                rows = query_queue_health(conn)
+                print_table(["Status", "Count", "Oldest", "Newest"], rows)
 
 
 if __name__ == "__main__":

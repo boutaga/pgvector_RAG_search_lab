@@ -271,6 +271,16 @@ lab/
 │   ├── fastapi_server.py     # REST API backend
 │   └── streamlit_app.py      # Interactive web UI
 │
+├── 05_embedding_versioning/   # Embedding versioning & event-driven refresh
+│   ├── schema.sql            # Triggers, queue, versioned embeddings
+│   ├── worker.py             # SKIP LOCKED queue worker
+│   ├── worker_notify.py      # LISTEN/NOTIFY worker variant
+│   ├── change_detector.py    # Change significance (EMBED vs SKIP)
+│   ├── freshness_monitor.py  # Staleness diagnostic queries
+│   ├── quality_feedback_loop.py # Quality-based re-embedding
+│   ├── model_upgrade.py      # Blue-green model version management
+│   └── examples/             # Step-by-step demos
+│
 ├── 06_workflows/              # Automation and deployment
 │   ├── docker-compose.yml    # Complete stack deployment
 │   ├── *.json               # n8n workflow definitions

@@ -47,7 +47,7 @@ def find_poor_queries(conn, ndcg_threshold: float, lookback_hours: int) -> list[
             SELECT id, query_text, model_version, ndcg_score, user_feedback, logged_at
             FROM retrieval_quality_log
             WHERE (ndcg_score < %s OR user_feedback = 'negative')
-              AND logged_at > now() - interval '%s hours'
+              AND logged_at > now() - (%s * interval '1 hour')
             ORDER BY ndcg_score ASC NULLS FIRST
             LIMIT 50
         """, (ndcg_threshold, lookback_hours))
@@ -105,11 +105,15 @@ def force_reembed(conn, article_ids: list[int], reason: str = "quality_degradati
         for article_id in article_ids:
             cur.execute("""
                 INSERT INTO embedding_queue (article_id, content_hash, change_type, priority)
-                SELECT id, content_hash, 'quality_reembed', 2
-                FROM articles WHERE id = %s
-                ON CONFLICT DO NOTHING
+                SELECT a.id, a.content_hash, 'quality_reembed', 2
+                FROM articles a
+                WHERE a.id = %s
+                  AND NOT EXISTS (
+                      SELECT 1 FROM embedding_queue eq
+                      WHERE eq.article_id = a.id
+                        AND eq.status IN ('pending', 'processing')
+                  )
             """, (article_id,))
-            # ON CONFLICT DO NOTHING avoids duplicates if the article is already queued
             queued += cur.rowcount
 
     conn.commit()

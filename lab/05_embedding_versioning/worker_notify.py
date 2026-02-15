@@ -5,6 +5,9 @@ Lab 5 — Embedding Worker (LISTEN/NOTIFY variant)
 Uses PostgreSQL LISTEN/NOTIFY to react instantly to new queue entries,
 with a polling fallback for reliability.
 
+Note: Uses select.select() for socket-level notification waiting.
+      This works on Linux/macOS/WSL2 but not on native Windows.
+
 Usage:
     python worker_notify.py
     python worker_notify.py --batch-size 10

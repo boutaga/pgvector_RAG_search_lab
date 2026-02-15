@@ -45,6 +45,7 @@ CHUNK_SIZE = 2000       # characters per chunk
 CHUNK_OVERLAP = 200     # overlap between chunks
 MAX_RETRIES = 3
 POLL_INTERVAL = 5       # seconds between polls when queue is empty
+STALE_PROCESSING_MINUTES = 10  # recover items stuck in 'processing' longer than this
 
 shutdown_requested = False
 
@@ -124,6 +125,29 @@ def process_article(article_id: int, content: str, content_hash: str,
             """, (article_id, idx, chunk, json.dumps(emb), model, content_hash))
 
     return len(chunks)
+
+
+def recover_stale_processing(db_url: str):
+    """Reset items stuck in 'processing' state (e.g. after worker crash).
+
+    Items older than STALE_PROCESSING_MINUTES are returned to 'pending'.
+    """
+    with psycopg.connect(db_url) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE embedding_queue
+                SET status = 'pending', worker_id = NULL, started_at = NULL
+                WHERE status = 'processing'
+                  AND started_at < now() - (%s * interval '1 minute')
+                RETURNING id, article_id
+            """, (STALE_PROCESSING_MINUTES,))
+            recovered = cur.fetchall()
+        conn.commit()
+
+    if recovered:
+        log.warning("Recovered %d stuck items: %s",
+                    len(recovered), [r[0] for r in recovered])
+    return len(recovered)
 
 
 def fetch_and_process(db_url: str, batch_size: int, model: str, worker_id: str) -> int:
@@ -228,6 +252,9 @@ def mark_failed(conn, queue_id: int, error_msg: str):
 def worker_loop(db_url: str, batch_size: int, model: str, worker_id: str):
     """Continuously poll the queue until shutdown."""
     log.info("Worker %s started (model=%s, batch=%d)", worker_id, model, batch_size)
+
+    # Recover any items left in 'processing' by crashed workers
+    recover_stale_processing(db_url)
 
     while not shutdown_requested:
         try:
