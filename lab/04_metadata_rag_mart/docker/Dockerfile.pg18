@@ -1,0 +1,92 @@
+# =============================================================================
+# PostgreSQL 18 + pgvector + pgvectorscale — built from source
+# =============================================================================
+# Multi-stage build to keep runtime image lean.
+#
+# pgvector:      HNSW / IVFFlat vector indexes
+# pgvectorscale: StreamingDiskANN index (Timescale) — better recall at scale
+#
+# Adjust VERSION pins below if newer releases are available.
+# =============================================================================
+
+ARG PG_MAJOR=18
+
+# ---------------------------------------------------------------------------
+# Stage 1: Build pgvector + pgvectorscale
+# ---------------------------------------------------------------------------
+FROM postgres:${PG_MAJOR}-bookworm AS builder
+
+ARG PG_MAJOR=18
+
+# Build tools + Rust toolchain
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        git \
+        curl \
+        ca-certificates \
+        pkg-config \
+        libssl-dev \
+        libclang-dev \
+        clang \
+        postgresql-server-dev-${PG_MAJOR} \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---- pgvector (latest release) ----
+RUN cd /tmp \
+    && git clone --branch v0.8.1 https://github.com/pgvector/pgvector.git \
+    && cd pgvector \
+    && make USE_PGXS=1 PG_CONFIG=/usr/bin/pg_config \
+    && make USE_PGXS=1 PG_CONFIG=/usr/bin/pg_config install
+
+# ---- Rust (for pgvectorscale) ----
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH="/usr/local/cargo/bin:${PATH}"
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+    | sh -s -- -y --default-toolchain stable --profile minimal
+
+# ---- pgrx (Rust PostgreSQL extension framework) ----
+# Pin to version compatible with pgvectorscale — adjust as needed
+RUN cargo install cargo-pgrx --version 0.16.1 --locked \
+    && cargo pgrx init --pg${PG_MAJOR} /usr/bin/pg_config
+
+# ---- pgvectorscale (StreamingDiskANN) ----
+RUN cd /tmp \
+    && git clone --branch 0.9.0 https://github.com/timescale/pgvectorscale.git \
+    && cd pgvectorscale/pgvectorscale \
+    && cargo pgrx install --release --pg-config /usr/bin/pg_config
+
+# ---------------------------------------------------------------------------
+# Stage 2: Runtime — clean postgres image with extensions
+# ---------------------------------------------------------------------------
+FROM postgres:${PG_MAJOR}-bookworm
+
+ARG PG_MAJOR=18
+
+# Copy pgvector files
+COPY --from=builder \
+    /usr/share/postgresql/${PG_MAJOR}/extension/vector* \
+    /usr/share/postgresql/${PG_MAJOR}/extension/
+COPY --from=builder \
+    /usr/lib/postgresql/${PG_MAJOR}/lib/vector.so \
+    /usr/lib/postgresql/${PG_MAJOR}/lib/
+
+# Copy pgvectorscale files
+COPY --from=builder \
+    /usr/share/postgresql/${PG_MAJOR}/extension/vectorscale* \
+    /usr/share/postgresql/${PG_MAJOR}/extension/
+COPY --from=builder \
+    /usr/lib/postgresql/${PG_MAJOR}/lib/vectorscale* \
+    /usr/lib/postgresql/${PG_MAJOR}/lib/
+
+# Runtime dependency for pgvectorscale (OpenSSL)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# SQL init scripts are mounted via docker-compose
+# They run in alphabetical order on first start
+
+LABEL maintainer="dbi-services" \
+      description="PostgreSQL ${PG_MAJOR} + pgvector + pgvectorscale"

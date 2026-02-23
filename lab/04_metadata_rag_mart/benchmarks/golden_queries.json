@@ -1,0 +1,98 @@
+[
+  {
+    "query": "show me portfolio exposure by sector",
+    "expected": {
+      "tables": ["positions", "instruments"],
+      "columns": ["positions.market_value", "instruments.sector", "instruments.asset_class"],
+      "kpi": "Portfolio Exposure by Sector"
+    }
+  },
+  {
+    "query": "which clients are approaching their risk limits",
+    "expected": {
+      "tables": ["risk_limits", "clients"],
+      "columns": ["risk_limits.utilization_pct", "risk_limits.breach_action", "clients.client_code"],
+      "kpi": "Risk Limit Utilization"
+    }
+  },
+  {
+    "query": "AML alerts for PEP clients under investigation",
+    "expected": {
+      "tables": ["aml_alerts", "clients"],
+      "columns": ["aml_alerts.alert_type", "aml_alerts.severity", "aml_alerts.status", "clients.is_pep"],
+      "kpi": "AML Investigation Pipeline"
+    }
+  },
+  {
+    "query": "total assets under management by client segment",
+    "expected": {
+      "tables": ["positions", "accounts", "clients"],
+      "columns": ["positions.market_value", "clients.segment"],
+      "kpi": "Client AUM by Segment"
+    }
+  },
+  {
+    "query": "execution quality and commission analysis by broker",
+    "expected": {
+      "tables": ["executions", "orders"],
+      "columns": ["executions.fill_price", "executions.commission", "executions.venue"],
+      "kpi": "Execution Quality (TCA)"
+    }
+  },
+  {
+    "query": "daily VaR and expected shortfall for high risk clients",
+    "expected": {
+      "tables": ["risk_metrics", "clients"],
+      "columns": ["risk_metrics.var_1d_95", "risk_metrics.cvar_1d_95", "clients.risk_rating"],
+      "kpi": "VaR Dashboard by Client"
+    }
+  },
+  {
+    "query": "unrealized P&L by instrument for client quarterly review",
+    "expected": {
+      "tables": ["positions", "instruments", "clients"],
+      "columns": ["positions.unrealized_pnl", "positions.realized_pnl", "instruments.instrument_name"],
+      "kpi": "Portfolio P&L Attribution"
+    }
+  },
+  {
+    "query": "order volume and fill rate by trading desk",
+    "expected": {
+      "tables": ["orders", "instruments"],
+      "columns": ["orders.trading_desk", "orders.filled_qty", "instruments.asset_class"],
+      "kpi": "Trading Volume by Desk"
+    }
+  },
+  {
+    "query": "pre-trade compliance check pass rates and overrides",
+    "expected": {
+      "tables": ["compliance_checks", "orders"],
+      "columns": ["compliance_checks.check_type", "compliance_checks.check_result"],
+      "kpi": "Compliance Check Summary"
+    }
+  },
+  {
+    "query": "cash available for trading by account and currency",
+    "expected": {
+      "tables": ["cash_balances", "accounts"],
+      "columns": ["cash_balances.available", "cash_balances.currency", "accounts.account_type"],
+      "kpi": "Cash & Liquidity Position"
+    }
+  },
+  {
+    "query": "Swiss equity positions with market value and weight",
+    "expected": {
+      "tables": ["positions", "instruments"],
+      "columns": ["positions.market_value", "positions.weight_pct", "instruments.country_of_risk"],
+      "kpi": null
+    }
+  },
+  {
+    "query": "clients with sanctions screening flags on recent orders",
+    "expected": {
+      "tables": ["orders", "clients", "compliance_checks"],
+      "columns": ["orders.compliance_check", "orders.compliance_note", "clients.country_domicile"],
+      "kpi": null
+    }
+  }
+]

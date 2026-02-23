@@ -1,0 +1,69 @@
+# =============================================================================
+# Lab 04 — Architecture
+#
+#   MinIO (S3)          →  Parquet data lake (storage, cheap, scalable)
+#   PostgreSQL 18       →  Metadata catalog (pgvector RAG), governance,
+#                          monitoring, data marts (compute, fast JOINs)
+#   pgvector            →  HNSW vector indexes for similarity search
+#   pgvectorscale       →  StreamingDiskANN for large-scale ANN
+# =============================================================================
+
+services:
+
+  # ---- PostgreSQL 18 + pgvector + pgvectorscale ----
+  postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile.pg18
+    container_name: lab04_pg18
+    environment:
+      POSTGRES_DB: metadata_catalog
+      POSTGRES_USER: dba_admin
+      POSTGRES_PASSWORD: dbi2026!
+    ports:
+      - "5433:5432"
+    volumes:
+      - ../sql:/docker-entrypoint-initdb.d:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dba_admin -d metadata_catalog"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_preload_libraries=vector"
+      - "-c"
+      - "work_mem=256MB"
+      - "-c"
+      - "maintenance_work_mem=512MB"
+      - "-c"
+      - "max_parallel_workers_per_gather=4"
+      - "-c"
+      - "effective_cache_size=2GB"
+      - "-c"
+      - "log_min_duration_statement=100"
+
+  # ---- MinIO (S3-compatible object storage) ----
+  minio:
+    image: minio/minio:latest
+    container_name: lab04_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio_admin
+      MINIO_ROOT_PASSWORD: minio_2026!
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+  minio_data:
