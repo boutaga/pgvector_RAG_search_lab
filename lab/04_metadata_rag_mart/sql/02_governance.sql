@@ -83,37 +83,43 @@ DO $$ BEGIN
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'pipeline_agent') THEN
         CREATE ROLE pipeline_agent LOGIN PASSWORD 'pipe_2026!';
     END IF;
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'portfolio_manager') THEN
+        CREATE ROLE portfolio_manager LOGIN PASSWORD 'pm_2026!';
+    END IF;
 END $$;
 
 -- Permissions
-GRANT USAGE ON SCHEMA data_mart TO bi_analyst, risk_manager, compliance_officer;
-GRANT USAGE ON SCHEMA catalog TO pipeline_agent;
+GRANT USAGE ON SCHEMA data_mart TO bi_analyst, risk_manager, compliance_officer, portfolio_manager;
+GRANT USAGE ON SCHEMA catalog TO pipeline_agent, portfolio_manager;
 GRANT USAGE ON SCHEMA lake TO pipeline_agent;
 GRANT CREATE ON SCHEMA data_mart TO pipeline_agent;
 GRANT CREATE ON SCHEMA lake TO pipeline_agent;
-GRANT SELECT ON ALL TABLES IN SCHEMA catalog TO pipeline_agent;
+GRANT SELECT ON ALL TABLES IN SCHEMA catalog TO pipeline_agent, portfolio_manager;
 GRANT INSERT ON governance.provisioning_audit TO pipeline_agent;
 GRANT INSERT, UPDATE ON governance.data_mart_registry TO pipeline_agent;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA governance TO pipeline_agent;
+GRANT USAGE ON SCHEMA rag_monitor TO portfolio_manager;
+GRANT SELECT ON ALL TABLES IN SCHEMA rag_monitor TO portfolio_manager;
 
 -- Default privileges: new tables in data_mart get SELECT for pipeline_agent
 ALTER DEFAULT PRIVILEGES IN SCHEMA data_mart GRANT SELECT ON TABLES TO pipeline_agent;
+ALTER DEFAULT PRIVILEGES IN SCHEMA data_mart GRANT SELECT ON TABLES TO portfolio_manager;
 
 -- =========================================================================
 -- CLASSIFICATION → ROLE ACCESS MATRIX
 -- =========================================================================
---   public       → bi_analyst, risk_manager, compliance_officer
---   internal     → bi_analyst, risk_manager, compliance_officer
---   confidential → risk_manager, compliance_officer
+--   public       → bi_analyst, risk_manager, compliance_officer, portfolio_manager
+--   internal     → bi_analyst, risk_manager, compliance_officer, portfolio_manager
+--   confidential → risk_manager, compliance_officer, portfolio_manager
 --   restricted   → compliance_officer only
 
 CREATE OR REPLACE FUNCTION governance.get_allowed_roles(data_classification VARCHAR)
 RETURNS TEXT[] LANGUAGE plpgsql IMMUTABLE AS $$
 BEGIN
     RETURN CASE data_classification
-        WHEN 'public'       THEN ARRAY['bi_analyst','risk_manager','compliance_officer']
-        WHEN 'internal'     THEN ARRAY['bi_analyst','risk_manager','compliance_officer']
-        WHEN 'confidential' THEN ARRAY['risk_manager','compliance_officer']
+        WHEN 'public'       THEN ARRAY['bi_analyst','risk_manager','compliance_officer','portfolio_manager']
+        WHEN 'internal'     THEN ARRAY['bi_analyst','risk_manager','compliance_officer','portfolio_manager']
+        WHEN 'confidential' THEN ARRAY['risk_manager','compliance_officer','portfolio_manager']
         WHEN 'restricted'   THEN ARRAY['compliance_officer']
         ELSE                     ARRAY['compliance_officer']
     END;
@@ -162,4 +168,4 @@ BEGIN
     RETURN left(val, 4) || repeat('*', length(val) - 7) || right(val, 3);
 END $$;
 
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA governance TO bi_analyst, risk_manager, compliance_officer, pipeline_agent;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA governance TO bi_analyst, risk_manager, compliance_officer, pipeline_agent, portfolio_manager;

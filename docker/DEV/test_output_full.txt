@@ -1,0 +1,550 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║  Lab 04 — Full Workflow Test (No API Keys)                          ║
+║                                                                      ║
+║  Uses fake embeddings + deterministic SQL to validate pipeline      ║
+║  S3 (Parquet) → pgvector (metadata) → PostgreSQL (data mart)        ║
+╚══════════════════════════════════════════════════════════════════════╝
+======================================================================
+  STEP 1: Scanning Parquet schemas → pgvector catalog
+======================================================================
+============================================================
+  Scanning Parquet schemas from S3 → pgvector catalog
+============================================================
+
+📂 Bucket: trading-lake (14 Parquet files)
+
+   📊 accounts
+      9 columns, 63 rows, internal
+
+   📊 aml_alerts
+      7 columns, 15 rows, restricted
+
+   📊 cash_balances
+      7 columns, 63 rows, internal
+
+   📊 clients
+      14 columns, 25 rows, internal
+
+   📊 compliance_checks
+      6 columns, 1,006 rows, restricted
+
+   📊 counterparties
+      6 columns, 6 rows, public
+
+   📊 exchanges
+      5 columns, 8 rows, public
+
+   📊 executions
+      11 columns, 645 rows, confidential
+
+   📊 instruments
+      15 columns, 34 rows, public
+
+   📊 market_prices
+      10 columns, 1,020 rows, internal
+
+   📊 orders
+      19 columns, 511 rows, confidential
+
+   📊 positions
+      13 columns, 338 rows, internal
+
+   📊 risk_limits
+      8 columns, 78 rows, confidential
+
+   📊 risk_metrics
+      13 columns, 125 rows, confidential
+
+🧠 Generating Voyage finance-2 embeddings (182 texts)...
+   Embedded 50/182
+   Embedded 100/182
+   Embedded 150/182
+   Embedded 182/182
+
+💾 Storing in catalog schema...
+   ✓ 14 table metadata records
+   ✓ 143 column metadata records
+   ✓ 15 relationship records
+   ✓ 10 KPI patterns
+
+============================================================
+✅ Metadata catalog populated!
+   Tables:        14
+   Columns:       143
+   Relationships: 15
+   KPI patterns:  10
+   Total vectors: 182
+   Index type:    HNSW (vector_cosine_ops)
+   Embedding:     Voyage finance-2 (1024d)
+============================================================
+
+   Catalog verification:
+      table_metadata: 14 records
+      column_metadata: 143 records
+      relationship_metadata: 15 records
+      kpi_patterns: 10 records
+
+██████████████████████████████████████████████████████████████████████
+  SCENARIO 1: Portfolio Exposure Dashboard
+██████████████████████████████████████████████████████████████████████
+
+======================================================================
+  STEP 2: Agent 1 — RAG Metadata Search
+  Question: I need a dashboard showing portfolio market value exposure by asset class, sector, and client segment
+  Requester: maria.chen (bi_analyst)
+======================================================================
+======================================================================
+🔍 AGENT 1: RAG Metadata Search
+   Question: I need a dashboard showing portfolio market value exposure by asset class, sector, and client segment
+   Embed: 0ms | Search: 14ms | Total: 24ms
+======================================================================
+
+📋 TABLES (14):
+   🔵 cash_balances (sim=0.051) [internal]
+      └─ Cash position per account/currency. 'available' = balance minus pending settlements. 'rese...
+   🟢 counterparties (sim=0.026) [public]
+      └─ Broker, custodian, and clearing house directory. LEI codes follow ISO 17442. Critical for ...
+   🔵 accounts (sim=0.012) [internal]
+      └─ Account hierarchy linked to clients. IBAN-like numbers. Types: trading (active orders), cu...
+   🟠 executions (sim=-0.001) [confidential]
+      └─ Fill-level execution data for TCA (Transaction Cost Analysis). Multiple fills per order fo...
+   🟠 orders (sim=-0.003) [confidential]
+      └─ FIX-protocol aligned order book. cl_ord_id is the client order UUID. Status follows FIX li...
+   🔴 compliance_checks (sim=-0.006) [restricted]
+      └─ Pre-trade compliance check results. check_type: suitability (MiFID II), concentration (int...
+   🟠 risk_limits (sim=-0.006) [confidential]
+      └─ Risk limit framework per client. Types: gross/net exposure, single-name concentration, sec...
+   🟢 exchanges (sim=-0.007) [public]
+      └─ Reference table for ISO 10383 MIC codes. Static data, refreshed quarterly when new MICs ar...
+   🔵 positions (sim=-0.007) [internal]
+      └─ End-of-day position snapshot. Grain: (account_id, instrument_id, valuation_date). P&L is m...
+   🔵 market_prices (sim=-0.017) [internal]
+      └─ OHLCV market data. Sources: Bloomberg, Reuters, exchange direct. adj_close reflects corpor...
+   🟠 risk_metrics (sim=-0.018) [confidential]
+      └─ Daily risk metrics computed by risk engine. VaR (parametric, 1-day horizon, 95th/99th perc...
+   🔴 aml_alerts (sim=-0.026) [restricted]
+      └─ Anti-Money Laundering alerts. Generated by transaction monitoring system (Actimize/NICE). ...
+   🟢 instruments (sim=-0.026) [public]
+      └─ Master security reference with ISINs (ISO 6166), SEDOL, Bloomberg tickers. Covers equities...
+   🔵 clients (sim=-0.036) [internal]
+      └─ Client master with KYC data. Contains PII (legal_name, country fields). PEP flags from Wor...
+
+📊 COLUMNS (30):
+   orders.avg_fill_price (double) sim=0.088
+   executions.executed_at (large_string) sim=0.080
+   clients.is_pep (bool) sim=0.072
+   risk_limits.limit_value (double) sim=0.071
+   clients.legal_name (large_string) sim=0.071 🔒PII
+   aml_alerts.description (large_string) sim=0.065
+   orders.remaining_qty (int64) sim=0.053
+   clients.risk_rating (large_string) sim=0.052
+   orders.broker_id (int64) sim=0.051
+   orders.compliance_note (large_string) sim=0.050
+   positions.market_price (double) sim=0.049
+   executions.exec_id (large_string) sim=0.049
+
+📐 KPI PATTERNS:
+   ✦ Cash & Liquidity Position [operations] sim=0.015
+   ✦ AML Investigation Pipeline [compliance] sim=0.009
+   ✦ Compliance Check Summary [compliance] sim=0.008
+   ✦ VaR Dashboard by Client [risk] sim=-0.002
+   ✦ Portfolio Exposure by Sector [portfolio] sim=-0.002
+
+🔐 GOVERNANCE: 🔴 restricted
+   PII: clients.legal_name, accounts.account_number
+
+🤖 REASONING: Based on the metadata search, the relevant tables are: cash_balances, counterparties, accounts, executions, orders, compliance_checks, risk_limits, exchanges, positions, market_prices, risk_metrics, aml_alerts, instruments, clients. Key columns: orders.avg_fill_price, executions.executed_at, clients.is_pep, risk_limits.limit_value, clients.legal_name. This data can be joined to answer the question.
+======================================================================
+
+======================================================================
+  STEP 3: Agent 2 — Pipeline (Data Mart Provisioning)
+  Requester: maria.chen (bi_analyst)
+======================================================================
+   📥 Staging Parquet → lake.* (14 tables)
+      lake.cash_balances: 63 rows
+      lake.counterparties: 6 rows
+      lake.accounts: 63 rows
+      lake.executions: 645 rows
+      lake.orders: 511 rows
+      lake.compliance_checks: 1,006 rows
+      lake.risk_limits: 78 rows
+      lake.exchanges: 8 rows
+      lake.positions: 338 rows
+      lake.market_prices: 1,020 rows
+      lake.risk_metrics: 125 rows
+      lake.aml_alerts: 15 rows
+      lake.instruments: 34 rows
+      lake.clients: 25 rows
+   ⚡ Executing: data_mart.dm_exposure_by_sector
+
+======================================================================
+⚙️  AGENT 2: Pipeline — Data Mart Provisioning
+   Request: cd36a915-9a14-4c69-b9ec-69b56dcfcb15
+   Status: ✅ executed
+======================================================================
+
+📦 MART: data_mart.dm_exposure_by_sector
+   Rows: 16
+   Staging: 223ms | SQL: 3ms | Total: 262ms
+
+🔐 GOVERNANCE:
+   Classification: 🔴 restricted
+   PII masking: ✓
+   RLS: ✓
+   Grants: compliance_officer
+
+📝 SQL:
+   CREATE TABLE data_mart.dm_exposure_by_sector AS
+   SELECT
+       i.sector,
+       i.asset_class,
+       COUNT(DISTINCT p.account_id) AS num_accounts,
+       SUM(p.market_value) AS total_exposure,
+       AVG(p.weight_pct) AS avg_weight,
+       SUM(p.unrealized_pnl) AS total_unrealized_pnl
+   FROM lake.positions p
+   JOIN lake.instruments i ON p.instrument_id = i.instrument_id
+   GROUP BY i.sector, i.asset_class
+   ORDER BY total_exposure DESC;
+   
+   COMMENT ON TABLE data_mart.dm_exposure_by_sector IS 'Portfolio exposure aggregated by sector and asset class';
+======================================================================
+
+██████████████████████████████████████████████████████████████████████
+  SCENARIO 2: Risk Limit Monitoring
+██████████████████████████████████████████████████████████████████████
+
+======================================================================
+  STEP 2: Agent 1 — RAG Metadata Search
+  Question: Show me clients above 70% risk limit utilization with VaR metrics and exposure breakdown
+  Requester: thomas.weber (risk_manager)
+======================================================================
+======================================================================
+🔍 AGENT 1: RAG Metadata Search
+   Question: Show me clients above 70% risk limit utilization with VaR metrics and exposure breakdown
+   Embed: 0ms | Search: 9ms | Total: 18ms
+======================================================================
+
+📋 TABLES (14):
+   🟠 risk_limits (sim=0.060) [confidential]
+      └─ Risk limit framework per client. Types: gross/net exposure, single-name concentration, sec...
+   🟠 executions (sim=0.032) [confidential]
+      └─ Fill-level execution data for TCA (Transaction Cost Analysis). Multiple fills per order fo...
+   🔵 positions (sim=0.025) [internal]
+      └─ End-of-day position snapshot. Grain: (account_id, instrument_id, valuation_date). P&L is m...
+   🟠 risk_metrics (sim=0.016) [confidential]
+      └─ Daily risk metrics computed by risk engine. VaR (parametric, 1-day horizon, 95th/99th perc...
+   🟢 counterparties (sim=0.016) [public]
+      └─ Broker, custodian, and clearing house directory. LEI codes follow ISO 17442. Critical for ...
+   🔵 cash_balances (sim=0.012) [internal]
+      └─ Cash position per account/currency. 'available' = balance minus pending settlements. 'rese...
+   🟢 instruments (sim=-0.002) [public]
+      └─ Master security reference with ISINs (ISO 6166), SEDOL, Bloomberg tickers. Covers equities...
+   🟠 orders (sim=-0.005) [confidential]
+      └─ FIX-protocol aligned order book. cl_ord_id is the client order UUID. Status follows FIX li...
+   🟢 exchanges (sim=-0.014) [public]
+      └─ Reference table for ISO 10383 MIC codes. Static data, refreshed quarterly when new MICs ar...
+   🔵 accounts (sim=-0.015) [internal]
+      └─ Account hierarchy linked to clients. IBAN-like numbers. Types: trading (active orders), cu...
+   🔵 clients (sim=-0.018) [internal]
+      └─ Client master with KYC data. Contains PII (legal_name, country fields). PEP flags from Wor...
+   🔵 market_prices (sim=-0.020) [internal]
+      └─ OHLCV market data. Sources: Bloomberg, Reuters, exchange direct. adj_close reflects corpor...
+   🔴 compliance_checks (sim=-0.033) [restricted]
+      └─ Pre-trade compliance check results. check_type: suitability (MiFID II), concentration (int...
+   🔴 aml_alerts (sim=-0.035) [restricted]
+      └─ Anti-Money Laundering alerts. Generated by transaction monitoring system (Actimize/NICE). ...
+
+📊 COLUMNS (30):
+   clients.onboarding_date (large_string) sim=0.092
+   market_prices.high_price (double) sim=0.060
+   aml_alerts.assigned_to (large_string) sim=0.059
+   positions.market_price (double) sim=0.056
+   orders.limit_price (double) sim=0.053
+   instruments.sedol (large_string) sim=0.052
+   instruments.bloomberg_ticker (large_string) sim=0.051
+   exchanges.mic_code (large_string) sim=0.049
+   accounts.status (large_string) sim=0.048
+   risk_metrics.leverage_ratio (double) sim=0.047
+   clients.is_pep (bool) sim=0.043
+   cash_balances.balance_id (int64) sim=0.043
+
+📐 KPI PATTERNS:
+   ✦ Portfolio Exposure by Sector [portfolio] sim=0.041
+   ✦ AML Investigation Pipeline [compliance] sim=0.032
+   ✦ Client AUM by Segment [portfolio] sim=0.024
+   ✦ Cash & Liquidity Position [operations] sim=0.022
+   ✦ Trading Volume by Desk [trading] sim=0.015
+
+🔐 GOVERNANCE: 🔴 restricted
+
+🤖 REASONING: Based on the metadata search, the relevant tables are: risk_limits, executions, positions, risk_metrics, counterparties, cash_balances, instruments, orders, exchanges, accounts, clients, market_prices, compliance_checks, aml_alerts. Key columns: clients.onboarding_date, market_prices.high_price, aml_alerts.assigned_to, positions.market_price, orders.limit_price. This data can be joined to answer the question.
+======================================================================
+
+======================================================================
+  STEP 3: Agent 2 — Pipeline (Data Mart Provisioning)
+  Requester: thomas.weber (risk_manager)
+======================================================================
+   📥 Staging Parquet → lake.* (14 tables)
+      lake.risk_limits: 78 rows
+      lake.executions: 645 rows
+      lake.positions: 338 rows
+      lake.risk_metrics: 125 rows
+      lake.counterparties: 6 rows
+      lake.cash_balances: 63 rows
+      lake.instruments: 34 rows
+      lake.orders: 511 rows
+      lake.exchanges: 8 rows
+      lake.accounts: 63 rows
+      lake.clients: 25 rows
+      lake.market_prices: 1,020 rows
+      lake.compliance_checks: 1,006 rows
+      lake.aml_alerts: 15 rows
+   ⚡ Executing: data_mart.dm_risk_limit_monitor
+
+======================================================================
+⚙️  AGENT 2: Pipeline — Data Mart Provisioning
+   Request: b8065561-4289-41b2-9cfe-d80a5a40c06c
+   Status: ✅ executed
+======================================================================
+
+📦 MART: data_mart.dm_risk_limit_monitor
+   Rows: 26
+   Staging: 206ms | SQL: 4ms | Total: 245ms
+
+🔐 GOVERNANCE:
+   Classification: 🔴 restricted
+   PII masking: ✗
+   RLS: ✓
+   Grants: compliance_officer
+
+📝 SQL:
+   CREATE TABLE data_mart.dm_risk_limit_monitor AS
+   SELECT
+       c.client_code,
+       c.legal_name AS client_name,
+       c.risk_rating,
+       c.segment,
+       rl.limit_type,
+       rl.limit_value,
+       rl.current_usage,
+       rl.utilization_pct,
+       rl.breach_action,
+       rm.var_1d_95,
+       rm.var_1d_99,
+       rm.cvar_1d_95,
+       rm.gross_exposure
+   FROM lake.risk_limits rl
+   JOIN lake.clients c ON rl.client_id = c.client_id
+   LEFT JOIN lake.risk_metrics rm ON c.client_id = rm.client_id
+       AND rm.metric_date = (SELECT MAX(metric_date) FROM lake.risk_metrics)
+   WHERE rl.utilization_pct > 70
+   ORDER BY rl.utilization_pct DESC;
+   
+   COMMENT ON TABLE data_mart.dm_risk_limit_monitor IS 'Clients above 70%% risk limit utilization with VaR metrics';
+======================================================================
+
+██████████████████████████████████████████████████████████████████████
+  SCENARIO 3: AML Investigation View
+██████████████████████████████████████████████████████████████████████
+
+======================================================================
+  STEP 2: Agent 1 — RAG Metadata Search
+  Question: All open and escalated AML alerts with full client details, PEP status, and trading activity for SAR investigation
+  Requester: sophie.martin (compliance_officer)
+======================================================================
+======================================================================
+🔍 AGENT 1: RAG Metadata Search
+   Question: All open and escalated AML alerts with full client details, PEP status, and trading activity for SAR investigation
+   Embed: 0ms | Search: 13ms | Total: 24ms
+======================================================================
+
+📋 TABLES (14):
+   🟠 risk_metrics (sim=0.053) [confidential]
+      └─ Daily risk metrics computed by risk engine. VaR (parametric, 1-day horizon, 95th/99th perc...
+   🟠 executions (sim=0.051) [confidential]
+      └─ Fill-level execution data for TCA (Transaction Cost Analysis). Multiple fills per order fo...
+   🟢 counterparties (sim=0.013) [public]
+      └─ Broker, custodian, and clearing house directory. LEI codes follow ISO 17442. Critical for ...
+   🟢 exchanges (sim=0.002) [public]
+      └─ Reference table for ISO 10383 MIC codes. Static data, refreshed quarterly when new MICs ar...
+   🟠 risk_limits (sim=-0.000) [confidential]
+      └─ Risk limit framework per client. Types: gross/net exposure, single-name concentration, sec...
+   🔵 market_prices (sim=-0.001) [internal]
+      └─ OHLCV market data. Sources: Bloomberg, Reuters, exchange direct. adj_close reflects corpor...
+   🔵 accounts (sim=-0.007) [internal]
+      └─ Account hierarchy linked to clients. IBAN-like numbers. Types: trading (active orders), cu...
+   🟠 orders (sim=-0.010) [confidential]
+      └─ FIX-protocol aligned order book. cl_ord_id is the client order UUID. Status follows FIX li...
+   🟢 instruments (sim=-0.014) [public]
+      └─ Master security reference with ISINs (ISO 6166), SEDOL, Bloomberg tickers. Covers equities...
+   🔵 cash_balances (sim=-0.022) [internal]
+      └─ Cash position per account/currency. 'available' = balance minus pending settlements. 'rese...
+   🔵 positions (sim=-0.025) [internal]
+      └─ End-of-day position snapshot. Grain: (account_id, instrument_id, valuation_date). P&L is m...
+   🔵 clients (sim=-0.039) [internal]
+      └─ Client master with KYC data. Contains PII (legal_name, country fields). PEP flags from Wor...
+   🔴 compliance_checks (sim=-0.046) [restricted]
+      └─ Pre-trade compliance check results. check_type: suitability (MiFID II), concentration (int...
+   🔴 aml_alerts (sim=-0.060) [restricted]
+      └─ Anti-Money Laundering alerts. Generated by transaction monitoring system (Actimize/NICE). ...
+
+📊 COLUMNS (30):
+   compliance_checks.rule_name (large_string) sim=0.090
+   instruments.industry_group (large_string) sim=0.070
+   aml_alerts.status (large_string) sim=0.069
+   accounts.account_type (large_string) sim=0.069
+   positions.cost_basis (double) sim=0.067
+   compliance_checks.check_id (int64) sim=0.064
+   market_prices.high_price (double) sim=0.062
+   orders.compliance_check (large_string) sim=0.061
+   cash_balances.currency (large_string) sim=0.058
+   risk_metrics.gross_exposure (double) sim=0.056
+   counterparties.lei (large_string) sim=0.055
+   positions.unrealized_pnl (double) sim=0.053
+
+📐 KPI PATTERNS:
+   ✦ Trading Volume by Desk [trading] sim=0.060
+   ✦ AML Investigation Pipeline [compliance] sim=0.015
+   ✦ Execution Quality (TCA) [trading] sim=0.006
+   ✦ VaR Dashboard by Client [risk] sim=0.005
+   ✦ Risk Limit Utilization [risk] sim=0.001
+
+🔐 GOVERNANCE: 🔴 restricted
+   PII: accounts.account_number
+
+🤖 REASONING: Based on the metadata search, the relevant tables are: risk_metrics, executions, counterparties, exchanges, risk_limits, market_prices, accounts, orders, instruments, cash_balances, positions, clients, compliance_checks, aml_alerts. Key columns: compliance_checks.rule_name, instruments.industry_group, aml_alerts.status, accounts.account_type, positions.cost_basis. This data can be joined to answer the question.
+======================================================================
+
+======================================================================
+  STEP 3: Agent 2 — Pipeline (Data Mart Provisioning)
+  Requester: sophie.martin (compliance_officer)
+======================================================================
+   📥 Staging Parquet → lake.* (14 tables)
+      lake.risk_metrics: 125 rows
+      lake.executions: 645 rows
+      lake.counterparties: 6 rows
+      lake.exchanges: 8 rows
+      lake.risk_limits: 78 rows
+      lake.market_prices: 1,020 rows
+      lake.accounts: 63 rows
+      lake.orders: 511 rows
+      lake.instruments: 34 rows
+      lake.cash_balances: 63 rows
+      lake.positions: 338 rows
+      lake.clients: 25 rows
+      lake.compliance_checks: 1,006 rows
+      lake.aml_alerts: 15 rows
+   ⚡ Executing: data_mart.dm_aml_investigation
+
+======================================================================
+⚙️  AGENT 2: Pipeline — Data Mart Provisioning
+   Request: 4ebecec4-a345-4571-81a7-196db629eb1d
+   Status: ✅ executed
+======================================================================
+
+📦 MART: data_mart.dm_aml_investigation
+   Rows: 12
+   Staging: 238ms | SQL: 4ms | Total: 291ms
+
+🔐 GOVERNANCE:
+   Classification: 🔴 restricted
+   PII masking: ✗
+   RLS: ✓
+   Grants: compliance_officer
+
+📝 SQL:
+   CREATE TABLE data_mart.dm_aml_investigation AS
+   SELECT
+       a.alert_id,
+       a.alert_type,
+       a.severity,
+       a.status,
+       a.description AS alert_description,
+       a.assigned_to,
+       c.legal_name,
+       c.is_pep,
+       c.country_domicile,
+       c.risk_rating
+   FROM lake.aml_alerts a
+   JOIN lake.clients c ON a.client_id = c.client_id
+   WHERE a.status IN ('open', 'investigating', 'escalated')
+   ORDER BY
+       CASE a.severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END,
+       a.alert_id;
+   
+   COMMENT ON TABLE data_mart.dm_aml_investigation IS 'AML alerts with client details for SAR investigation';
+======================================================================
+
+======================================================================
+  STEP 4: Governance Verification
+======================================================================
+
+   📋 Provisioning Audit Trail (3 entries):
+      ✅ 🔴 data_mart.dm_aml_investigation [executed]
+         By: sophie.martin (compliance_officer)
+         Mask: ✗ | RLS: ✓ | Rows: 12 | 4ms
+         Grants: ['compliance_officer']
+      ✅ 🔴 data_mart.dm_risk_limit_monitor [executed]
+         By: thomas.weber (risk_manager)
+         Mask: ✗ | RLS: ✓ | Rows: 26 | 4ms
+         Grants: ['compliance_officer']
+      ✅ 🔴 data_mart.dm_exposure_by_sector [executed]
+         By: maria.chen (bi_analyst)
+         Mask: ✓ | RLS: ✓ | Rows: 16 | 3ms
+         Grants: ['compliance_officer']
+
+   📦 Data Mart Registry (3 marts):
+      🔴 data_mart.dm_aml_investigation — 12 rows
+         PII masked: ✗ | Roles: ['compliance_officer']
+      🔴 data_mart.dm_risk_limit_monitor — 26 rows
+         PII masked: ✗ | Roles: ['compliance_officer']
+      🔴 data_mart.dm_exposure_by_sector — 16 rows
+         PII masked: ✓ | Roles: ['compliance_officer']
+
+   🔍 Search Log: 3 queries recorded
+
+   🔒 PII Masking Functions Demo:
+      mask_name("Dr. Elena Brunner")  → "D** E**** B******"
+      mask_account("CH9300010001")     → "CH93********"
+      mask_isin("CH0012032048")        → "CH00*****048"
+
+   🛡️  Role-Based Access Control Verification:
+      🔴 data_mart.dm_aml_investigation: compliance_officer
+      🔴 data_mart.dm_risk_limit_monitor: compliance_officer
+      🔴 data_mart.dm_exposure_by_sector: compliance_officer
+
+======================================================================
+  STEP 5: Sample Data from Provisioned Marts
+======================================================================
+
+   📊 data_mart.dm_aml_investigation:
+                    alert_id |             alert_type |               severity |                 status |      alert_description |            assigned_to |             legal_name |                 is_pep
+      ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                           1 |           pep_activity |               critical |                   open | Large transfer by PEP- |          Sophie Martin |          Dmitri Volkov |                   True
+                           5 |            structuring |               critical |          investigating | Multiple sub-threshold |          Sophie Martin |    Sir James Whitfield |                   True
+                           6 |           pep_activity |               critical |          investigating | Large transfer by PEP- |          Sophie Martin |    Sir James Whitfield |                   True
+                           2 |           pep_activity |                   high |              escalated | Large transfer by PEP- |          Sophie Martin |          Dmitri Volkov |                   True
+                           7 |           pep_activity |                   high |          investigating | Large transfer by PEP- |          Sophie Martin |    Sir James Whitfield |                   True
+
+   📊 data_mart.dm_risk_limit_monitor:
+                 client_code |            client_name |            risk_rating |                segment |             limit_type |            limit_value |          current_usage |        utilization_pct
+      ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                  CLI-CH-002 |      Dr. Elena Brunner |                 medium |                  uhnwi |            single_name |            36800094.75 |            34790712.81 |                  94.54
+                  CLI-CH-002 |      Dr. Elena Brunner |                 medium |                  uhnwi |           net_exposure |            20729067.99 |            19383247.69 |                  93.51
+                  CLI-FR-011 | Pierre & Marie Lefèvre |                 medium |                  uhnwi |                 sector |             1227280.72 |              1142734.8 |                  93.11
+                  CLI-CH-021 |            Reto Gerber |                    low |                 retail |                 sector |            28930866.88 |            26862769.41 |                  92.85
+                  CLI-BR-025 |      Fernanda Oliveira |                   high |                   hnwi |               leverage |            36768771.63 |            33659447.71 |                  91.54
+
+   📊 data_mart.dm_exposure_by_sector:
+                      sector |            asset_class |           num_accounts |         total_exposure |             avg_weight |   total_unrealized_pnl
+      ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+      Information Technology |                 equity |                     30 |     28269493.029999997 |      13.91339166666667 |     2711651.3699999996
+      Consumer Discretionary |                 equity |                     35 |            24822818.72 |     13.583853191489364 |      665127.4700000001
+      Communication Services |                 equity |                     20 |     21123473.209999997 |      11.54215714285714 |     1051986.0500000003
+                 Health Care |                 equity |                     20 |            14881692.86 |     13.899441666666666 |              773600.43
+                 Diversified |                    etf |                     29 |             14543159.0 |             12.2800225 |      870340.3599999999
+
+══════════════════════════════════════════════════════════════════════
+  ✅ ALL STEPS COMPLETED SUCCESSFULLY
+══════════════════════════════════════════════════════════════════════

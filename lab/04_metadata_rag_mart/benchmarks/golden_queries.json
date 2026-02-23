@@ -94,5 +94,37 @@
       "columns": ["orders.compliance_check", "orders.compliance_note", "clients.country_domicile"],
       "kpi": null
     }
+  },
+  {
+    "query": "What news events affect my Consumer Staples positions?",
+    "expected": {
+      "tables": ["financial_news", "positions", "instruments"],
+      "columns": ["financial_news.sentiment_score", "financial_news.related_sectors", "financial_news.impact_level"],
+      "kpi": "Market Sentiment by Sector"
+    }
+  },
+  {
+    "query": "Show me analyst downgrades for instruments we hold",
+    "expected": {
+      "tables": ["analyst_recommendations", "positions", "instruments"],
+      "columns": ["analyst_recommendations.recommendation", "analyst_recommendations.prev_recommendation", "analyst_recommendations.instrument_isin"],
+      "kpi": "Analyst Consensus Changes"
+    }
+  },
+  {
+    "query": "FINMA regulatory filings for Swiss financial sector",
+    "expected": {
+      "tables": ["public_filings", "instruments"],
+      "columns": ["public_filings.financial_impact", "public_filings.filing_type", "public_filings.issuer_isin"],
+      "kpi": "Regulatory Filing Alerts"
+    }
+  },
+  {
+    "query": "Earnings surprises for held positions this quarter",
+    "expected": {
+      "tables": ["financial_reports", "positions", "instruments"],
+      "columns": ["financial_reports.revenue_surprise_pct", "financial_reports.eps_surprise_pct", "financial_reports.guidance"],
+      "kpi": "Earnings Surprise Impact"
+    }
   }
 ]

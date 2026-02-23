@@ -34,9 +34,9 @@ import config
 llm = OpenAI(api_key=config.OPENAI_API_KEY)
 
 CLASSIFICATION_ACCESS = {
-    "public":       ["bi_analyst", "risk_manager", "compliance_officer"],
-    "internal":     ["bi_analyst", "risk_manager", "compliance_officer"],
-    "confidential": ["risk_manager", "compliance_officer"],
+    "public":       ["bi_analyst", "risk_manager", "compliance_officer", "portfolio_manager"],
+    "internal":     ["bi_analyst", "risk_manager", "compliance_officer", "portfolio_manager"],
+    "confidential": ["risk_manager", "compliance_officer", "portfolio_manager"],
     "restricted":   ["compliance_officer"],
 }
 

@@ -17,6 +17,7 @@ Data generated (seed=42, reproducible):
 import os
 import random
 import io
+import json
 from datetime import date, datetime, timedelta
 from typing import List, Dict
 
@@ -383,6 +384,376 @@ def gen_compliance_checks(orders_df):
             })
     return pd.DataFrame(rows)
 
+def gen_financial_news(instruments_df):
+    """Generate ~200 synthetic financial news articles with Swiss/EU focus."""
+    today = date(2026, 2, 20)
+    sources = ["Bloomberg", "Reuters", "AWP", "FT", "NZZ"]
+    categories = ["earnings", "regulatory", "market_move", "m_and_a", "macro", "downgrade", "upgrade"]
+    sentiments = ["positive", "negative", "neutral"]
+    regions = ["CH", "EU", "US", "APAC", "Global"]
+    impact_levels = ["low", "medium", "high", "critical"]
+    sectors = sorted(set(i[6] for i in INSTRUMENTS_RAW if i[6] and i[6] != "Government"))
+    isin_list = [i[0] for i in INSTRUMENTS_RAW]
+
+    # Pre-built high-impact news that drive broker signals
+    signal_news = [
+        {"headline": "Nestlé Q4 revenue misses estimates; organic growth at 2.1% vs 3.4% expected",
+         "summary": "Nestlé SA reported Q4 2025 revenue of CHF 23.1bn, missing consensus by 2.3%. Organic growth of 2.1% fell short of the 3.4% expected. Management cited consumer weakness in Europe and North America. Stock dropped 4.2% in early Zurich trading.",
+         "source": "Bloomberg", "category": "earnings", "sentiment": "negative", "sentiment_score": -0.78,
+         "related_isins": ["CH0012005267", "CH0537261858"], "related_sectors": ["Consumer Staples"],
+         "region": "CH", "impact_level": "critical", "days_ago": 2},
+        {"headline": "FINMA orders UBS to increase capital buffer by CHF 25bn",
+         "summary": "Swiss regulator FINMA has directed UBS Group to raise additional capital buffers following its systemic risk review. The CHF 25bn requirement must be met within 18 months. UBS shares fell 3.1% on the announcement.",
+         "source": "AWP", "category": "regulatory", "sentiment": "negative", "sentiment_score": -0.85,
+         "related_isins": ["CH0244767585", "XS2310511717"], "related_sectors": ["Financials"],
+         "region": "CH", "impact_level": "critical", "days_ago": 3},
+        {"headline": "ASML warns of export restrictions impact on 2027 guidance",
+         "summary": "ASML Holding NV warned that new US-led export restrictions to China could reduce 2027 revenue by EUR 2-3bn. The Dutch chipmaker maintained its 2026 outlook but flagged growing geopolitical headwinds for its EUV lithography business.",
+         "source": "Reuters", "category": "downgrade", "sentiment": "negative", "sentiment_score": -0.62,
+         "related_isins": ["NL0010273215"], "related_sectors": ["Information Technology"],
+         "region": "EU", "impact_level": "high", "days_ago": 5},
+        {"headline": "Roche receives FDA breakthrough designation for new Alzheimer's drug",
+         "summary": "Roche's experimental Alzheimer's treatment gantenerumab-next received FDA Breakthrough Therapy designation. Phase 3 data showed 35% slowing of cognitive decline. Shares rose 2.8% in pre-market. Analysts see CHF 5bn+ peak sales potential.",
+         "source": "Bloomberg", "category": "upgrade", "sentiment": "positive", "sentiment_score": 0.82,
+         "related_isins": ["CH0012032048"], "related_sectors": ["Health Care"],
+         "region": "CH", "impact_level": "high", "days_ago": 1},
+        {"headline": "SNB holds policy rate at 1.50%, signals no near-term cuts",
+         "summary": "The Swiss National Bank maintained its policy rate at 1.50% as expected. President Schlegel indicated no urgency to ease, citing resilient domestic inflation. CHF strengthened 0.3% against EUR on the hawkish hold.",
+         "source": "AWP", "category": "macro", "sentiment": "neutral", "sentiment_score": 0.05,
+         "related_isins": [], "related_sectors": ["Financials"],
+         "region": "CH", "impact_level": "medium", "days_ago": 4},
+        {"headline": "Goldman Sachs downgrades NVIDIA to Sell, cuts target to $95",
+         "summary": "Goldman analyst Toshiya Hari downgraded NVIDIA from Buy to Sell with a $95 price target, citing peak AI capex cycle and rising competition from custom silicon. The downgrade follows a 180% YTD rally. Hari sees 25% downside risk.",
+         "source": "Bloomberg", "category": "downgrade", "sentiment": "negative", "sentiment_score": -0.71,
+         "related_isins": ["US67066G1040"], "related_sectors": ["Information Technology"],
+         "region": "US", "impact_level": "high", "days_ago": 6},
+        {"headline": "Swiss Re raises 2026 dividend by 15% after record combined ratio",
+         "summary": "Swiss Re AG announced a 15% dividend increase to CHF 7.35 per share after achieving a 92.1% combined ratio in FY 2025. CEO Mumenthaler highlighted strong nat cat reserve releases and improved pricing discipline.",
+         "source": "NZZ", "category": "earnings", "sentiment": "positive", "sentiment_score": 0.65,
+         "related_isins": ["CH1175448666"], "related_sectors": ["Financials"],
+         "region": "CH", "impact_level": "medium", "days_ago": 7},
+        {"headline": "Zurich Insurance completes EUR 2.1bn acquisition of Italian insurer",
+         "summary": "Zurich Insurance Group closed its acquisition of Assicurazioni Generali's personal lines portfolio for EUR 2.1bn. The deal expands Zurich's European retail presence by 3 million policyholders.",
+         "source": "FT", "category": "m_and_a", "sentiment": "positive", "sentiment_score": 0.45,
+         "related_isins": ["CH0210483332"], "related_sectors": ["Financials"],
+         "region": "EU", "impact_level": "medium", "days_ago": 8},
+        {"headline": "SAP Q4 cloud revenue beats estimates by 8%, raises FY 2026 guidance",
+         "summary": "SAP SE reported Q4 cloud revenue of EUR 4.7bn, 8% above consensus. The German software giant raised its FY 2026 cloud revenue guidance to EUR 21-22bn. Operating profit margin expanded 150bp to 34.5%.",
+         "source": "Reuters", "category": "earnings", "sentiment": "positive", "sentiment_score": 0.73,
+         "related_isins": ["DE0007164600"], "related_sectors": ["Information Technology"],
+         "region": "EU", "impact_level": "medium", "days_ago": 10},
+        {"headline": "JP Morgan cuts ASML target price by 15%, maintains Hold",
+         "summary": "JP Morgan analyst Sandeep Deshpande reduced ASML's target to EUR 580 from EUR 680, citing slower-than-expected EUV adoption in China and inventory build at key customers. Maintained Hold rating.",
+         "source": "Bloomberg", "category": "downgrade", "sentiment": "negative", "sentiment_score": -0.48,
+         "related_isins": ["NL0010273215"], "related_sectors": ["Information Technology"],
+         "region": "EU", "impact_level": "medium", "days_ago": 4},
+    ]
+
+    rows = []
+    nid = 0
+
+    # Add signal news first
+    for sn in signal_news:
+        nid += 1
+        pub_dt = datetime(today.year, today.month, today.day, random.randint(6, 20), random.randint(0, 59)) - timedelta(days=sn["days_ago"])
+        rows.append({
+            "news_id": nid, "published_at": pub_dt.isoformat(),
+            "source": sn["source"], "headline": sn["headline"], "summary": sn["summary"],
+            "category": sn["category"], "sentiment": sn["sentiment"],
+            "sentiment_score": sn["sentiment_score"],
+            "related_isins": sn["related_isins"], "related_sectors": sn["related_sectors"],
+            "region": sn["region"], "impact_level": sn["impact_level"],
+        })
+
+    # Generate ~190 more random news
+    headlines_templates = [
+        ("{company} reports {direction} quarterly results, {metric} {beats_misses} consensus",
+         lambda: {"company": random.choice([i[3] for i in INSTRUMENTS_RAW[:22]]),
+                  "direction": random.choice(["strong", "mixed", "weak"]),
+                  "metric": random.choice(["revenue", "EPS", "EBITDA"]),
+                  "beats_misses": random.choice(["beats", "misses", "in line with"])}),
+        ("Analyst {action} {company} citing {reason}",
+         lambda: {"action": random.choice(["upgrades", "downgrades", "initiates coverage on", "maintains Outperform on"]),
+                  "company": random.choice([i[3] for i in INSTRUMENTS_RAW[:22]]),
+                  "reason": random.choice(["valuation concerns", "strong fundamentals", "sector rotation", "margin expansion", "regulatory headwinds"])}),
+        ("{sector} sector {direction} amid {catalyst}",
+         lambda: {"sector": random.choice(sectors),
+                  "direction": random.choice(["rallies", "sells off", "underperforms", "outperforms"]),
+                  "catalyst": random.choice(["rate expectations", "earnings season", "geopolitical tensions", "trade deal progress", "central bank signals"])}),
+        ("{region} markets {direction} on {catalyst}",
+         lambda: {"region": random.choice(["European", "Swiss", "US", "Asian", "Global"]),
+                  "direction": random.choice(["rise", "fall", "mixed"]),
+                  "catalyst": random.choice(["ECB signals", "Fed minutes", "China data", "oil price moves", "tech earnings"])}),
+    ]
+
+    for _ in range(190):
+        nid += 1
+        template, gen_params = random.choice(headlines_templates)
+        params = gen_params()
+        headline = template.format(**params)
+        pub_dt = datetime(today.year, today.month, today.day, random.randint(6, 20), random.randint(0, 59)) - timedelta(days=random.randint(0, 29))
+        cat = random.choice(categories)
+        sent = random.choices(sentiments, weights=[25, 40, 35])[0]
+        score = {"positive": random.uniform(0.1, 0.9), "negative": random.uniform(-0.9, -0.1),
+                 "neutral": random.uniform(-0.15, 0.15)}[sent]
+        n_isins = random.randint(0, 3)
+        rel_isins = random.sample(isin_list[:22], min(n_isins, 22)) if n_isins > 0 else []
+        n_sectors = random.randint(1, 2)
+        rel_sectors = random.sample(sectors, min(n_sectors, len(sectors)))
+        imp = random.choices(impact_levels, weights=[30, 40, 20, 10])[0]
+
+        rows.append({
+            "news_id": nid, "published_at": pub_dt.isoformat(),
+            "source": random.choice(sources), "headline": headline,
+            "summary": f"Summary for: {headline}. Market impact assessed as {imp}.",
+            "category": cat, "sentiment": sent,
+            "sentiment_score": round(score, 2),
+            "related_isins": rel_isins, "related_sectors": rel_sectors,
+            "region": random.choice(regions), "impact_level": imp,
+        })
+
+    df = pd.DataFrame(rows)
+    # Convert list columns to string representation for Parquet
+    df["related_isins"] = df["related_isins"].apply(json.dumps)
+    df["related_sectors"] = df["related_sectors"].apply(json.dumps)
+    return df
+
+
+def gen_public_filings():
+    """Generate ~80 synthetic SIX/FINMA-style filings."""
+    today = date(2026, 2, 20)
+    filing_types = ["ad_hoc_disclosure", "annual_report", "interim_report", "prospectus", "share_buyback", "mgmt_transaction"]
+    regulators = ["FINMA", "SIX", "SEC", "BaFin"]
+    financial_impacts = ["positive", "negative", "neutral", "material"]
+
+    # Pre-built signal filings
+    signal_filings = [
+        {"filing_type": "ad_hoc_disclosure", "issuer": "UBS Group AG", "issuer_isin": "CH0244767585",
+         "regulator": "FINMA", "title": "FINMA Capital Buffer Requirement — Ad Hoc Disclosure",
+         "summary": "UBS Group AG is required to increase its regulatory capital buffer by CHF 25bn within 18 months per FINMA directive. The bank plans to meet the requirement through retained earnings and conditional capital instruments. No dividend impact expected for FY 2025.",
+         "financial_impact": "material", "key_figures": '{"capital_requirement": "CHF 25bn", "timeline": "18 months"}',
+         "sector": "Financials", "days_ago": 3},
+        {"filing_type": "annual_report", "issuer": "Nestlé SA", "issuer_isin": "CH0012005267",
+         "regulator": "SIX", "title": "Nestlé SA — FY 2025 Annual Report",
+         "summary": "Nestlé reports FY 2025 revenue of CHF 91.2bn (-1.8% organic). Net income CHF 10.5bn. Board proposes dividend of CHF 3.00 (unchanged). Guidance for 2026: 3-4% organic growth target.",
+         "financial_impact": "negative", "key_figures": '{"revenue": "CHF 91.2bn", "net_income": "CHF 10.5bn", "dividend": "CHF 3.00"}',
+         "sector": "Consumer Staples", "days_ago": 5},
+        {"filing_type": "share_buyback", "issuer": "Roche Holding AG", "issuer_isin": "CH0012032048",
+         "regulator": "SIX", "title": "Roche announces CHF 2bn share buyback program",
+         "summary": "Roche launches a CHF 2bn share buyback program over 12 months, reflecting confidence in cash flow generation. The buyback represents approximately 1% of market cap.",
+         "financial_impact": "positive", "key_figures": '{"buyback_amount": "CHF 2bn", "duration": "12 months"}',
+         "sector": "Health Care", "days_ago": 10},
+    ]
+
+    rows = []
+    fid = 0
+
+    for sf in signal_filings:
+        fid += 1
+        rows.append({
+            "filing_id": fid, "filing_date": str(today - timedelta(days=sf["days_ago"])),
+            "filing_type": sf["filing_type"], "issuer": sf["issuer"],
+            "issuer_isin": sf["issuer_isin"], "regulator": sf["regulator"],
+            "title": sf["title"], "summary": sf["summary"],
+            "financial_impact": sf["financial_impact"], "key_figures": sf["key_figures"],
+            "sector": sf["sector"],
+            "filing_url": f"https://www.six-exchange-regulation.com/en/home/publications/significant-shareholders.html#{fid}",
+        })
+
+    # Generate ~77 more
+    issuers = [(i[3], i[0], i[6]) for i in INSTRUMENTS_RAW if i[4] == "equity"]
+    for _ in range(77):
+        fid += 1
+        issuer_name, issuer_isin, sector = random.choice(issuers)
+        ft = random.choice(filing_types)
+        fi = random.choice(financial_impacts)
+        reg = "FINMA" if random.random() < 0.3 else random.choice(regulators)
+        title_templates = {
+            "ad_hoc_disclosure": f"{issuer_name} — Ad Hoc Disclosure: {random.choice(['Management Change', 'Contract Award', 'Legal Proceeding', 'Strategic Review'])}",
+            "annual_report": f"{issuer_name} — FY 2025 Annual Report",
+            "interim_report": f"{issuer_name} — {random.choice(['H1', 'Q3'])} 2025 Interim Report",
+            "prospectus": f"{issuer_name} — {random.choice(['Bond', 'Equity', 'Convertible'])} Prospectus",
+            "share_buyback": f"{issuer_name} — Share Buyback {random.choice(['Announcement', 'Update', 'Completion'])}",
+            "mgmt_transaction": f"{issuer_name} — {random.choice(['CEO', 'CFO', 'Board Member'])} {random.choice(['Purchase', 'Sale'])} of Shares",
+        }
+        rows.append({
+            "filing_id": fid, "filing_date": str(today - timedelta(days=random.randint(1, 90))),
+            "filing_type": ft, "issuer": issuer_name, "issuer_isin": issuer_isin,
+            "regulator": reg, "title": title_templates[ft],
+            "summary": f"Regulatory filing by {issuer_name}. Type: {ft}. Impact assessed as {fi}.",
+            "financial_impact": fi, "key_figures": "{}",
+            "sector": sector or "Diversified",
+            "filing_url": f"https://www.six-exchange-regulation.com/en/home/publications/{fid}",
+        })
+
+    return pd.DataFrame(rows)
+
+
+def gen_analyst_recommendations(instruments_df):
+    """Generate ~150 synthetic sell-side analyst recommendations."""
+    today = date(2026, 2, 20)
+    firms = ["Goldman Sachs", "UBS", "JP Morgan", "Vontobel", "ZKB", "Barclays", "Morgan Stanley", "BofA Securities"]
+    analyst_names = ["Toshiya Hari", "Sandeep Deshpande", "Michael Levin", "Anna Schmidt", "Lukas Meier",
+                     "Sarah Chen", "Pierre Dubois", "James Whitworth", "Elena Rossi", "Martin Huber",
+                     "Lisa Wang", "Thomas Keller", "Rajesh Patel", "Maria Fischer", "David Brown"]
+    recommendations = ["strong_buy", "buy", "hold", "sell", "strong_sell"]
+    rec_weights = [10, 30, 35, 18, 7]
+
+    # Signal recommendations (drive broker alerts)
+    signal_recs = [
+        {"firm": "Goldman Sachs", "analyst": "Toshiya Hari", "isin": "US67066G1040", "name": "NVIDIA Corp",
+         "recommendation": "sell", "prev_recommendation": "buy", "target_price": 95.0, "current_price": 127.50,
+         "rationale": "Downgrade from Buy to Sell. Peak AI capex cycle, rising competition from custom silicon (Google TPU, Amazon Trainium). See 25% downside. Valuation at 45x forward P/E unsustainable.",
+         "sector": "Information Technology", "risk_factors": '["AI capex peak", "Competition", "Valuation"]', "days_ago": 6},
+        {"firm": "JP Morgan", "analyst": "Sandeep Deshpande", "isin": "NL0010273215", "name": "ASML Holding NV",
+         "recommendation": "hold", "prev_recommendation": "hold", "target_price": 580.0, "current_price": 665.0,
+         "rationale": "Maintain Hold, cut target to EUR 580 from EUR 680. China export restrictions reduce 2027 revenue visibility by EUR 2-3bn. EUV adoption slower than modeled. Wait for better entry point.",
+         "sector": "Information Technology", "risk_factors": '["Export controls", "China exposure", "Order delays"]', "days_ago": 4},
+        {"firm": "Vontobel", "analyst": "Lukas Meier", "isin": "CH0012005267", "name": "Nestlé SA",
+         "recommendation": "hold", "prev_recommendation": "buy", "target_price": 82.0, "current_price": 78.50,
+         "rationale": "Downgrade from Buy to Hold after Q4 miss. Organic growth disappointing at 2.1%. European consumer weakness persists. Need to see evidence of portfolio reshaping before turning constructive.",
+         "sector": "Consumer Staples", "risk_factors": '["Consumer weakness", "Pricing power erosion", "Portfolio restructuring"]', "days_ago": 2},
+        {"firm": "UBS", "analyst": "Anna Schmidt", "isin": "CH0012032048", "name": "Roche Holding AG",
+         "recommendation": "buy", "prev_recommendation": "hold", "target_price": 310.0, "current_price": 262.0,
+         "rationale": "Upgrade to Buy on FDA breakthrough designation for gantenerumab-next. CHF 5bn+ peak sales potential. CHF 2bn buyback provides floor. Risk/reward compelling at 12x forward P/E.",
+         "sector": "Health Care", "risk_factors": '["Phase 3 execution", "Pricing pressure", "Biosimilar competition"]', "days_ago": 1},
+        {"firm": "ZKB", "analyst": "Martin Huber", "isin": "CH0244767585", "name": "UBS Group AG",
+         "recommendation": "hold", "prev_recommendation": "buy", "target_price": 26.0, "current_price": 24.80,
+         "rationale": "Downgrade to Hold following FINMA capital buffer requirement. CHF 25bn additional capital reduces buyback capacity. Regulatory overhang likely to persist for 12-18 months.",
+         "sector": "Financials", "risk_factors": '["Regulatory capital", "Buyback reduction", "Integration costs"]', "days_ago": 3},
+    ]
+
+    rows = []
+    rid = 0
+
+    for sr in signal_recs:
+        rid += 1
+        upside = round((sr["target_price"] / sr["current_price"] - 1) * 100, 1)
+        rows.append({
+            "recommendation_id": rid,
+            "analyst_firm": sr["firm"], "analyst_name": sr["analyst"],
+            "published_date": str(today - timedelta(days=sr["days_ago"])),
+            "instrument_isin": sr["isin"], "instrument_name": sr["name"],
+            "recommendation": sr["recommendation"], "prev_recommendation": sr["prev_recommendation"],
+            "target_price": sr["target_price"], "current_price": sr["current_price"],
+            "upside_pct": upside, "rationale": sr["rationale"],
+            "sector": sr["sector"], "risk_factors": sr["risk_factors"],
+        })
+
+    # Generate ~145 more
+    equity_instruments = [(i[0], i[3], i[6]) for i in INSTRUMENTS_RAW if i[4] == "equity"]
+    etf_instruments = [(i[0], i[3], "Diversified") for i in INSTRUMENTS_RAW if i[4] == "etf"]
+    all_rec_instruments = equity_instruments + etf_instruments[:3]
+
+    for _ in range(145):
+        rid += 1
+        isin, name, sector = random.choice(all_rec_instruments)
+        rec = random.choices(recommendations, weights=rec_weights)[0]
+        prev_rec = random.choices(recommendations, weights=rec_weights)[0]
+        curr_price = round(random.uniform(15, 900), 2)
+        direction = 1 if rec in ("strong_buy", "buy") else (-1 if rec in ("sell", "strong_sell") else 0)
+        target_price = round(curr_price * (1 + direction * random.uniform(0.05, 0.35)), 2)
+        upside = round((target_price / curr_price - 1) * 100, 1) if curr_price > 0 else 0.0
+        risk_list = random.sample(["Valuation", "Competition", "Macro", "Regulation", "Execution",
+                                   "Currency", "Margin pressure", "Demand slowdown"], random.randint(1, 3))
+        rows.append({
+            "recommendation_id": rid,
+            "analyst_firm": random.choice(firms), "analyst_name": random.choice(analyst_names),
+            "published_date": str(today - timedelta(days=random.randint(0, 60))),
+            "instrument_isin": isin, "instrument_name": name,
+            "recommendation": rec, "prev_recommendation": prev_rec,
+            "target_price": target_price, "current_price": curr_price,
+            "upside_pct": upside,
+            "rationale": f"{rec.replace('_', ' ').title()} on {name}. Key driver: {random.choice(['margin expansion', 'revenue growth', 'valuation', 'market share', 'cost cutting'])}.",
+            "sector": sector or "Diversified",
+            "risk_factors": json.dumps(risk_list),
+        })
+
+    return pd.DataFrame(rows)
+
+
+def gen_financial_reports():
+    """Generate ~60 synthetic earnings/financial reports."""
+    today = date(2026, 2, 20)
+    report_types = ["quarterly_earnings", "annual_results", "profit_warning", "guidance_update", "dividend_announcement"]
+    guidances = ["raised", "maintained", "lowered", "withdrawn"]
+    periods = ["Q3 2025", "Q4 2025", "FY 2025", "H1 2025"]
+
+    # Signal reports
+    signal_reports = [
+        {"company": "Nestlé SA", "isin": "CH0012005267", "report_type": "quarterly_earnings",
+         "period": "Q4 2025", "revenue": 23100.0, "revenue_currency": "CHF",
+         "revenue_surprise_pct": -2.3, "eps": 4.15, "eps_surprise_pct": -1.8,
+         "dividend_per_share": 3.00, "guidance": "maintained",
+         "key_takeaway": "Q4 revenue missed consensus by 2.3%. Organic growth slowed to 2.1% vs 3.4% expected. European consumer weakness cited. Guidance maintained but market skeptical.",
+         "sector": "Consumer Staples", "days_ago": 2},
+        {"company": "Roche Holding AG", "isin": "CH0012032048", "report_type": "quarterly_earnings",
+         "period": "Q4 2025", "revenue": 16400.0, "revenue_currency": "CHF",
+         "revenue_surprise_pct": 1.5, "eps": 18.20, "eps_surprise_pct": 2.1,
+         "dividend_per_share": 9.60, "guidance": "raised",
+         "key_takeaway": "Q4 beat on Pharma strength. FDA breakthrough for Alzheimer's drug a catalyst. CHF 2bn buyback announced. Guidance raised for FY 2026 to mid-single digit growth.",
+         "sector": "Health Care", "days_ago": 8},
+        {"company": "UBS Group AG", "isin": "CH0244767585", "report_type": "annual_results",
+         "period": "FY 2025", "revenue": 39800.0, "revenue_currency": "USD",
+         "revenue_surprise_pct": 0.8, "eps": 1.92, "eps_surprise_pct": -0.5,
+         "dividend_per_share": 0.70, "guidance": "maintained",
+         "key_takeaway": "FY 2025 results broadly in line. Integration of Credit Suisse on track with CHF 13bn cost savings achieved. FINMA capital buffer requirement creates near-term uncertainty.",
+         "sector": "Financials", "days_ago": 5},
+        {"company": "NVIDIA Corp", "isin": "US67066G1040", "report_type": "quarterly_earnings",
+         "period": "Q4 2025", "revenue": 38500.0, "revenue_currency": "USD",
+         "revenue_surprise_pct": 3.2, "eps": 0.89, "eps_surprise_pct": 4.1,
+         "dividend_per_share": 0.04, "guidance": "raised",
+         "key_takeaway": "Q4 beat driven by data center. Revenue up 55% YoY. However, gross margin dipped 100bp. Guidance raised but Goldman downgrade raised peak-cycle concerns.",
+         "sector": "Information Technology", "days_ago": 10},
+    ]
+
+    rows = []
+    rid = 0
+
+    for sr in signal_reports:
+        rid += 1
+        rows.append({
+            "report_id": rid, "report_date": str(today - timedelta(days=sr["days_ago"])),
+            "report_type": sr["report_type"], "company": sr["company"],
+            "company_isin": sr["isin"], "period": sr["period"],
+            "revenue": sr["revenue"], "revenue_currency": sr["revenue_currency"],
+            "revenue_surprise_pct": sr["revenue_surprise_pct"],
+            "eps": sr["eps"], "eps_surprise_pct": sr["eps_surprise_pct"],
+            "dividend_per_share": sr["dividend_per_share"],
+            "guidance": sr["guidance"], "key_takeaway": sr["key_takeaway"],
+            "sector": sr["sector"],
+        })
+
+    # Generate ~56 more
+    equity_companies = [(i[3], i[0], i[6], i[9]) for i in INSTRUMENTS_RAW if i[4] == "equity"]
+    for _ in range(56):
+        rid += 1
+        company, isin, sector, ccy = random.choice(equity_companies)
+        rt = random.choices(report_types, weights=[35, 25, 5, 15, 20])[0]
+        period = random.choice(periods)
+        revenue = round(random.uniform(500, 50000), 1)
+        rev_surprise = round(random.uniform(-5, 5), 1)
+        eps = round(random.uniform(0.5, 25), 2)
+        eps_surprise = round(random.uniform(-5, 5), 1)
+        div = round(random.uniform(0.5, 15), 2) if random.random() < 0.6 else None
+        guidance = random.choice(guidances)
+
+        rows.append({
+            "report_id": rid, "report_date": str(today - timedelta(days=random.randint(1, 60))),
+            "report_type": rt, "company": company,
+            "company_isin": isin, "period": period,
+            "revenue": revenue, "revenue_currency": ccy,
+            "revenue_surprise_pct": rev_surprise,
+            "eps": eps, "eps_surprise_pct": eps_surprise,
+            "dividend_per_share": div,
+            "guidance": guidance,
+            "key_takeaway": f"{company} {period} report. Revenue surprise: {rev_surprise:+.1f}%. Guidance {guidance}.",
+            "sector": sector or "Diversified",
+        })
+
+    return pd.DataFrame(rows)
+
+
 def gen_aml_alerts():
     rows = []
     aid = 0
@@ -432,6 +803,10 @@ def main():
     risk_metrics_df = gen_risk_metrics(clients_df)
     compliance_df = gen_compliance_checks(orders_df)
     aml_df = gen_aml_alerts()
+    financial_news_df = gen_financial_news(instruments_df)
+    public_filings_df = gen_public_filings()
+    analyst_recommendations_df = gen_analyst_recommendations(instruments_df)
+    financial_reports_df = gen_financial_reports()
 
     print(f"\n📤 Uploading Parquet files...")
     tables = {
@@ -449,6 +824,10 @@ def main():
         "risk_metrics": risk_metrics_df,
         "compliance_checks": compliance_df,
         "aml_alerts": aml_df,
+        "financial_news": financial_news_df,
+        "public_filings": public_filings_df,
+        "analyst_recommendations": analyst_recommendations_df,
+        "financial_reports": financial_reports_df,
     }
 
     for name, df in tables.items():

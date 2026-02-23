@@ -10,16 +10,21 @@ Data lakes are great for storing massive amounts of data cheaply (Parquet on S3)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        USER (Natural Language)                       │
-│        "Show me portfolio exposure by sector and client segment"     │
+│  AGENT 3: Broker Intelligence (Senior Portfolio Manager)            │
+│  ────────────────────────────────────────────────                   │
+│  • Scans: financial news, filings, analyst recs, earnings reports  │
+│  • Cross-references signals with client position metadata          │
+│  • Detects: overexposure, sector risk, analyst downgrades          │
+│  • Presents alerts to human (human-in-the-loop)                   │
+│  • On approval → triggers Agent 1 + Agent 2 pipeline              │
 └──────────────────────────────┬──────────────────────────────────────┘
-                               │
+                               │ approved alert + question
                                ▼
 ┌───────────────────────────────────────────────────────────────────┐
 │  AGENT 1: RAG Search                                              │
 │  ────────────────────                                             │
 │  • Embeds question (Voyage finance-2, input_type="query")         │
-│  • Searches pgvector metadata catalog (1024d HNSW)                │
+│  • Searches pgvector metadata catalog (1024d DiskANN)             │
 │  • Returns: tables, columns, joins, KPI patterns                  │
 │  • NEVER touches raw data — only metadata + embeddings            │
 │  • Logs search to rag_monitor for quality tracking                │
@@ -56,7 +61,7 @@ Data lakes are great for storing massive amounts of data cheaply (Parquet on S3)
 | Component | Role | Image |
 |-----------|------|-------|
 | **PostgreSQL 18** | Metadata catalog + governance + data marts | Custom (Dockerfile.pg18) |
-| **pgvector 0.8.1** | HNSW vector indexes for similarity search | Built from source |
+| **pgvector 0.8.1** | Vector data type and operators | Built from source |
 | **pgvectorscale 0.9.0** | StreamingDiskANN indexes for production scale | Built from source (Timescale) |
 | **MinIO** | S3-compatible object storage (data lake) | `minio/minio:latest` |
 
@@ -79,6 +84,10 @@ The data lake simulates a Swiss private bank trading system:
 | `risk_metrics.parquet` | 125 | VaR, CVaR, Sharpe per client |
 | `compliance_checks.parquet` | ~1,040 | Pre-trade checks |
 | `aml_alerts.parquet` | 15 | AML investigation pipeline |
+| `financial_news.parquet` | ~200 | Bloomberg/Reuters/AWP financial news |
+| `public_filings.parquet` | ~80 | SIX/FINMA regulatory filings |
+| `analyst_recommendations.parquet` | ~150 | Sell-side analyst research |
+| `financial_reports.parquet` | ~60 | Quarterly/annual earnings reports |
 
 **No raw data in PostgreSQL.** PG stores only metadata about structure and meaning.
 
@@ -95,12 +104,12 @@ These fields are concatenated into `metadata_text` before embedding, producing v
 
 ### Classification → Access Matrix
 
-| Classification | bi_analyst | risk_manager | compliance_officer |
-|---------------|:---:|:---:|:---:|
-| 🟢 public | ✓ | ✓ | ✓ |
-| 🔵 internal | ✓ | ✓ | ✓ |
-| 🟠 confidential | ✗ | ✓ | ✓ |
-| 🔴 restricted | ✗ | ✗ | ✓ |
+| Classification | bi_analyst | risk_manager | compliance_officer | portfolio_manager |
+|---------------|:---:|:---:|:---:|:---:|
+| 🟢 public | ✓ | ✓ | ✓ | ✓ |
+| 🔵 internal | ✓ | ✓ | ✓ | ✓ |
+| 🟠 confidential | ✗ | ✓ | ✓ | ✓ |
+| 🔴 restricted | ✗ | ✗ | ✓ | ✗ |
 
 ### PII Masking
 
@@ -116,7 +125,7 @@ Applied automatically unless requester is `compliance_officer`:
 Built-in evaluation framework with:
 
 - **Search logging** — every query with results, latencies, classifications
-- **Golden benchmarks** — 12 annotated queries with expected results
+- **Golden benchmarks** — 16 annotated queries with expected results
 - **IR metrics** — Precision@K, Recall@K, nDCG@K, MRR, MAP
 - **Latency tracking** — embedding, search, reasoning breakdown
 - **Feedback loop** — user relevance feedback for continuous improvement
@@ -158,31 +167,51 @@ python python/10_scan_and_embed.py
 # 6. Run the demo (3 scenarios)
 python python/40_demo.py
 
-# 7. Evaluate RAG quality
+# 7. Run broker intelligence demo
+python python/45_demo_broker.py --approve-all
+
+# 8. Evaluate RAG quality
 python python/50_evaluate_rag.py --verbose
 
 # Optional: single scenario or dry-run
 python python/40_demo.py --scenario 1
 python python/40_demo.py --dry-run
+python python/45_demo_broker.py --approve 1 --dry-run
 ```
 
 ## Demo Scenarios
 
-### S1: Portfolio Exposure Dashboard (BI Analyst)
+### Agent 1 + Agent 2 Pipeline (40_demo.py)
+
+**S1: Portfolio Exposure Dashboard (BI Analyst)**
 → 🔵 internal | PII masked | All roles access
 
-### S2: Risk Limit Monitoring (Risk Manager)
+**S2: Risk Limit Monitoring (Risk Manager)**
 → 🟠 confidential | PII masked | risk_manager + compliance only
 
-### S3: AML Investigation View (Compliance Officer)
+**S3: AML Investigation View (Compliance Officer)**
 → 🔴 restricted | Full PII (compliance privilege) | compliance only
+
+### Agent 3 Broker Intelligence (45_demo_broker.py)
+
+**S-Broker-1: Nestlé Revenue Miss + Consumer Staples Overexposure**
+→ Signal: Nestlé Q4 revenue misses by 2.3% → 🔴 critical alert
+→ Action: Provision dm_nestle_exposure_impact with sector + client breakdown
+
+**S-Broker-2: FINMA Regulatory Action on UBS + Financials Concentration**
+→ Signal: FINMA orders UBS to increase capital buffer → 🔴 critical alert
+→ Action: Provision dm_financials_sector_risk with concentration analysis
+
+**S-Broker-3: Multiple Analyst Downgrades in Tech Sector**
+→ Signal: Goldman downgrades NVIDIA, JP Morgan cuts ASML → 🟠 warning alerts
+→ Action: Provision dm_tech_downgrade_impact with P&L impact
 
 ## Technical Notes
 
 - **Embedding:** Voyage AI `voyage-finance-2` (1024d, finance-optimized, +7% vs OpenAI)
   - Asymmetric search: `input_type="document"` for catalog, `input_type="query"` for questions
-- **Chat/DDL:** OpenAI gpt-4o (Agent 2), gpt-4o-mini (Agent 1 reasoning)
-- **Vector index:** HNSW (m=16, ef_construction=128) — StreamingDiskANN available for scale
+- **Chat/DDL:** OpenAI gpt-5.2 (Agent 2), gpt-5-mini (Agent 1 reasoning)
+- **Vector index:** StreamingDiskANN (pgvectorscale) — production-grade ANN
 - **Data seed:** 42 (fully reproducible)
 
 ### Environment Variables
@@ -212,14 +241,17 @@ lab/04_metadata_rag_mart/
 │   └── 03_rag_monitoring.sql        # search logs, judgments, evaluations
 ├── python/
 │   ├── config.py                    # shared configuration
-│   ├── 00_generate_parquet.py       # → Parquet → MinIO
+│   ├── 00_generate_parquet.py       # → Parquet → MinIO (18 tables)
 │   ├── 10_scan_and_embed.py         # Parquet schemas → pgvector catalog
 │   ├── 20_agent_rag_search.py       # Agent 1: RAG metadata search
 │   ├── 30_agent_pipeline.py         # Agent 2: Parquet → PG data mart
+│   ├── 35_agent_broker.py           # Agent 3: Broker intelligence
 │   ├── 40_demo.py                   # demo orchestrator (3 scenarios)
-│   └── 50_evaluate_rag.py           # RAG quality evaluation
+│   ├── 45_demo_broker.py            # broker intelligence demo
+│   ├── 50_evaluate_rag.py           # RAG quality evaluation
+│   └── test_no_api.py               # full test without API keys
 └── benchmarks/
-    └── golden_queries.json          # 12 annotated benchmark queries
+    └── golden_queries.json          # 16 annotated benchmark queries
 ```
 
 ## Connection to Presentation

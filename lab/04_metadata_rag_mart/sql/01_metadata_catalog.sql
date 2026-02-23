@@ -131,24 +131,18 @@ CREATE TABLE catalog.kpi_patterns (
 -- VECTOR INDEXES
 -- =========================================================================
 
--- HNSW indexes (pgvector) — good for small-to-medium catalogs
-CREATE INDEX idx_table_meta_hnsw ON catalog.table_metadata
-    USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 128);
+-- StreamingDiskANN indexes (pgvectorscale) — production-grade ANN
+CREATE INDEX idx_table_meta_diskann ON catalog.table_metadata
+    USING diskann (embedding vector_cosine_ops);
 
-CREATE INDEX idx_column_meta_hnsw ON catalog.column_metadata
-    USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 128);
+CREATE INDEX idx_column_meta_diskann ON catalog.column_metadata
+    USING diskann (embedding vector_cosine_ops);
 
-CREATE INDEX idx_rel_meta_hnsw ON catalog.relationship_metadata
-    USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 128);
+CREATE INDEX idx_rel_meta_diskann ON catalog.relationship_metadata
+    USING diskann (embedding vector_cosine_ops);
 
-CREATE INDEX idx_kpi_meta_hnsw ON catalog.kpi_patterns
-    USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 128);
-
--- StreamingDiskANN indexes (pgvectorscale) — for production scale
--- Uncomment these for large catalogs (1M+ vectors); HNSW is fine for demo scale
---
--- CREATE INDEX idx_column_meta_diskann ON catalog.column_metadata
---     USING diskann (embedding vector_cosine_ops);
+CREATE INDEX idx_kpi_meta_diskann ON catalog.kpi_patterns
+    USING diskann (embedding vector_cosine_ops);
 
 -- =========================================================================
 -- LOOKUP INDEXES

@@ -29,8 +29,8 @@ EMBEDDING_DIM   = 1024
 
 # ---- LLM: OpenAI (Agent reasoning + DDL generation) ----
 OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "")
-CHAT_MODEL      = os.getenv("CHAT_MODEL", "gpt-4o")
-CHAT_MODEL_FAST = os.getenv("CHAT_MODEL_FAST", "gpt-4o-mini")
+CHAT_MODEL      = os.getenv("CHAT_MODEL", "gpt-5.2")
+CHAT_MODEL_FAST = os.getenv("CHAT_MODEL_FAST", "gpt-5-mini")
 
 # ---- RAG parameters ----
 SIMILARITY_THRESHOLD = 0.40
