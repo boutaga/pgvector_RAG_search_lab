@@ -3,8 +3,8 @@
 # =============================================================================
 # Multi-stage build to keep runtime image lean.
 #
-# pgvector:      HNSW / IVFFlat vector indexes
-# pgvectorscale: StreamingDiskANN index (Timescale) — better recall at scale
+# pgvector:      Vector data type, distance operators
+# pgvectorscale: StreamingDiskANN vector indexes (Timescale)
 #
 # Adjust VERSION pins below if newer releases are available.
 # =============================================================================
