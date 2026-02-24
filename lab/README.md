@@ -286,6 +286,13 @@ lab/
 │   ├── *.json               # n8n workflow definitions
 │   └── README.md            # Workflow documentation
 │
+├── 06_pgvector_indexes/        # pgvector Index Tuning Lab
+│   ├── sql/                   # SQL lab scripts (HNSW, IVFFlat, DiskANN, iterative scans, ...)
+│   ├── python/                # Data pipeline (load, dense embeddings, sparse embeddings)
+│   ├── DEV/                   # Docker, .env, blog draft (gitignored)
+│   ├── README.md              # Lab overview and instructions
+│   └── requirements.txt       # Python dependencies
+│
 └── 07_evaluation/             # Performance evaluation
     ├── evaluator.py          # Quality evaluation framework
     ├── benchmark.py          # Performance benchmarking

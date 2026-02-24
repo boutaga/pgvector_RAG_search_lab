@@ -1,0 +1,8 @@
+psycopg2-binary
+pgvector
+openai
+python-dotenv
+transformers
+torch
+sentencepiece
+numpy

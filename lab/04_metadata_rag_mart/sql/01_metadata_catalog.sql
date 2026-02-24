@@ -115,7 +115,7 @@ CREATE TABLE catalog.kpi_patterns (
     kpi_name            VARCHAR(256) NOT NULL,
     kpi_description     TEXT NOT NULL,
     domain              VARCHAR(64)
-                        CHECK (domain IN ('trading','risk','compliance','portfolio','operations')),
+                        CHECK (domain IN ('trading','risk','compliance','portfolio','operations','broker_intelligence')),
     required_tables     TEXT[] NOT NULL,
     required_columns    TEXT[],
     sql_template        TEXT,                -- reference SQL (runs on lake.* staging tables)
@@ -164,4 +164,6 @@ SELECT
     c.detail_bi, c.detail_agent
 FROM catalog.column_metadata c
 LEFT JOIN catalog.relationship_metadata r
-    ON c.table_name = r.source_table AND c.column_name = r.source_column;
+    ON c.schema_name = r.source_schema
+   AND c.table_name = r.source_table
+   AND c.column_name = r.source_column;

@@ -199,7 +199,7 @@ def gen_accounts(clients_df):
             ccy = "CHF" if cl.country_domicile in ("CH", "LI") else "EUR" if cl.country_domicile in ("DE", "FR", "IT") else "USD"
             rows.append({
                 "account_id": acc_id,
-                "account_number": f"{cl.country_domicile}{93+acc_id:02d}{acc_id:04d}{random.randint(1000,9999):04d}",
+                "account_number": f"{cl.country_domicile}{(93+acc_id) % 100:02d}{acc_id:04d}{random.randint(1000,9999):04d}",
                 "client_id": cl.client_id, "account_type": atype,
                 "account_subtype": random.choice(subtypes[atype]),
                 "base_currency": ccy, "custodian_id": random.choice([4, 5]),
@@ -244,8 +244,8 @@ def gen_orders_and_executions(accounts_df, instruments_df, base_prices):
     for td in trading_days:
         for _ in range(random.randint(15, 35)):
             oid += 1
-            acct = trading_accts.sample(1, random_state=random.randint(0, 2**31)).iloc[0]
-            inst = instruments_df.sample(1, random_state=random.randint(0, 2**31)).iloc[0]
+            acct = trading_accts.sample(1, random_state=random.randint(0, 2**31 - 1)).iloc[0]
+            inst = instruments_df.sample(1, random_state=random.randint(0, 2**31 - 1)).iloc[0]
             bp = base_prices.get(inst.instrument_id, 100)
             side = random.choice(["BUY","BUY","BUY","SELL"])
             otype = random.choices(["MARKET","LIMIT","LIMIT","STOP_LIMIT","VWAP"],[3,4,3,1,1])[0]
@@ -276,7 +276,10 @@ def gen_orders_and_executions(accounts_df, instruments_df, base_prices):
                 rem = fq
                 for f in range(n_fills):
                     eid += 1
-                    fill_q = rem if f == n_fills-1 else max(1, int(rem*random.uniform(0.3,0.7)))
+                    if f == n_fills - 1 or rem <= 1:
+                        fill_q = max(1, rem)
+                    else:
+                        fill_q = max(1, int(rem * random.uniform(0.3, 0.7)))
                     rem -= fill_q
                     fp = round(bp*random.uniform(0.995,1.005), 4)
                     execs.append({
@@ -295,7 +298,7 @@ def gen_positions(accounts_df, instruments_df, base_prices):
     rows = []
     pid = 0
     for _, acct in accounts_df[accounts_df.account_type != "cash"].iterrows():
-        for _, inst in instruments_df.sample(min(random.randint(3,12), len(instruments_df)), random_state=random.randint(0, 2**31)).iterrows():
+        for _, inst in instruments_df.sample(min(random.randint(3,12), len(instruments_df)), random_state=random.randint(0, 2**31 - 1)).iterrows():
             pid += 1
             bp = base_prices.get(inst.instrument_id, 100)
             qty = random.choice([10,25,50,100,200,500,1000,2500,5000])

@@ -54,14 +54,11 @@ def dcg_at_k(retrieved: List[str], relevant: set, k: int) -> float:
 def ndcg_at_k(retrieved: List[str], relevant: set, k: int) -> float:
     """Normalized DCG: DCG / ideal DCG."""
     dcg = dcg_at_k(retrieved, relevant, k)
-    # Ideal: all relevant items at top positions
-    ideal = sorted(retrieved[:k], key=lambda x: x in relevant, reverse=True)
-    ideal_dcg = dcg_at_k(ideal, relevant, k)
-    # Also account for relevant items NOT in retrieved
+    # Ideal: all relevant items ranked at the top positions
     n_relevant_in_k = min(len(relevant), k)
-    ideal_dcg_full = sum(1.0 / math.log2(i + 2) for i in range(n_relevant_in_k))
-    if ideal_dcg_full == 0: return 1.0
-    return dcg / ideal_dcg_full
+    ideal_dcg = sum(1.0 / math.log2(i + 2) for i in range(n_relevant_in_k))
+    if ideal_dcg == 0: return 1.0
+    return dcg / ideal_dcg
 
 def reciprocal_rank(retrieved: List[str], relevant: set) -> float:
     """Reciprocal rank of first relevant result."""
@@ -103,8 +100,9 @@ class QueryResult:
     expected_kpi: str
 
 
-def evaluate_query(query_data: Dict, k_values: List[int] = [5, 10], verbose: bool = False) -> QueryResult:
+def evaluate_query(query_data: Dict, k: int = 5, verbose: bool = False) -> QueryResult:
     """Run one query through Agent 1 and evaluate."""
+    k2 = k * 2
     query = query_data["query"]
     expected = query_data["expected"]
     expected_tables = set(expected.get("tables", []))
@@ -119,7 +117,7 @@ def evaluate_query(query_data: Dict, k_values: List[int] = [5, 10], verbose: boo
     # Extract retrieved items
     retrieved_tables = [t["table_name"] for t in rec.tables]
     retrieved_columns = [f"{c['table_name']}.{c['column_name']}" for c in rec.columns]
-    retrieved_kpis = [k["kpi_name"] for k in rec.kpi_patterns]
+    retrieved_kpis = [kp["kpi_name"] for kp in rec.kpi_patterns]
 
     # Combine tables + columns for overall metric
     all_relevant = expected_tables | expected_columns
@@ -127,12 +125,12 @@ def evaluate_query(query_data: Dict, k_values: List[int] = [5, 10], verbose: boo
 
     result = QueryResult(
         query=query,
-        precision_5=precision_at_k(all_retrieved, all_relevant, 5),
-        precision_10=precision_at_k(all_retrieved, all_relevant, 10),
-        recall_5=recall_at_k(all_retrieved, all_relevant, 5),
-        recall_10=recall_at_k(all_retrieved, all_relevant, 10),
-        ndcg_5=ndcg_at_k(all_retrieved, all_relevant, 5),
-        ndcg_10=ndcg_at_k(all_retrieved, all_relevant, 10),
+        precision_5=precision_at_k(all_retrieved, all_relevant, k),
+        precision_10=precision_at_k(all_retrieved, all_relevant, k2),
+        recall_5=recall_at_k(all_retrieved, all_relevant, k),
+        recall_10=recall_at_k(all_retrieved, all_relevant, k2),
+        ndcg_5=ndcg_at_k(all_retrieved, all_relevant, k),
+        ndcg_10=ndcg_at_k(all_retrieved, all_relevant, k2),
         rr=reciprocal_rank(all_retrieved, all_relevant),
         ap=average_precision(all_retrieved, all_relevant),
         latency_ms=latency,
@@ -166,11 +164,14 @@ def run_evaluation(golden_path: str, k: int = 5, verbose: bool = False):
 
     results = []
     for qd in queries:
-        r = evaluate_query(qd, verbose=verbose)
+        r = evaluate_query(qd, k=k, verbose=verbose)
         results.append(r)
 
     # Aggregate metrics
     n = len(results)
+    if n == 0:
+        print("  No queries found in golden set.")
+        return {}
     sorted_latencies = sorted(r.latency_ms for r in results)
     metrics = {
         "precision_at_5":  sum(r.precision_5 for r in results) / n,

@@ -49,7 +49,7 @@ def embed_query(text: str) -> List[float]:
 def vector_search(conn, query_emb: List[float]) -> Dict[str, List[Dict]]:
     """Vector similarity search across all catalog tables."""
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    emb_str = str(query_emb)
+    emb_str = '[' + ','.join(str(x) for x in query_emb) + ']'
     results = {}
 
     cur.execute("""
@@ -155,7 +155,7 @@ def search(question: str, requester: str = None, role: str = None) -> SearchReco
         classifications += [c.get("classification", "internal") for c in results.get("columns", [])]
         pii_fields = [f"{c['table_name']}.{c['column_name']}" for c in results.get("columns", []) if c.get("is_pii")]
         class_order = {"public": 0, "internal": 1, "confidential": 2, "restricted": 3}
-        max_class = max(classifications, key=lambda x: class_order.get(x, 1)) if classifications else "internal"
+        max_class = max(classifications, key=lambda x: class_order.get(x, 3)) if classifications else "internal"
 
         # Reason
         t_reason = time.time()
@@ -173,7 +173,7 @@ def search(question: str, requester: str = None, role: str = None) -> SearchReco
                  embedding_time_ms, search_time_ms, reasoning_time_ms, total_time_ms,
                  requester, requester_role, similarity_threshold, top_k)
                 VALUES (%s, %s::vector, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (question, str(query_emb),
+            """, (question, '[' + ','.join(str(x) for x in query_emb) + ']',
                   json.dumps([{"table": t["table_name"], "sim": round(t["similarity"],3)} for t in results.get("tables",[])]),
                   json.dumps([{"col": f"{c['table_name']}.{c['column_name']}", "sim": round(c["similarity"],3)} for c in results.get("columns",[])[:20]]),
                   json.dumps([{"kpi": k["kpi_name"], "sim": round(k["similarity"],3)} for k in results.get("kpis",[])]),

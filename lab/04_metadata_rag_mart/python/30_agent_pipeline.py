@@ -82,12 +82,21 @@ def load_parquet_to_staging(conn, s3, table_name: str):
     col_defs = []
     for col in df.columns:
         dtype = df[col].dtype
-        if pd.api.types.is_integer_dtype(dtype):
+        if pd.api.types.is_bool_dtype(dtype):
+            pg_type = "BOOLEAN"
+        elif pd.api.types.is_integer_dtype(dtype):
             pg_type = "BIGINT"
         elif pd.api.types.is_float_dtype(dtype):
             pg_type = "DOUBLE PRECISION"
-        elif pd.api.types.is_bool_dtype(dtype):
-            pg_type = "BOOLEAN"
+        elif hasattr(dtype, 'tz') or pd.api.types.is_datetime64_any_dtype(dtype):
+            pg_type = "TIMESTAMPTZ" if hasattr(dtype, 'tz') and dtype.tz else "TIMESTAMP"
+        elif str(dtype) == "object" and len(df[col].dropna()) > 0:
+            # Check if object column holds dates
+            sample = df[col].dropna().iloc[0] if len(df[col].dropna()) > 0 else None
+            if isinstance(sample, (pd.Timestamp,)):
+                pg_type = "TIMESTAMP"
+            else:
+                pg_type = "TEXT"
         else:
             pg_type = "TEXT"
         col_defs.append(f'"{col}" {pg_type}')
@@ -95,14 +104,14 @@ def load_parquet_to_staging(conn, s3, table_name: str):
     ddl = f"CREATE TABLE lake.{table_name} ({', '.join(col_defs)})"
     cur.execute(ddl)
 
-    # COPY data using StringIO for performance
+    # COPY data using tab-delimited text format for performance
     if len(df) > 0:
-        from io import StringIO
-        buf = StringIO()
-        df.to_csv(buf, index=False, header=False, sep='\t', na_rep='\\N')
+        buf = io.BytesIO()
+        df.to_csv(buf, index=False, header=False, sep='\t', na_rep='\\N',
+                  encoding='utf-8')
         buf.seek(0)
         cols = ', '.join(f'"{c}"' for c in df.columns)
-        cur.copy_expert(f"COPY lake.{table_name} ({cols}) FROM STDIN WITH (FORMAT csv, DELIMITER E'\\t', NULL '\\N')", buf)
+        cur.copy_expert(f"COPY lake.{table_name} ({cols}) FROM STDIN WITH (FORMAT text, NULL '\\N')", buf)
 
     cur.close()
     return len(df)
@@ -126,6 +135,7 @@ def generate_mart_sql(question: str, recommendation: Dict, requester_role: str) 
 PII MASKING RULES — APPLY THESE:
 - client legal_name/short_name → governance.mask_name(column)
 - account_number → governance.mask_account(column)
+- ISIN columns if client-linked → governance.mask_isin(column)
 Alias masked columns clearly."""
 
     kpi_hint = ""
@@ -160,8 +170,10 @@ RULES:
     )
 
     sql = resp.choices[0].message.content.strip()
-    if sql.startswith("```"): sql = "\n".join(sql.split("\n")[1:])
-    if sql.endswith("```"): sql = "\n".join(sql.split("\n")[:-1])
+    # Strip markdown code fences robustly
+    import re
+    sql = re.sub(r'^```\w*\s*\n?', '', sql)
+    sql = re.sub(r'\n?```\s*$', '', sql)
     sql = sql.strip()
 
     # Extract mart name
@@ -194,7 +206,7 @@ def apply_governance(conn, mart_name: str, classification: str) -> Tuple[List[st
             grants.append(role)
         except Exception:
             cur.execute("ROLLBACK TO SAVEPOINT grant_sp")
-    for role in {"bi_analyst","risk_manager","compliance_officer"} - set(allowed):
+    for role in {"bi_analyst","risk_manager","compliance_officer","portfolio_manager"} - set(allowed):
         try:
             cur.execute("SAVEPOINT revoke_sp")
             cur.execute(f"REVOKE ALL ON {mart_name} FROM {role}")
@@ -261,7 +273,14 @@ def provision(question: str, recommendation: Dict,
             print(f"      lake.{tbl}: {rows:,} rows")
         staging_ms = int((time.time() - t_stage) * 1000)
 
-        # 3. Execute SQL
+        # 3. Validate and execute SQL
+        sql_upper = sql.strip().upper()
+        if not sql_upper.startswith("CREATE TABLE") and not sql_upper.startswith("CREATE OR REPLACE"):
+            raise ValueError(f"LLM generated unsafe SQL (expected CREATE TABLE): {sql[:100]}")
+        for forbidden in ["DROP TABLE", "DROP SCHEMA", "DELETE FROM", "TRUNCATE", "ALTER ROLE", "CREATE ROLE"]:
+            if forbidden in sql_upper and "DROP TABLE IF EXISTS data_mart." not in sql_upper:
+                raise ValueError(f"LLM generated SQL with forbidden keyword: {forbidden}")
+
         print(f"   ⚡ Executing: {mart_name}")
         t_exec = time.time()
         cur = conn.cursor()
@@ -313,7 +332,6 @@ def provision(question: str, recommendation: Dict,
               f"Auto-provisioned: {question[:200]}"))
         cur.close()
         conn.commit()
-        conn.close()
 
         return ProvisioningResult(
             request_id=request_id, mart_name=mart_name, sql_generated=sql,
@@ -325,7 +343,6 @@ def provision(question: str, recommendation: Dict,
     except Exception as e:
         elapsed = int((time.time() - t0) * 1000)
         conn.rollback()
-        cleanup_staging(conn, staging_tables)
         try:
             cur = conn.cursor()
             cur.execute("""
@@ -338,13 +355,14 @@ def provision(question: str, recommendation: Dict,
             conn.commit()
         except Exception:
             pass
-        conn.close()
         return ProvisioningResult(
             request_id=request_id, mart_name=mart_name, sql_generated=sql,
             classification=recommendation.get("max_classification","internal"),
             pii_masked=False, rls_applied=False, grants=[], row_count=0,
             staging_time_ms=0, execution_time_ms=0, total_time_ms=elapsed,
             status="error", error_message=str(e))
+    finally:
+        conn.close()
 
 
 def print_result(r: ProvisioningResult):

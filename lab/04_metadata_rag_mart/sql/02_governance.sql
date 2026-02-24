@@ -95,11 +95,10 @@ GRANT USAGE ON SCHEMA lake TO pipeline_agent;
 GRANT CREATE ON SCHEMA data_mart TO pipeline_agent;
 GRANT CREATE ON SCHEMA lake TO pipeline_agent;
 GRANT SELECT ON ALL TABLES IN SCHEMA catalog TO pipeline_agent, portfolio_manager;
+GRANT USAGE ON SCHEMA governance TO pipeline_agent, bi_analyst, risk_manager, compliance_officer, portfolio_manager;
 GRANT INSERT ON governance.provisioning_audit TO pipeline_agent;
 GRANT INSERT, UPDATE ON governance.data_mart_registry TO pipeline_agent;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA governance TO pipeline_agent;
-GRANT USAGE ON SCHEMA rag_monitor TO portfolio_manager;
-GRANT SELECT ON ALL TABLES IN SCHEMA rag_monitor TO portfolio_manager;
 
 -- Default privileges: new tables in data_mart get SELECT for pipeline_agent
 ALTER DEFAULT PRIVILEGES IN SCHEMA data_mart GRANT SELECT ON TABLES TO pipeline_agent;

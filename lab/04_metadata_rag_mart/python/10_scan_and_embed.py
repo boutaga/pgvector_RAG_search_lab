@@ -363,7 +363,7 @@ def run():
             VALUES ('raw_lake',%s,%s,'parquet',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::vector)
         """, (t["table_name"], t["lake_path"], t["row_count"], t["file_size_bytes"],
               t["column_count"], t.get("description"), t["detail_bi"], t["detail_agent"],
-              t["classification"], t["contains_pii"], t["metadata_text"], str(emb)))
+              t["classification"], t["contains_pii"], t["metadata_text"], '[' + ','.join(str(x) for x in emb) + ']'))
     print(f"   ✓ {len(table_entries)} table metadata records")
 
     # Store columns
@@ -382,7 +382,7 @@ def run():
               c.get("sample_values"), c.get("min_value"), c.get("max_value"),
               c["detail_bi"], c["detail_agent"],
               c["is_pii"], c["classification"], c["masking_rule"],
-              c["metadata_text"], str(emb)))
+              c["metadata_text"], '[' + ','.join(str(x) for x in emb) + ']'))
     print(f"   ✓ {len(column_entries)} column metadata records")
 
     # Store relationships
@@ -395,7 +395,7 @@ def run():
              relationship_type, join_condition, metadata_text, embedding)
             VALUES ('raw_lake',%s,%s,'raw_lake',%s,%s,%s,%s,%s,%s::vector)
         """, (r[0], r[1], r[2], r[3], r[4],
-              f"{r[0]}.{r[1]} = {r[2]}.{r[3]}", txt, str(emb)))
+              f"{r[0]}.{r[1]} = {r[2]}.{r[3]}", txt, '[' + ','.join(str(x) for x in emb) + ']'))
     print(f"   ✓ {len(RELATIONSHIPS)} relationship records")
 
     # Store KPI patterns
@@ -408,7 +408,7 @@ def run():
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s::vector)
         """, (k["kpi_name"], k["kpi_description"], k["domain"],
               k["required_tables"], k.get("required_columns"),
-              k.get("sql_template"), k["classification"], txt, str(emb)))
+              k.get("sql_template"), k["classification"], txt, '[' + ','.join(str(x) for x in emb) + ']'))
     print(f"   ✓ {len(KPI_PATTERNS)} KPI patterns")
 
     conn.commit()

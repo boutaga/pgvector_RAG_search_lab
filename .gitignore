@@ -119,3 +119,6 @@ lab/evaluation/examples/OPTIMIZATION_QUICK_REF.md
 lab/evaluation/examples/PRESENTATION_GUIDE.md
 lab/evaluation/examples/RECALL_VS_PRECISION.md
 lab/evaluation/examples/UNDERSTANDING_K.md
+
+# DEV folders (private per-lab development artifacts)
+**/DEV/

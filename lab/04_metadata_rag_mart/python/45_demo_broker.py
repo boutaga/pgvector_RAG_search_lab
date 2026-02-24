@@ -21,6 +21,7 @@ import argparse
 sys.path.insert(0, os.path.dirname(__file__))
 
 from importlib import import_module
+import config
 broker = import_module("35_agent_broker")
 
 
@@ -43,6 +44,10 @@ def main():
     print("║  Cross-refs with position metadata → Generates actionable alerts    ║")
     print("║  Human approves → Agent 1 (RAG) + Agent 2 (Pipeline) provision     ║")
     print("╚══════════════════════════════════════════════════════════════════════╝")
+
+    if not config.VOYAGE_API_KEY or not config.OPENAI_API_KEY:
+        print("\n❌ Set VOYAGE_API_KEY and OPENAI_API_KEY before running.")
+        sys.exit(1)
 
     # Phase 1: Intelligence Analysis
     print(f"\n{'█'*70}")

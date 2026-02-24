@@ -115,8 +115,10 @@ def scan_signals(s3) -> List[Signal]:
         ]
         for _, row in critical_news.iterrows():
             sid += 1
-            related_isins = json.loads(row["related_isins"]) if isinstance(row["related_isins"], str) else row.get("related_isins", [])
-            related_sectors = json.loads(row["related_sectors"]) if isinstance(row["related_sectors"], str) else row.get("related_sectors", [])
+            ri = row.get("related_isins")
+            related_isins = json.loads(ri) if isinstance(ri, str) else (ri if isinstance(ri, list) else [])
+            rs = row.get("related_sectors")
+            related_sectors = json.loads(rs) if isinstance(rs, str) else (rs if isinstance(rs, list) else [])
             signals.append(Signal(
                 signal_id=f"NEWS-{sid:03d}",
                 source_type="news",
@@ -140,6 +142,8 @@ def scan_signals(s3) -> List[Signal]:
             prev_score = downgrade_map.get(row["prev_recommendation"], 3)
             if curr_score < prev_score:  # downgrade
                 sid += 1
+                sector_val = row.get("sector")
+                isin_val = row.get("instrument_isin")
                 signals.append(Signal(
                     signal_id=f"REC-{sid:03d}",
                     source_type="recommendation",
@@ -147,8 +151,8 @@ def scan_signals(s3) -> List[Signal]:
                     headline=f"{row['analyst_firm']} downgrades {row['instrument_name']} from {row['prev_recommendation']} to {row['recommendation']}",
                     sentiment="negative",
                     impact_level="high" if curr_score <= 2 else "medium",
-                    related_sectors=[row["sector"]] if row.get("sector") else [],
-                    related_isins=[row["instrument_isin"]] if row.get("instrument_isin") else [],
+                    related_sectors=[str(sector_val)] if pd.notna(sector_val) else [],
+                    related_isins=[str(isin_val)] if pd.notna(isin_val) else [],
                     signal_date=str(row["published_date"]),
                 ))
     except Exception as e:
@@ -163,15 +167,19 @@ def scan_signals(s3) -> List[Signal]:
         ]
         for _, row in negative_reports.iterrows():
             sid += 1
+            rev_surprise = row["revenue_surprise_pct"]
+            rev_str = f"{rev_surprise:+.1f}%" if pd.notna(rev_surprise) else "N/A"
+            sector_val = row.get("sector")
+            isin_val = row.get("company_isin")
             signals.append(Signal(
                 signal_id=f"RPT-{sid:03d}",
                 source_type="report",
                 source_table="financial_reports",
-                headline=f"{row['company']} {row['period']}: revenue surprise {row['revenue_surprise_pct']:+.1f}%, guidance {row['guidance']}",
+                headline=f"{row['company']} {row['period']}: revenue surprise {rev_str}, guidance {row['guidance']}",
                 sentiment="negative",
-                impact_level="critical" if row["revenue_surprise_pct"] < -2.0 else "high",
-                related_sectors=[row["sector"]] if row.get("sector") else [],
-                related_isins=[row["company_isin"]] if row.get("company_isin") else [],
+                impact_level="critical" if pd.notna(rev_surprise) and rev_surprise < -2.0 else "high",
+                related_sectors=[str(sector_val)] if pd.notna(sector_val) else [],
+                related_isins=[str(isin_val)] if pd.notna(isin_val) else [],
                 signal_date=str(row["report_date"]),
             ))
     except Exception as e:
@@ -185,6 +193,8 @@ def scan_signals(s3) -> List[Signal]:
         ]
         for _, row in material_filings.iterrows():
             sid += 1
+            sector_val = row.get("sector")
+            isin_val = row.get("issuer_isin")
             signals.append(Signal(
                 signal_id=f"FIL-{sid:03d}",
                 source_type="filing",
@@ -192,8 +202,8 @@ def scan_signals(s3) -> List[Signal]:
                 headline=row["title"],
                 sentiment="negative",
                 impact_level="critical" if row["financial_impact"] == "material" else "high",
-                related_sectors=[row["sector"]] if row.get("sector") else [],
-                related_isins=[row["issuer_isin"]] if row.get("issuer_isin") else [],
+                related_sectors=[str(sector_val)] if pd.notna(sector_val) else [],
+                related_isins=[str(isin_val)] if pd.notna(isin_val) else [],
                 signal_date=str(row["filing_date"]),
             ))
     except Exception as e:
@@ -384,7 +394,9 @@ def request_data_mart(alert: BrokerAlert, approved: bool = False,
     if not approved:
         return None
 
+    import sys, os
     from importlib import import_module
+    sys.path.insert(0, os.path.dirname(__file__))
     agent_rag = import_module("20_agent_rag_search")
     agent_pipe = import_module("30_agent_pipeline")
     from dataclasses import asdict
@@ -421,9 +433,10 @@ def run_analysis(portfolio_manager: str = "Senior PM") -> BrokerBrief:
     Returns a BrokerBrief ready for human review and approval.
     """
     s3 = get_s3()
-    conn = psycopg2.connect(config.DATABASE_URL)
-
+    conn = None
     try:
+        conn = psycopg2.connect(config.DATABASE_URL)
+
         # Step 1: Scan signals
         print("\n   Scanning financial intelligence datasets...")
         signals = scan_signals(s3)
@@ -440,7 +453,8 @@ def run_analysis(portfolio_manager: str = "Senior PM") -> BrokerBrief:
 
         return brief
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 # ---------------------------------------------------------------------------

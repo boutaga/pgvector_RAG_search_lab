@@ -152,8 +152,10 @@ GROUP BY sl.query_text
 ORDER BY total_feedback DESC;
 
 -- Grant monitoring access
-GRANT USAGE ON SCHEMA rag_monitor TO pipeline_agent, bi_analyst, risk_manager, compliance_officer;
-GRANT SELECT ON ALL TABLES IN SCHEMA rag_monitor TO bi_analyst, risk_manager, compliance_officer;
+GRANT USAGE ON SCHEMA rag_monitor TO pipeline_agent, bi_analyst, risk_manager, compliance_officer, portfolio_manager;
+GRANT SELECT ON ALL TABLES IN SCHEMA rag_monitor TO bi_analyst, risk_manager, compliance_officer, portfolio_manager;
 GRANT INSERT ON rag_monitor.search_log TO pipeline_agent;
 GRANT INSERT ON rag_monitor.feedback_log TO pipeline_agent;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA rag_monitor TO pipeline_agent;
+GRANT INSERT ON rag_monitor.relevance_judgments TO pipeline_agent;
+GRANT INSERT ON rag_monitor.evaluation_runs TO pipeline_agent;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA rag_monitor TO pipeline_agent;
