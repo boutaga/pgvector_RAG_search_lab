@@ -14,7 +14,7 @@ Hands-on lab covering every pgvector index type, tuning parameter, and DBA opera
 ### 1. Build and start PostgreSQL 18
 
 ```bash
-cd DEV/docker
+cd docker
 docker compose build    # ~15 min first time (compiles pgvector + pgvectorscale)
 docker compose up -d
 ```
