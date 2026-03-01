@@ -1,0 +1,50 @@
+# =============================================================================
+# Lab 06 — pgvector Index Tuning Lab
+#
+#   PostgreSQL 18 + pgvector (main) + pgvectorscale 0.9.0
+#   Standalone instance on port 5435, database: wikipedia
+# =============================================================================
+
+services:
+
+  postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile.pg18
+    container_name: lab06_pg18
+    shm_size: 2g
+    environment:
+      POSTGRES_DB: wikipedia
+      POSTGRES_USER: dba_admin
+      POSTGRES_PASSWORD: dbi2026!
+    ports:
+      - "5435:5432"
+    volumes:
+      - ../../sql/init:/docker-entrypoint-initdb.d:ro
+      - pgdata06:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dba_admin -d wikipedia"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_preload_libraries=vector"
+      - "-c"
+      - "shared_buffers=1GB"
+      - "-c"
+      - "work_mem=256MB"
+      - "-c"
+      - "maintenance_work_mem=1GB"
+      - "-c"
+      - "max_parallel_workers_per_gather=4"
+      - "-c"
+      - "max_parallel_maintenance_workers=4"
+      - "-c"
+      - "effective_cache_size=2GB"
+      - "-c"
+      - "log_min_duration_statement=100"
+
+volumes:
+  pgdata06:
