@@ -122,3 +122,5 @@ lab/evaluation/examples/UNDERSTANDING_K.md
 
 # DEV folders (private per-lab development artifacts)
 **/DEV/
+lab/04_lab/04_sample_design_1.tar.gz
+lab/04_metadata_rag_mart/docker/docker-compose.yml
