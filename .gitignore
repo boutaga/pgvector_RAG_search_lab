@@ -124,3 +124,5 @@ lab/evaluation/examples/UNDERSTANDING_K.md
 **/DEV/
 lab/04_lab/04_sample_design_1.tar.gz
 lab/04_metadata_rag_mart/docker/docker-compose.yml
+lab/04_metadata_rag_mart/python/test_no_api.py
+lab/04_metadata_rag_mart/SKELETON-lab04.md

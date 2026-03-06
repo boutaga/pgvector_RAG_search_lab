@@ -1,12 +1,15 @@
 # =============================================================================
-# Lab 04 — Architecture
+# LAB-pgvector — Lab 04 Architecture
 #
 #   MinIO (S3)          →  Parquet data lake (storage, cheap, scalable)
 #   PostgreSQL 18       →  Metadata catalog (pgvector RAG), governance,
 #                          monitoring, data marts (compute, fast JOINs)
 #   pgvector            →  Vector data type and distance operators
 #   pgvectorscale       →  StreamingDiskANN vector indexes
+#   Ollama              →  Self-hosted embedding models (mxbai-embed-large)
 # =============================================================================
+
+name: lab-pgvector
 
 services:
 
@@ -21,7 +24,7 @@ services:
       POSTGRES_USER: dba_admin
       POSTGRES_PASSWORD: dbi2026!
     ports:
-      - "5433:5432"
+      - "5434:5432"
     volumes:
       - ../sql:/docker-entrypoint-initdb.d:ro
       - pgdata:/var/lib/postgresql
@@ -32,8 +35,6 @@ services:
       retries: 10
     command:
       - "postgres"
-      - "-c"
-      - "shared_preload_libraries=vector"
       - "-c"
       - "work_mem=256MB"
       - "-c"
@@ -59,11 +60,36 @@ services:
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "mc", "ready", "local"]
       interval: 5s
       timeout: 5s
       retries: 10
 
+  # ---- Ollama (self-hosted embedding models) ----
+  # Provides mxbai-embed-large for API-free embedding comparison.
+  # After startup: docker exec lab04_ollama ollama pull mxbai-embed-large
+  ollama:
+    image: ollama/ollama:latest
+    container_name: lab04_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Optional: uncomment for GPU passthrough (NVIDIA)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
 volumes:
   pgdata:
   minio_data:
+  ollama_data:

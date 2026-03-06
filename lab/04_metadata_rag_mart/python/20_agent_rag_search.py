@@ -16,14 +16,11 @@ import json
 import time
 import psycopg2
 import psycopg2.extras
-import voyageai
-from openai import OpenAI
 from typing import List, Dict, Optional
 from dataclasses import dataclass, field, asdict
 import config
-
-vo = voyageai.Client(api_key=config.VOYAGE_API_KEY)
-llm = OpenAI(api_key=config.OPENAI_API_KEY)
+from embedding_provider import get_embedding_provider
+from llm_provider import get_llm_provider
 
 
 @dataclass
@@ -41,9 +38,10 @@ class SearchRecommendation:
     total_time_ms: int
 
 
-def embed_query(text: str) -> List[float]:
+def embed_query(text: str, embedding_model: str = None) -> List[float]:
     """Embed with input_type='query' for asymmetric retrieval."""
-    return vo.embed([text], model=config.EMBEDDING_MODEL, input_type="query").embeddings[0]
+    provider = get_embedding_provider(embedding_model)
+    return provider.embed_query(text)
 
 
 def vector_search(conn, query_emb: List[float]) -> Dict[str, List[Dict]]:
@@ -106,7 +104,7 @@ def vector_search(conn, query_emb: List[float]) -> Dict[str, List[Dict]]:
     return results
 
 
-def llm_reason(question: str, results: Dict) -> str:
+def llm_reason(question: str, results: Dict, llm_model: str = None) -> str:
     """LLM reasoning over search results."""
     context = json.dumps({
         "tables": [{"name": t["table_name"], "sim": round(t["similarity"], 3),
@@ -121,20 +119,18 @@ def llm_reason(question: str, results: Dict) -> str:
                   for k in results.get("kpis", [])],
     }, indent=2)
 
-    resp = llm.chat.completions.create(
-        model=config.CHAT_MODEL_FAST,
-        messages=[
-            {"role": "system", "content": "You are a metadata analyst for a Swiss private bank. "
-             "Given search results from the metadata catalog, explain which tables, columns, and joins "
-             "are needed. Note governance concerns (PII, classification). Be concise (3-5 sentences)."},
-            {"role": "user", "content": f"Question: {question}\n\nResults:\n{context}"}
-        ],
-        max_tokens=400, temperature=0.1
+    provider = get_llm_provider(llm_model or config.CHAT_MODEL_FAST)
+    return provider.chat(
+        system="You are a metadata analyst for a Swiss private bank. "
+               "Given search results from the metadata catalog, explain which tables, columns, and joins "
+               "are needed. Note governance concerns (PII, classification). Be concise (3-5 sentences).",
+        user=f"Question: {question}\n\nResults:\n{context}",
+        max_tokens=400, temperature=0.1,
     )
-    return resp.choices[0].message.content
 
 
-def search(question: str, requester: str = None, role: str = None) -> SearchRecommendation:
+def search(question: str, requester: str = None, role: str = None,
+           embedding_model: str = None, llm_model: str = None) -> SearchRecommendation:
     """Main entry point for Agent 1."""
     t0 = time.time()
     conn = psycopg2.connect(config.DATABASE_URL)
@@ -142,7 +138,7 @@ def search(question: str, requester: str = None, role: str = None) -> SearchReco
     try:
         # Embed
         t_emb = time.time()
-        query_emb = embed_query(question)
+        query_emb = embed_query(question, embedding_model=embedding_model)
         embedding_ms = int((time.time() - t_emb) * 1000)
 
         # Search
@@ -159,20 +155,24 @@ def search(question: str, requester: str = None, role: str = None) -> SearchReco
 
         # Reason
         t_reason = time.time()
-        reasoning = llm_reason(question, results)
+        reasoning = llm_reason(question, results, llm_model=llm_model)
         reasoning_ms = int((time.time() - t_reason) * 1000)
 
         # Log to monitoring
         total_ms = int((time.time() - t0) * 1000)
         try:
             cur = conn.cursor()
+            # Resolve actual model names for logging
+            emb_model_used = embedding_model or config.EMBEDDING_MODEL
+            llm_model_used = llm_model or config.CHAT_MODEL_FAST
             cur.execute("""
                 INSERT INTO rag_monitor.search_log
                 (query_text, query_embedding, result_tables, result_columns, result_kpis,
                  total_results, max_classification, pii_fields_found,
                  embedding_time_ms, search_time_ms, reasoning_time_ms, total_time_ms,
-                 requester, requester_role, similarity_threshold, top_k)
-                VALUES (%s, %s::vector, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 requester, requester_role, similarity_threshold, top_k,
+                 embedding_model, llm_model)
+                VALUES (%s, %s::vector, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (question, '[' + ','.join(str(x) for x in query_emb) + ']',
                   json.dumps([{"table": t["table_name"], "sim": round(t["similarity"],3)} for t in results.get("tables",[])]),
                   json.dumps([{"col": f"{c['table_name']}.{c['column_name']}", "sim": round(c["similarity"],3)} for c in results.get("columns",[])[:20]]),
@@ -180,7 +180,8 @@ def search(question: str, requester: str = None, role: str = None) -> SearchReco
                   sum(len(v) for v in results.values()),
                   max_class, pii_fields,
                   embedding_ms, search_ms, reasoning_ms, total_ms,
-                  requester, role, config.SIMILARITY_THRESHOLD, config.TOP_K))
+                  requester, role, config.SIMILARITY_THRESHOLD, config.TOP_K,
+                  emb_model_used, llm_model_used))
             conn.commit()
         except Exception as e:
             conn.rollback()

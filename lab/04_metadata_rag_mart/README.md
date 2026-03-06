@@ -206,19 +206,102 @@ python python/45_demo_broker.py --approve 1 --dry-run
 → Signal: Goldman downgrades NVIDIA, JP Morgan cuts ASML → 🟠 warning alerts
 → Action: Provision dm_tech_downgrade_impact with P&L impact
 
+## Phase 10: Multi-Model Comparison + Claude LLM + Streamlit UI
+
+Lab 04 now supports multiple embedding providers and LLM models behind unified abstractions, making it an interactive model comparison tool for conference demos.
+
+### Supported Models
+
+| Embedding Model | Provider | Notes |
+|-----------------|----------|-------|
+| `voyage-finance-2` | Voyage AI | Finance-optimized, +7% nDCG@10 (default) |
+| `text-embedding-3-small` | OpenAI | Cost-effective, dimension reduction to 1024 |
+| `text-embedding-3-large` | OpenAI | Highest quality, dimension reduction to 1024 |
+| `mxbai-embed-large` | Ollama | Self-hosted, no API key needed |
+
+| LLM Model | Provider | Tier |
+|-----------|----------|------|
+| `gpt-5.2` | OpenAI | Flagship (default) |
+| `gpt-5-mini` | OpenAI | Fast |
+| `claude-opus-4-6` | Anthropic | Flagship |
+| `claude-sonnet-4-6` | Anthropic | Balanced |
+| `claude-haiku-4-5` | Anthropic | Fast |
+
+### Streamlit Dashboard
+
+```bash
+streamlit run python/60_streamlit_comparison.py
+```
+
+5 tabs: Single Query, Benchmark Comparison, Embedding Explorer, Broker Intelligence, Evaluation History.
+
+### Multi-Model Evaluation
+
+```bash
+# Single model
+python python/50_evaluate_rag.py --embedding-model text-embedding-3-small --llm-model claude-sonnet-4-6
+
+# Compare all embedding models side-by-side
+python python/50_evaluate_rag.py --compare-all --verbose
+```
+
+### Ollama Setup (self-hosted)
+
+Ollama is included in Docker Compose for API-free embedding comparison:
+
+```bash
+docker compose up -d                            # starts PG + MinIO + Ollama
+docker exec lab04_ollama ollama pull mxbai-embed-large   # download model (~670MB)
+```
+
+### Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  embedding_provider.py          llm_provider.py                      │
+│  ┌─────────┐ ┌────────┐       ┌────────┐ ┌───────────┐             │
+│  │ Voyage  │ │ OpenAI │       │ OpenAI │ │ Anthropic │             │
+│  │ finance │ │ embed  │       │ GPT-5  │ │ Claude    │             │
+│  └────┬────┘ └───┬────┘       └───┬────┘ └─────┬─────┘             │
+│       │          │                │             │                    │
+│  ┌────┴──┐  ┌────┴──┐       ┌────┴──┐    ┌────┴──┐                │
+│  │Ollama │  │ Fake  │       │ Fake  │    │       │                │
+│  │mxbai  │  │(test) │       │(test) │    │       │                │
+│  └───────┘  └───────┘       └───────┘    └───────┘                │
+│                                                                     │
+│  ───────── unified interface ──────────────────────────────────     │
+│       embed_texts() / embed_query()    chat(system, user)          │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
 ## Technical Notes
 
-- **Embedding:** Voyage AI `voyage-finance-2` (1024d, finance-optimized, +7% vs OpenAI)
+- **Embedding:** Configurable via `DEFAULT_EMBEDDING_MODEL` env var (default: `voyage-finance-2`)
+  - All models output 1024d vectors (OpenAI uses `dimensions=1024` parameter)
   - Asymmetric search: `input_type="document"` for catalog, `input_type="query"` for questions
-- **Chat/DDL:** OpenAI gpt-5.2 (Agent 2), gpt-5-mini (Agent 1 reasoning)
+- **Chat/DDL:** Configurable via `CHAT_MODEL` env var (default: `gpt-5.2`)
+  - Claude models use `system=` top-level param, response at `message.content[0].text`
 - **Vector index:** StreamingDiskANN (pgvectorscale) — production-grade ANN
 - **Data seed:** 42 (fully reproducible)
 
 ### Environment Variables
 
 ```bash
-export VOYAGE_API_KEY="pa-..."       # embeddings
-export OPENAI_API_KEY="sk-..."       # LLM chat
+# Embedding providers (set the ones you need)
+export VOYAGE_API_KEY="pa-..."            # Voyage AI
+export OPENAI_API_KEY="sk-..."            # OpenAI (embeddings + LLM)
+export ANTHROPIC_API_KEY="sk-ant-..."     # Anthropic (Claude LLM)
+
+# Ollama (self-hosted, no API key needed)
+export OLLAMA_ENDPOINT="http://localhost:11434"    # default
+export OLLAMA_EMBED_MODEL="mxbai-embed-large"      # default
+
+# Default model selection
+export DEFAULT_EMBEDDING_MODEL="voyage-finance-2"  # or text-embedding-3-small, etc.
+export CHAT_MODEL="gpt-5.2"                        # or claude-sonnet-4-6, etc.
+export CHAT_MODEL_FAST="gpt-5-mini"                # or claude-haiku-4-5, etc.
+
+# Infrastructure
 export S3_ENDPOINT="http://localhost:9000"    # MinIO (default)
 export DB_HOST="localhost"                     # PG (default)
 export DB_PORT="5433"                          # PG (default)
@@ -233,14 +316,16 @@ lab/04_metadata_rag_mart/
 ├── requirements.txt
 ├── docker/
 │   ├── Dockerfile.pg18              # PG 18 + pgvector + pgvectorscale
-│   └── docker-compose.yml           # PG + MinIO
+│   └── docker-compose.yml           # PG + MinIO + Ollama
 ├── sql/
 │   ├── 00_extensions.sql            # vector, vectorscale, pgcrypto
 │   ├── 01_metadata_catalog.sql      # pgvector catalog (detail_bi/detail_agent)
 │   ├── 02_governance.sql            # roles, audit, masking, registry
 │   └── 03_rag_monitoring.sql        # search logs, judgments, evaluations
 ├── python/
-│   ├── config.py                    # shared configuration
+│   ├── config.py                    # shared configuration + model registries
+│   ├── embedding_provider.py        # unified embedding interface (4 providers)
+│   ├── llm_provider.py              # unified LLM interface (3 providers)
 │   ├── 00_generate_parquet.py       # → Parquet → MinIO (18 tables)
 │   ├── 10_scan_and_embed.py         # Parquet schemas → pgvector catalog
 │   ├── 20_agent_rag_search.py       # Agent 1: RAG metadata search
@@ -248,7 +333,8 @@ lab/04_metadata_rag_mart/
 │   ├── 35_agent_broker.py           # Agent 3: Broker intelligence
 │   ├── 40_demo.py                   # demo orchestrator (3 scenarios)
 │   ├── 45_demo_broker.py            # broker intelligence demo
-│   ├── 50_evaluate_rag.py           # RAG quality evaluation
+│   ├── 50_evaluate_rag.py           # RAG quality evaluation (multi-model)
+│   ├── 60_streamlit_comparison.py   # Streamlit comparison dashboard
 │   └── test_no_api.py               # full test without API keys
 └── benchmarks/
     └── golden_queries.json          # 16 annotated benchmark queries

@@ -30,6 +30,7 @@ CREATE TABLE rag_monitor.search_log (
     requester           VARCHAR(128),
     requester_role      VARCHAR(64),
     embedding_model     VARCHAR(128) DEFAULT 'voyage-finance-2',
+    llm_model           VARCHAR(128) DEFAULT 'gpt-5-mini',
     similarity_threshold REAL,
     top_k               INTEGER,
     --
@@ -38,6 +39,7 @@ CREATE TABLE rag_monitor.search_log (
 
 CREATE INDEX idx_search_log_time ON rag_monitor.search_log (created_at DESC);
 CREATE INDEX idx_search_log_model ON rag_monitor.search_log (embedding_model);
+CREATE INDEX idx_search_log_llm ON rag_monitor.search_log (llm_model);
 
 -- =========================================================================
 -- RELEVANCE JUDGMENTS — ground truth for evaluation

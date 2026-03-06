@@ -27,12 +27,10 @@ import psycopg2.extras
 import pandas as pd
 import boto3
 from botocore.client import Config
-from openai import OpenAI
 from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Optional
 import config
-
-llm = OpenAI(api_key=config.OPENAI_API_KEY)
+from llm_provider import get_llm_provider
 
 
 # ---------------------------------------------------------------------------
@@ -322,7 +320,8 @@ def cross_reference_positions(conn, signals: List[Signal]) -> List[BrokerAlert]:
 # ---------------------------------------------------------------------------
 
 def generate_broker_brief(alerts: List[BrokerAlert],
-                          portfolio_manager: str = "Senior PM") -> BrokerBrief:
+                          portfolio_manager: str = "Senior PM",
+                          llm_model: str = None) -> BrokerBrief:
     """Generate a structured broker brief from alerts.
 
     Uses LLM to create a concise executive summary of the intelligence findings.
@@ -353,15 +352,12 @@ Alerts:
 Write a concise, actionable brief in professional financial language."""
 
     try:
-        resp = llm.chat.completions.create(
-            model=config.CHAT_MODEL_FAST,
-            messages=[
-                {"role": "system", "content": "You are a Senior Portfolio Manager at a Swiss private bank. Write concise, professional intelligence briefs."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=400, temperature=0.2
+        provider = get_llm_provider(llm_model or config.CHAT_MODEL_FAST)
+        summary = provider.chat(
+            system="You are a Senior Portfolio Manager at a Swiss private bank. Write concise, professional intelligence briefs.",
+            user=prompt,
+            max_tokens=400, temperature=0.2,
         )
-        summary = resp.choices[0].message.content
     except Exception:
         summary = (
             f"Intelligence scan detected {len(critical)} critical and {len(warnings)} warning signals. "

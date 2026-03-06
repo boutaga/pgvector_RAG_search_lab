@@ -15,6 +15,8 @@ Results stored in rag_monitor.evaluation_runs + rag_monitor.relevance_judgments.
 
 Usage:
     python python/50_evaluate_rag.py [--k 5] [--verbose]
+    python python/50_evaluate_rag.py --embedding-model text-embedding-3-small --llm-model claude-sonnet-4-6
+    python python/50_evaluate_rag.py --compare-all --verbose
 """
 
 import sys, os, json, math, argparse, time
@@ -100,7 +102,8 @@ class QueryResult:
     expected_kpi: str
 
 
-def evaluate_query(query_data: Dict, k: int = 5, verbose: bool = False) -> QueryResult:
+def evaluate_query(query_data: Dict, k: int = 5, verbose: bool = False,
+                   embedding_model: str = None, llm_model: str = None) -> QueryResult:
     """Run one query through Agent 1 and evaluate."""
     k2 = k * 2
     query = query_data["query"]
@@ -111,7 +114,7 @@ def evaluate_query(query_data: Dict, k: int = 5, verbose: bool = False) -> Query
 
     # Run Agent 1
     t0 = time.time()
-    rec = agent_rag.search(query)
+    rec = agent_rag.search(query, embedding_model=embedding_model, llm_model=llm_model)
     latency = int((time.time() - t0) * 1000)
 
     # Extract retrieved items
@@ -152,19 +155,25 @@ def evaluate_query(query_data: Dict, k: int = 5, verbose: bool = False) -> Query
     return result
 
 
-def run_evaluation(golden_path: str, k: int = 5, verbose: bool = False):
-    """Run full evaluation suite."""
+def run_evaluation(golden_path: str, k: int = 5, verbose: bool = False,
+                   embedding_model: str = None, llm_model: str = None):
+    """Run full evaluation suite with specified models."""
     with open(golden_path) as f:
         queries = json.load(f)
 
+    emb_model = embedding_model or config.EMBEDDING_MODEL
+    llm_mod = llm_model or config.CHAT_MODEL_FAST
+
     print("="*70)
     print(f"  RAG Quality Evaluation — {len(queries)} benchmark queries")
-    print(f"  Model: {config.EMBEDDING_MODEL} | Threshold: {config.SIMILARITY_THRESHOLD} | Top-K: {config.TOP_K}")
+    print(f"  Embedding: {emb_model} | LLM: {llm_mod}")
+    print(f"  Threshold: {config.SIMILARITY_THRESHOLD} | Top-K: {config.TOP_K}")
     print("="*70)
 
     results = []
     for qd in queries:
-        r = evaluate_query(qd, k=k, verbose=verbose)
+        r = evaluate_query(qd, k=k, verbose=verbose,
+                           embedding_model=embedding_model, llm_model=llm_model)
         results.append(r)
 
     # Aggregate metrics
@@ -194,7 +203,7 @@ def run_evaluation(golden_path: str, k: int = 5, verbose: bool = False):
 
     # Print summary
     print(f"\n{'='*70}")
-    print(f"  RESULTS ({n} queries)")
+    print(f"  RESULTS ({n} queries) — {emb_model}")
     print(f"{'='*70}")
     print(f"  Precision@5:    {metrics['precision_at_5']:.3f}")
     print(f"  Precision@10:   {metrics['precision_at_10']:.3f}")
@@ -225,7 +234,8 @@ def run_evaluation(golden_path: str, k: int = 5, verbose: bool = False):
                     SET relevance_grade = EXCLUDED.relevance_grade
                 """, (qd["query"], tbl, grade))
 
-        # Store evaluation run
+        # Store evaluation run — tag with model names
+        run_name = f"eval_{emb_model}_{llm_mod}"
         per_query = [{"query": r.query[:80], "p5": round(r.precision_5,3),
                       "r5": round(r.recall_5,3), "ndcg5": round(r.ndcg_5,3),
                       "latency": r.latency_ms} for r in results]
@@ -238,7 +248,7 @@ def run_evaluation(golden_path: str, k: int = 5, verbose: bool = False):
              avg_latency_ms, p50_latency_ms, p95_latency_ms, p99_latency_ms,
              per_query_metrics, notes)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (f"eval_{config.EMBEDDING_MODEL}", config.EMBEDDING_MODEL,
+        """, (run_name, emb_model,
               config.SIMILARITY_THRESHOLD, config.TOP_K,
               n, n * 3,  # approximate judgments
               metrics["precision_at_5"], metrics["precision_at_10"],
@@ -248,7 +258,7 @@ def run_evaluation(golden_path: str, k: int = 5, verbose: bool = False):
               metrics["avg_latency_ms"], metrics["p50_latency_ms"],
               metrics["p95_latency_ms"], metrics["p99_latency_ms"],
               json.dumps(per_query),
-              f"Embedding: {config.EMBEDDING_MODEL}, threshold: {config.SIMILARITY_THRESHOLD}"))
+              f"Embedding: {emb_model}, LLM: {llm_mod}, threshold: {config.SIMILARITY_THRESHOLD}"))
 
         conn.commit()
         conn.close()
@@ -259,17 +269,78 @@ def run_evaluation(golden_path: str, k: int = 5, verbose: bool = False):
     return metrics
 
 
+def run_compare_all(golden_path: str, k: int = 5, verbose: bool = False,
+                    llm_model: str = None):
+    """Run golden set against all embedding models and print side-by-side comparison."""
+    # Only compare models that have real providers (skip fake)
+    models_to_compare = [m for m, info in config.EMBEDDING_MODELS.items()
+                         if info["provider"] != "fake"]
+
+    print("="*70)
+    print(f"  MULTI-MODEL COMPARISON — {len(models_to_compare)} embedding models")
+    print(f"  Models: {', '.join(models_to_compare)}")
+    print("="*70)
+
+    all_metrics = {}
+    for model in models_to_compare:
+        print(f"\n{'─'*70}")
+        print(f"  Running: {model}")
+        print(f"{'─'*70}")
+        try:
+            metrics = run_evaluation(golden_path, k=k, verbose=verbose,
+                                     embedding_model=model, llm_model=llm_model)
+            all_metrics[model] = metrics
+        except Exception as e:
+            print(f"  ⚠ Skipping {model}: {e}")
+
+    # Print comparison table
+    if len(all_metrics) > 1:
+        print(f"\n{'='*70}")
+        print(f"  SIDE-BY-SIDE COMPARISON")
+        print(f"{'='*70}")
+
+        header = f"{'Metric':<20}"
+        for model in all_metrics:
+            header += f" {model:>20}"
+        print(header)
+        print("─" * len(header))
+
+        metric_keys = ["precision_at_5", "recall_at_5", "ndcg_at_5", "mrr", "map", "avg_latency_ms"]
+        metric_labels = ["P@5", "R@5", "nDCG@5", "MRR", "MAP", "Avg latency (ms)"]
+
+        for label, key in zip(metric_labels, metric_keys):
+            row = f"{label:<20}"
+            for model in all_metrics:
+                val = all_metrics[model].get(key, 0)
+                if key == "avg_latency_ms":
+                    row += f" {val:>20.0f}"
+                else:
+                    row += f" {val:>20.3f}"
+            print(row)
+
+        print(f"{'='*70}")
+
+    return all_metrics
+
+
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="RAG Quality Evaluation")
     parser.add_argument("--k", type=int, default=5)
     parser.add_argument("--verbose", "-v", action="store_true")
     parser.add_argument("--golden", default=os.path.join(os.path.dirname(__file__), "..", "benchmarks", "golden_queries.json"))
+    parser.add_argument("--embedding-model", default=None,
+                        help="Embedding model to evaluate (default: config.EMBEDDING_MODEL)")
+    parser.add_argument("--llm-model", default=None,
+                        help="LLM model for reasoning (default: config.CHAT_MODEL_FAST)")
+    parser.add_argument("--compare-all", action="store_true",
+                        help="Run all embedding models and print comparison table")
     args = parser.parse_args()
 
-    if not config.VOYAGE_API_KEY:
-        print("❌ Set VOYAGE_API_KEY"); sys.exit(1)
-
-    run_evaluation(args.golden, args.k, args.verbose)
+    if args.compare_all:
+        run_compare_all(args.golden, args.k, args.verbose, llm_model=args.llm_model)
+    else:
+        run_evaluation(args.golden, args.k, args.verbose,
+                       embedding_model=args.embedding_model, llm_model=args.llm_model)
 
 if __name__ == "__main__":
     main()

@@ -15,16 +15,15 @@ Usage:
 
 import io
 import json
+import argparse
 import psycopg2
 import psycopg2.extras
 import pyarrow.parquet as pq
 import boto3
-import voyageai
 from botocore.client import Config
 from typing import List, Dict
 import config
-
-vo = voyageai.Client(api_key=config.VOYAGE_API_KEY)
+from embedding_provider import get_embedding_provider
 
 # ---------------------------------------------------------------------------
 # S3 / MINIO
@@ -219,15 +218,27 @@ def build_relationship_text(r) -> str:
 # EMBEDDING
 # ---------------------------------------------------------------------------
 
+# Module-level provider (set by run() or overridden in tests)
+_embedding_provider = None
+
+
 def embed_batch(texts: List[str], input_type: str = "document") -> List[List[float]]:
-    result = vo.embed(texts, model=config.EMBEDDING_MODEL, input_type=input_type)
-    return result.embeddings
+    global _embedding_provider
+    if _embedding_provider is None:
+        _embedding_provider = get_embedding_provider()
+    return _embedding_provider.embed_texts(texts, input_type=input_type)
 
 # ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
 
-def run():
+def run(embedding_model: str = None):
+    global _embedding_provider
+    if embedding_model:
+        _embedding_provider = get_embedding_provider(embedding_model)
+    elif _embedding_provider is None:
+        _embedding_provider = get_embedding_provider()
+
     import pandas as pd
     s3 = get_s3()
     conn = psycopg2.connect(config.DATABASE_URL)
@@ -336,7 +347,8 @@ def run():
     all_texts.extend(kpi_texts)
 
     # Embed all texts
-    print(f"\n🧠 Generating Voyage finance-2 embeddings ({len(all_texts)} texts)...")
+    emb_label = _embedding_provider.model_name if _embedding_provider else "unknown"
+    print(f"\n🧠 Generating {emb_label} embeddings ({len(all_texts)} texts)...")
     BATCH = 50
     all_embeddings = []
     for i in range(0, len(all_texts), BATCH):
@@ -414,6 +426,7 @@ def run():
     conn.commit()
     conn.close()
 
+    model_label = _embedding_provider.model_name if _embedding_provider else "unknown"
     print(f"\n{'='*60}")
     print(f"✅ Metadata catalog populated!")
     print(f"   Tables:        {len(table_entries)}")
@@ -422,8 +435,12 @@ def run():
     print(f"   KPI patterns:  {len(KPI_PATTERNS)}")
     print(f"   Total vectors: {len(all_texts)}")
     print(f"   Index type:    StreamingDiskANN (vector_cosine_ops)")
-    print(f"   Embedding:     Voyage finance-2 (1024d)")
+    print(f"   Embedding:     {model_label} ({config.EMBEDDING_DIM}d)")
     print(f"{'='*60}")
 
 if __name__ == "__main__":
-    run()
+    parser = argparse.ArgumentParser(description="Scan Parquet schemas and embed into pgvector catalog")
+    parser.add_argument("--embedding-model", default=None,
+                        help=f"Embedding model to use (default: {config.EMBEDDING_MODEL})")
+    args = parser.parse_args()
+    run(embedding_model=args.embedding_model)

@@ -26,12 +26,10 @@ import pandas as pd
 import pyarrow.parquet as pq
 import boto3
 from botocore.client import Config
-from openai import OpenAI
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 import config
-
-llm = OpenAI(api_key=config.OPENAI_API_KEY)
+from llm_provider import get_llm_provider
 
 CLASSIFICATION_ACCESS = {
     "public":       ["bi_analyst", "risk_manager", "compliance_officer", "portfolio_manager"],
@@ -117,7 +115,8 @@ def load_parquet_to_staging(conn, s3, table_name: str):
     return len(df)
 
 
-def generate_mart_sql(question: str, recommendation: Dict, requester_role: str) -> Tuple[str, Dict]:
+def generate_mart_sql(question: str, recommendation: Dict, requester_role: str,
+                      llm_model: str = None) -> Tuple[str, Dict]:
     """LLM generates CREATE TABLE AS SELECT referencing lake.* tables."""
     tables = [t["table_name"] for t in recommendation.get("tables", [])]
     columns = [(c["table_name"], c["column_name"], c.get("data_type",""),
@@ -159,17 +158,15 @@ RULES:
 5. Add COMMENT ON TABLE
 6. Output ONLY SQL — no markdown, no explanation"""
 
-    resp = llm.chat.completions.create(
-        model=config.CHAT_MODEL,
-        messages=[
-            {"role": "system", "content": "You are a data engineer at a Swiss private bank. "
-             "Generate production PostgreSQL DDL. Output ONLY SQL."},
-            {"role": "user", "content": prompt}
-        ],
-        max_tokens=2000, temperature=0.1
+    provider = get_llm_provider(llm_model or config.CHAT_MODEL)
+    raw = provider.chat(
+        system="You are a data engineer at a Swiss private bank. "
+               "Generate production PostgreSQL DDL. Output ONLY SQL.",
+        user=prompt,
+        max_tokens=2000, temperature=0.1,
     )
 
-    sql = resp.choices[0].message.content.strip()
+    sql = raw.strip()
     # Strip markdown code fences robustly
     import re
     sql = re.sub(r'^```\w*\s*\n?', '', sql)
@@ -236,7 +233,7 @@ def cleanup_staging(conn, tables: List[str]):
 
 def provision(question: str, recommendation: Dict,
               requester: str, requester_role: str,
-              dry_run: bool = False) -> ProvisioningResult:
+              dry_run: bool = False, llm_model: str = None) -> ProvisioningResult:
     """Main entry point for Agent 2."""
     request_id = str(uuid.uuid4())
     t0 = time.time()
@@ -249,7 +246,7 @@ def provision(question: str, recommendation: Dict,
 
     try:
         # 1. Generate SQL
-        sql, meta = generate_mart_sql(question, recommendation, requester_role)
+        sql, meta = generate_mart_sql(question, recommendation, requester_role, llm_model=llm_model)
         mart_name = meta["mart_name"]
         classification = meta["classification"]
         pii_masked = meta["pii_masked"]
