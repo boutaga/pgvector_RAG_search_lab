@@ -37,11 +37,6 @@ env/
 *.swp
 *.swo
 *~
-.DS_Store
-
-# Development tools
-.vscode/
-.idea/
 
 # Git LFS - note: .gitattributes should be tracked, not ignored
 
@@ -54,8 +49,8 @@ env/
 *.log
 
 # OS files
-Thumbs.db
 .DS_Store
+Thumbs.db
 
 # Temporary files
 *.tmp
@@ -64,7 +59,6 @@ Thumbs.db
 /temp/
 
 # Conference and Presentation Materials (Private - NOT lab materials)
-plan.md
 /presentation/
 /conference/
 /slides/
@@ -90,38 +84,16 @@ performance_tests_private/
 config.local.yml
 settings.local.json
 
-# Claude files and tracking
+# Claude Code — all development artifacts live in .claude/
 CLAUDE.md
 .claude/
-map.md
-current_progress.md
-plan.md
-phase*_plan.md
-*_analysis.md
-original_analysis.md
-phase2_plan.md
-
-# Migration and planning files
-migration*.md
-fix_*.md
-*_plan.md
-lab_03_bi_mart_metadata_rag_plan.md
-AGENTIC_RAG_SUMMARY.md
-BLOG_POST_CHANGES_REQUIRED.md
-IMPLEMENTATION_COMPLETE_SUMMARY.md
-IMPLEMENTATION_SUMMARY.md
-lab.zip
-lab/evaluation/examples/ADAPTIVE_VS_AGENTIC.md
-lab/evaluation/examples/COMBINED_VS_SEPARATE_EMBEDDINGS.md
-lab/evaluation/examples/DEMO_SCRIPT_EXPLAINED.md
-lab/evaluation/examples/IMPROVING_RANKING_DEMO.md
-lab/evaluation/examples/OPTIMIZATION_QUICK_REF.md
-lab/evaluation/examples/PRESENTATION_GUIDE.md
-lab/evaluation/examples/RECALL_VS_PRECISION.md
-lab/evaluation/examples/UNDERSTANDING_K.md
-
-# DEV folders (private per-lab development artifacts)
 **/DEV/
+
+# Private educational content (Claude-generated, not for public repo)
+lab/evaluation/examples/*.md
+
+# Lab archives and private artifacts
+lab.zip
 lab/04_lab/04_sample_design_1.tar.gz
 lab/04_metadata_rag_mart/docker/docker-compose.yml
 lab/04_metadata_rag_mart/python/test_no_api.py
