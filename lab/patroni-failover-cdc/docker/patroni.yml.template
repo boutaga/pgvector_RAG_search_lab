@@ -1,0 +1,69 @@
+# Rendered by entrypoint.sh with envsubst (env vars -> values).
+scope: ${PATRONI_SCOPE}
+name: ${PATRONI_NAME}
+
+restapi:
+  listen: 0.0.0.0:8008
+  connect_address: ${PATRONI_NAME}:8008
+
+etcd3:
+  hosts: etcd:2379
+
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 1048576
+    postgresql:
+      use_pg_rewind: true
+      use_slots: true
+      parameters:
+        # --- logical decoding + failover-slot machinery ---
+        wal_level: logical
+        hot_standby: "on"
+        hot_standby_feedback: "on"       # required: lets the standby sync failover slots
+        sync_replication_slots: "on"     # standby runs the slot-sync worker (PG17+); ignored on a primary
+        # synchronized_standby_slots is deliberately NOT set here.
+        #   Patroni does not manage it yet (patroni issue #3431) and the correct
+        #   value flips after a 2-node switchover (it must name the *current
+        #   standby's* physical member slot). scripts/enable-failover-config.sh
+        #   sets it on whichever node is currently the leader.
+        # --- capacity ---
+        max_connections: 100
+        max_worker_processes: 16
+        max_wal_senders: 16
+        max_replication_slots: 16
+        wal_keep_size: 256MB
+        wal_sender_timeout: 60s
+
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+
+  pg_hba:
+    - local all all trust
+    - host all all 0.0.0.0/0 md5
+    - host replication ${PATRONI_REPLICATION_USERNAME} 0.0.0.0/0 md5
+
+postgresql:
+  listen: 0.0.0.0:5432
+  connect_address: ${PATRONI_NAME}:5432
+  data_dir: /var/lib/postgresql/data
+  bin_dir: /usr/lib/postgresql/${PG_MAJOR}/bin
+  pgpass: /tmp/pgpass
+  authentication:
+    superuser:
+      username: ${PATRONI_SUPERUSER_USERNAME}
+      password: ${PATRONI_SUPERUSER_PASSWORD}
+    replication:
+      username: ${PATRONI_REPLICATION_USERNAME}
+      password: ${PATRONI_REPLICATION_PASSWORD}
+  parameters:
+    unix_socket_directories: '/var/run/postgresql'
+
+tags:
+  nofailover: false
+  noloadbalance: false
+  clonefrom: false
+  nosync: false
