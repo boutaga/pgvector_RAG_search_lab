@@ -1,0 +1,36 @@
+# =============================================================================
+# PostgreSQL 18 + pgvector + pgaudit + postgresql_anonymizer
+# Lab 07 — Security Observability Demo (Swiss PGDay 2026)
+# =============================================================================
+# No pgvectorscale here: this demo needs `vector` + `pgaudit` + `anon`, not
+# DiskANN. Keeping the image to apt installs only (no Rust build) keeps it small
+# and fast.
+#
+#   pgvector / pgaudit : PGDG apt repo (already configured in the official image)
+#   anon               : DaLibo Labs apt repo (no PGDG package on Debian)
+# =============================================================================
+
+FROM postgres:18-bookworm
+
+ARG PG_MAJOR=18
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates curl gnupg; \
+    # --- DaLibo Labs repo for postgresql_anonymizer ---
+    echo "deb http://apt.dalibo.org/labs bookworm-dalibo main" \
+        > /etc/apt/sources.list.d/dalibo-labs.list; \
+    curl -fsSL -o /etc/apt/trusted.gpg.d/dalibo-labs.gpg \
+        https://apt.dalibo.org/labs/debian-dalibo.gpg; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        postgresql-${PG_MAJOR}-pgvector \
+        postgresql-${PG_MAJOR}-pgaudit \
+        postgresql_anonymizer_${PG_MAJOR}; \
+    rm -rf /var/lib/apt/lists/*
+
+# init scripts (sql/init) are mounted at /docker-entrypoint-initdb.d via compose
+# and run alphabetically on first start.
+
+LABEL maintainer="dbi-services" \
+      description="PostgreSQL ${PG_MAJOR} + pgvector + pgaudit + anon (security observability lab)"

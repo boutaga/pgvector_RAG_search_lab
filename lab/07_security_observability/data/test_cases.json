@@ -1,0 +1,392 @@
+[
+  {
+    "query": "What are Helvetia Industrials AG's positions and exposures?",
+    "tenant_id": "bank_a",
+    "query_type": "client",
+    "expected_doc_ids": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "metadata": {
+      "client": "Helvetia Industrials AG"
+    }
+  },
+  {
+    "query": "What are Aare Logistics SA's positions and exposures?",
+    "tenant_id": "bank_a",
+    "query_type": "client",
+    "expected_doc_ids": [
+      5,
+      6,
+      7,
+      8
+    ],
+    "metadata": {
+      "client": "Aare Logistics SA"
+    }
+  },
+  {
+    "query": "What are Rhone Pharma Holding's positions and exposures?",
+    "tenant_id": "bank_a",
+    "query_type": "client",
+    "expected_doc_ids": [
+      9,
+      10,
+      11,
+      12
+    ],
+    "metadata": {
+      "client": "Rhone Pharma Holding"
+    }
+  },
+  {
+    "query": "What are Jura Precision GmbH's positions and exposures?",
+    "tenant_id": "bank_a",
+    "query_type": "client",
+    "expected_doc_ids": [
+      13,
+      14,
+      15,
+      16
+    ],
+    "metadata": {
+      "client": "Jura Precision GmbH"
+    }
+  },
+  {
+    "query": "What are Leman Energy AG's positions and exposures?",
+    "tenant_id": "bank_a",
+    "query_type": "client",
+    "expected_doc_ids": [
+      17,
+      18,
+      19,
+      20
+    ],
+    "metadata": {
+      "client": "Leman Energy AG"
+    }
+  },
+  {
+    "query": "Q3 trading positions across the portfolio",
+    "tenant_id": "bank_a",
+    "query_type": "topic",
+    "expected_doc_ids": [
+      1,
+      5,
+      9,
+      13,
+      17
+    ],
+    "metadata": {
+      "topic": "trading"
+    }
+  },
+  {
+    "query": "credit exposure review across the portfolio",
+    "tenant_id": "bank_a",
+    "query_type": "topic",
+    "expected_doc_ids": [
+      2,
+      6,
+      10,
+      14,
+      18
+    ],
+    "metadata": {
+      "topic": "credit"
+    }
+  },
+  {
+    "query": "FX hedging strategy across the portfolio",
+    "tenant_id": "bank_a",
+    "query_type": "topic",
+    "expected_doc_ids": [
+      3,
+      7,
+      11,
+      15,
+      19
+    ],
+    "metadata": {
+      "topic": "fx"
+    }
+  },
+  {
+    "query": "liquidity stress test across the portfolio",
+    "tenant_id": "bank_a",
+    "query_type": "topic",
+    "expected_doc_ids": [
+      4,
+      8,
+      12,
+      16,
+      20
+    ],
+    "metadata": {
+      "topic": "liquidity"
+    }
+  },
+  {
+    "query": "What are Matterhorn Capital AG's positions and exposures?",
+    "tenant_id": "bank_b",
+    "query_type": "client",
+    "expected_doc_ids": [
+      21,
+      22,
+      23,
+      24
+    ],
+    "metadata": {
+      "client": "Matterhorn Capital AG"
+    }
+  },
+  {
+    "query": "What are Ticino Foods SpA's positions and exposures?",
+    "tenant_id": "bank_b",
+    "query_type": "client",
+    "expected_doc_ids": [
+      25,
+      26,
+      27,
+      28
+    ],
+    "metadata": {
+      "client": "Ticino Foods SpA"
+    }
+  },
+  {
+    "query": "What are Basilea Chemicals AG's positions and exposures?",
+    "tenant_id": "bank_b",
+    "query_type": "client",
+    "expected_doc_ids": [
+      29,
+      30,
+      31,
+      32
+    ],
+    "metadata": {
+      "client": "Basilea Chemicals AG"
+    }
+  },
+  {
+    "query": "What are Engadin Resorts SA's positions and exposures?",
+    "tenant_id": "bank_b",
+    "query_type": "client",
+    "expected_doc_ids": [
+      33,
+      34,
+      35,
+      36
+    ],
+    "metadata": {
+      "client": "Engadin Resorts SA"
+    }
+  },
+  {
+    "query": "What are Reuss Robotics GmbH's positions and exposures?",
+    "tenant_id": "bank_b",
+    "query_type": "client",
+    "expected_doc_ids": [
+      37,
+      38,
+      39,
+      40
+    ],
+    "metadata": {
+      "client": "Reuss Robotics GmbH"
+    }
+  },
+  {
+    "query": "Q3 trading positions across the portfolio",
+    "tenant_id": "bank_b",
+    "query_type": "topic",
+    "expected_doc_ids": [
+      21,
+      25,
+      29,
+      33,
+      37
+    ],
+    "metadata": {
+      "topic": "trading"
+    }
+  },
+  {
+    "query": "credit exposure review across the portfolio",
+    "tenant_id": "bank_b",
+    "query_type": "topic",
+    "expected_doc_ids": [
+      22,
+      26,
+      30,
+      34,
+      38
+    ],
+    "metadata": {
+      "topic": "credit"
+    }
+  },
+  {
+    "query": "FX hedging strategy across the portfolio",
+    "tenant_id": "bank_b",
+    "query_type": "topic",
+    "expected_doc_ids": [
+      23,
+      27,
+      31,
+      35,
+      39
+    ],
+    "metadata": {
+      "topic": "fx"
+    }
+  },
+  {
+    "query": "liquidity stress test across the portfolio",
+    "tenant_id": "bank_b",
+    "query_type": "topic",
+    "expected_doc_ids": [
+      24,
+      28,
+      32,
+      36,
+      40
+    ],
+    "metadata": {
+      "topic": "liquidity"
+    }
+  },
+  {
+    "query": "What are Saentis Mobility AG's positions and exposures?",
+    "tenant_id": "bank_c",
+    "query_type": "client",
+    "expected_doc_ids": [
+      41,
+      42,
+      43,
+      44
+    ],
+    "metadata": {
+      "client": "Saentis Mobility AG"
+    }
+  },
+  {
+    "query": "What are Limmat Media Group's positions and exposures?",
+    "tenant_id": "bank_c",
+    "query_type": "client",
+    "expected_doc_ids": [
+      45,
+      46,
+      47,
+      48
+    ],
+    "metadata": {
+      "client": "Limmat Media Group"
+    }
+  },
+  {
+    "query": "What are Gotthard Freight SA's positions and exposures?",
+    "tenant_id": "bank_c",
+    "query_type": "client",
+    "expected_doc_ids": [
+      49,
+      50,
+      51,
+      52
+    ],
+    "metadata": {
+      "client": "Gotthard Freight SA"
+    }
+  },
+  {
+    "query": "What are Vierwald Insurance AG's positions and exposures?",
+    "tenant_id": "bank_c",
+    "query_type": "client",
+    "expected_doc_ids": [
+      53,
+      54,
+      55,
+      56
+    ],
+    "metadata": {
+      "client": "Vierwald Insurance AG"
+    }
+  },
+  {
+    "query": "What are Furka Mining Ltd's positions and exposures?",
+    "tenant_id": "bank_c",
+    "query_type": "client",
+    "expected_doc_ids": [
+      57,
+      58,
+      59,
+      60
+    ],
+    "metadata": {
+      "client": "Furka Mining Ltd"
+    }
+  },
+  {
+    "query": "Q3 trading positions across the portfolio",
+    "tenant_id": "bank_c",
+    "query_type": "topic",
+    "expected_doc_ids": [
+      41,
+      45,
+      49,
+      53,
+      57
+    ],
+    "metadata": {
+      "topic": "trading"
+    }
+  },
+  {
+    "query": "credit exposure review across the portfolio",
+    "tenant_id": "bank_c",
+    "query_type": "topic",
+    "expected_doc_ids": [
+      42,
+      46,
+      50,
+      54,
+      58
+    ],
+    "metadata": {
+      "topic": "credit"
+    }
+  },
+  {
+    "query": "FX hedging strategy across the portfolio",
+    "tenant_id": "bank_c",
+    "query_type": "topic",
+    "expected_doc_ids": [
+      43,
+      47,
+      51,
+      55,
+      59
+    ],
+    "metadata": {
+      "topic": "fx"
+    }
+  },
+  {
+    "query": "liquidity stress test across the portfolio",
+    "tenant_id": "bank_c",
+    "query_type": "topic",
+    "expected_doc_ids": [
+      44,
+      48,
+      52,
+      56,
+      60
+    ],
+    "metadata": {
+      "topic": "liquidity"
+    }
+  }
+]

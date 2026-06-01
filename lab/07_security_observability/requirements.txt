@@ -1,0 +1,8 @@
+openai>=1.40
+psycopg2-binary>=2.9
+python-dotenv>=1.0
+numpy>=1.26
+scipy>=1.11
+pandas>=2.0
+streamlit>=1.36
+plotly>=5.20
