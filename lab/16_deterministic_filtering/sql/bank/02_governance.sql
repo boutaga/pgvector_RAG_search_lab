@@ -62,7 +62,7 @@ END$$;
 CALL gov.apply_labels();
 
 -- Coverage: every text column of the business tables, labelled or not.
--- Derived columns (tokens, redacted and tokenized copies) and identifiers are excluded.
+-- Derived columns (tokens, redacted and tokenized copies, text hashes) and identifiers are excluded.
 CREATE VIEW gov.label_coverage AS
 SELECT c.table_name,
        c.column_name,
@@ -82,6 +82,7 @@ WHERE c.table_schema = 'bank'
   AND c.column_name NOT LIKE '%\_token' ESCAPE '\'
   AND c.column_name NOT LIKE '%\_redacted' ESCAPE '\'
   AND c.column_name NOT LIKE '%\_tokenized' ESCAPE '\'
+  AND c.column_name NOT LIKE '%\_sha256' ESCAPE '\'        -- hashes of embedded text, not data
   AND c.column_name NOT IN ('bank_id', 'doc_type', 'client_type', 'currency',
                             'role', 'environment', 'domicile', 'category', 'token');
 
