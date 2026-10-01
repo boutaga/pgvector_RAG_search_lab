@@ -1,0 +1,7 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+results/*.json
+blog/
+captures/

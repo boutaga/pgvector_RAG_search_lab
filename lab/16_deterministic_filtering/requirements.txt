@@ -1,0 +1,9 @@
+# CPU-only torch first:  pip install torch --index-url https://download.pytorch.org/whl/cpu
+# voyage-4-nano's remote code targets transformers 4.x; 5.x fails to load it.
+transformers>=4.51,<5
+sentence-transformers>=5,<6
+fastembed>=0.5
+psycopg[binary]>=3.2
+openai>=1.40
+python-dotenv>=1.0
+numpy>=1.26

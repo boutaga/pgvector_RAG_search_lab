@@ -1,0 +1,369 @@
+[
+ {
+  "bank_id": "bank_a",
+  "type": "entity",
+  "question": "What did Loic Kuhn discuss about renewing know-your-customer documents?",
+  "expected": [
+   350,
+   351,
+   352
+  ]
+ },
+ {
+  "bank_id": "bank_a",
+  "type": "entity",
+  "question": "What did Simon Favre discuss about renewing know-your-customer documents?",
+  "expected": [
+   273,
+   274
+  ]
+ },
+ {
+  "bank_id": "bank_a",
+  "type": "entity",
+  "question": "What did Anna Fontana discuss about a Lombard credit line?",
+  "expected": [
+   251,
+   252,
+   253
+  ]
+ },
+ {
+  "bank_id": "bank_a",
+  "type": "entity",
+  "question": "What did Glarus Holding GmbH discuss about renewing know-your-customer documents?",
+  "expected": [
+   173,
+   174
+  ]
+ },
+ {
+  "bank_id": "bank_a",
+  "type": "entity",
+  "question": "What did Engadin Transport Holding AG discuss about succession planning for the family business?",
+  "expected": [
+   18,
+   19
+  ]
+ },
+ {
+  "bank_id": "bank_a",
+  "type": "entity",
+  "question": "What did Thomas Moser discuss about hedging currency exposure?",
+  "expected": [
+   290,
+   291
+  ]
+ },
+ {
+  "bank_id": "bank_a",
+  "type": "entity",
+  "question": "What happened on alb-web-prd-05 regarding disk space running out?",
+  "expected": [
+   445,
+   446,
+   447,
+   448
+  ]
+ },
+ {
+  "bank_id": "bank_a",
+  "type": "entity",
+  "question": "What happened on alb-app-prd-03 regarding CPU saturation?",
+  "expected": [
+   421,
+   422,
+   423,
+   424
+  ]
+ },
+ {
+  "bank_id": "bank_a",
+  "type": "entity",
+  "question": "What happened on alb-app-prd-03 regarding an expired TLS certificate?",
+  "expected": [
+   413,
+   414,
+   415,
+   416
+  ]
+ },
+ {
+  "bank_id": "bank_a",
+  "type": "entity",
+  "question": "What happened on alb-web-tst-10 regarding CPU saturation?",
+  "expected": [
+   501,
+   502,
+   503,
+   504
+  ]
+ },
+ {
+  "bank_id": "bank_a",
+  "type": "generic",
+  "question": "Which clients were affected by a sanctions screening alert?",
+  "expected": [
+   378,
+   379,
+   380,
+   381
+  ]
+ },
+ {
+  "bank_id": "bank_a",
+  "type": "generic",
+  "question": "Which clients were affected by an inheritance dispute?",
+  "expected": [
+   382,
+   383,
+   384,
+   385
+  ]
+ },
+ {
+  "bank_id": "bank_b",
+  "type": "entity",
+  "question": "What did Jura Immobilien SA discuss about the fees they are charged?",
+  "expected": [
+   527,
+   528
+  ]
+ },
+ {
+  "bank_id": "bank_b",
+  "type": "entity",
+  "question": "What did Areuse Maschinenbau AG discuss about succession planning for the family business?",
+  "expected": [
+   718,
+   719,
+   720
+  ]
+ },
+ {
+  "bank_id": "bank_b",
+  "type": "entity",
+  "question": "What did Leman Uhren Sarl discuss about their pension planning?",
+  "expected": [
+   597,
+   598,
+   599
+  ]
+ },
+ {
+  "bank_id": "bank_b",
+  "type": "entity",
+  "question": "What did Matteo Keller discuss about succession planning for the family business?",
+  "expected": [
+   850,
+   851,
+   852
+  ]
+ },
+ {
+  "bank_id": "bank_b",
+  "type": "entity",
+  "question": "What did Albula Energie Holding AG discuss about their mortgage?",
+  "expected": [
+   669,
+   670,
+   671
+  ]
+ },
+ {
+  "bank_id": "bank_b",
+  "type": "entity",
+  "question": "What did Furka Medtech AG discuss about hedging currency exposure?",
+  "expected": [
+   591,
+   592
+  ]
+ },
+ {
+  "bank_id": "bank_b",
+  "type": "entity",
+  "question": "What happened on bwb-pg-prd-06 regarding an expired TLS certificate?",
+  "expected": [
+   952,
+   953,
+   954,
+   955
+  ]
+ },
+ {
+  "bank_id": "bank_b",
+  "type": "entity",
+  "question": "What happened on bwb-web-prd-05 regarding replication lag?",
+  "expected": [
+   948,
+   949,
+   950,
+   951
+  ]
+ },
+ {
+  "bank_id": "bank_b",
+  "type": "entity",
+  "question": "What happened on bwb-mq-tst-09 regarding disk space running out?",
+  "expected": [
+   988,
+   989,
+   990,
+   991
+  ]
+ },
+ {
+  "bank_id": "bank_b",
+  "type": "entity",
+  "question": "What happened on bwb-app-tst-08 regarding CPU saturation?",
+  "expected": [
+   984,
+   985,
+   986,
+   987
+  ]
+ },
+ {
+  "bank_id": "bank_b",
+  "type": "generic",
+  "question": "Which clients were affected by a sanctions screening alert?",
+  "expected": [
+   881,
+   882,
+   883,
+   884
+  ]
+ },
+ {
+  "bank_id": "bank_b",
+  "type": "generic",
+  "question": "Which clients were affected by an inheritance dispute?",
+  "expected": [
+   885,
+   886,
+   887,
+   888
+  ]
+ },
+ {
+  "bank_id": "bank_c",
+  "type": "entity",
+  "question": "What did Furka Transport GmbH discuss about succession planning for the family business?",
+  "expected": [
+   1025,
+   1026,
+   1027
+  ]
+ },
+ {
+  "bank_id": "bank_c",
+  "type": "entity",
+  "question": "What did Selina Zbinden discuss about moving the portfolio to sustainable investments?",
+  "expected": [
+   1289,
+   1290
+  ]
+ },
+ {
+  "bank_id": "bank_c",
+  "type": "entity",
+  "question": "What did Albula Software Sarl discuss about their pension planning?",
+  "expected": [
+   1242,
+   1243
+  ]
+ },
+ {
+  "bank_id": "bank_c",
+  "type": "entity",
+  "question": "What did Glarus Energie AG discuss about moving the portfolio to sustainable investments?",
+  "expected": [
+   1091,
+   1092
+  ]
+ },
+ {
+  "bank_id": "bank_c",
+  "type": "entity",
+  "question": "What did Brenta Agro GmbH discuss about their pension planning?",
+  "expected": [
+   1070,
+   1071
+  ]
+ },
+ {
+  "bank_id": "bank_c",
+  "type": "entity",
+  "question": "What did Laura Ammann discuss about renewing know-your-customer documents?",
+  "expected": [
+   1337,
+   1338
+  ]
+ },
+ {
+  "bank_id": "bank_c",
+  "type": "entity",
+  "question": "What happened on cdt-app-tst-08 regarding CPU saturation?",
+  "expected": [
+   1490,
+   1491,
+   1492,
+   1493
+  ]
+ },
+ {
+  "bank_id": "bank_c",
+  "type": "entity",
+  "question": "What happened on cdt-pg-prd-01 regarding CPU saturation?",
+  "expected": [
+   1406,
+   1407,
+   1408,
+   1409
+  ]
+ },
+ {
+  "bank_id": "bank_c",
+  "type": "entity",
+  "question": "What happened on cdt-pg-prd-01 regarding a failed backup?",
+  "expected": [
+   1402,
+   1403,
+   1404,
+   1405
+  ]
+ },
+ {
+  "bank_id": "bank_c",
+  "type": "entity",
+  "question": "What happened on cdt-mq-tst-09 regarding a failed patch?",
+  "expected": [
+   1502,
+   1503,
+   1504,
+   1505
+  ]
+ },
+ {
+  "bank_id": "bank_c",
+  "type": "generic",
+  "question": "Which clients were affected by a sanctions screening alert?",
+  "expected": [
+   1391,
+   1392,
+   1393,
+   1394
+  ]
+ },
+ {
+  "bank_id": "bank_c",
+  "type": "generic",
+  "question": "Which clients were affected by an inheritance dispute?",
+  "expected": [
+   1395,
+   1396,
+   1397,
+   1398
+  ]
+ }
+]

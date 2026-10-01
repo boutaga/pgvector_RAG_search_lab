@@ -1,0 +1,89 @@
+# =============================================================================
+# Lab 16 - deterministic filtering of sensitive data for AI retrieval
+#   lab16_pg18  : the bank (PostgreSQL 18 + pgvector + pgaudit + anon), :5437
+#   lab16_vault : the token mapping and its key, separate server, :5438
+# The bank image is the Swiss PGDay lab 07 image, built from its Dockerfile.
+# Memory settings are small on purpose: the embedding model needs the RAM.
+# =============================================================================
+
+name: lab16-filtering
+
+services:
+
+  bank:
+    build:
+      context: ../../07_security_observability/docker
+      dockerfile: Dockerfile.pg18
+    image: lab16-pg18:latest
+    container_name: lab16_pg18
+    shm_size: 256m
+    environment:
+      POSTGRES_DB: bank
+      POSTGRES_USER: lab_admin
+      POSTGRES_PASSWORD: dbi2026!
+    networks: [bank_net]
+    ports:
+      - "5437:5432"
+    volumes:
+      - ../sql/bank:/docker-entrypoint-initdb.d:ro
+      - ../sql/demo:/demo:ro
+      - pgdata16:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab_admin -d bank"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_preload_libraries=pgaudit,anon,pg_stat_statements"
+      - "-c"
+      - "pgaudit.log=ddl, role"
+      - "-c"
+      - "pgaudit.log_catalog=off"
+      - "-c"
+      - "pgaudit.log_relation=on"
+      - "-c"
+      - "shared_buffers=128MB"
+      - "-c"
+      - "work_mem=32MB"
+      - "-c"
+      - "maintenance_work_mem=256MB"
+
+  vault:
+    image: postgres:18-bookworm
+    container_name: lab16_vault
+    shm_size: 64m
+    environment:
+      POSTGRES_DB: vault
+      POSTGRES_USER: vault_admin
+      POSTGRES_PASSWORD: vault2026!
+    networks: [vault_net]
+    ports:
+      - "5438:5432"
+    volumes:
+      - ../sql/vault:/docker-entrypoint-initdb.d:ro
+      - vaultdata16:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vault_admin -d vault"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=32MB"
+      - "-c"
+      - "log_statement=ddl"
+      - "-c"
+      - "log_line_prefix=%m [%p] %u@%d "   # the role name on every line: who re-identified
+
+# Two networks: the bank container cannot even open a TCP connection to the vault
+# container. Both are reached from the host through their published ports only.
+networks:
+  bank_net:
+  vault_net:
+
+volumes:
+  pgdata16:
+  vaultdata16:

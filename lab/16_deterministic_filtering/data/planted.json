@@ -1,0 +1,56 @@
+[
+ {
+  "doc_id": 386,
+  "bank_id": "bank_a",
+  "value": "Hugo Vogel",
+  "why": "person named only in free text, in no labelled column"
+ },
+ {
+  "doc_id": 387,
+  "bank_id": "bank_a",
+  "value": "Selina Python",
+  "why": "person named only in free text, in no labelled column"
+ },
+ {
+  "doc_id": 388,
+  "bank_id": "bank_a",
+  "value": "Monika Maurer",
+  "why": "person named only in free text, in no labelled column"
+ },
+ {
+  "doc_id": 889,
+  "bank_id": "bank_b",
+  "value": "Jonas Lombardi",
+  "why": "person named only in free text, in no labelled column"
+ },
+ {
+  "doc_id": 890,
+  "bank_id": "bank_b",
+  "value": "Martina Baumann",
+  "why": "person named only in free text, in no labelled column"
+ },
+ {
+  "doc_id": 891,
+  "bank_id": "bank_b",
+  "value": "Laura Bianchi",
+  "why": "person named only in free text, in no labelled column"
+ },
+ {
+  "doc_id": 1399,
+  "bank_id": "bank_c",
+  "value": "Sophie Lehmann",
+  "why": "person named only in free text, in no labelled column"
+ },
+ {
+  "doc_id": 1400,
+  "bank_id": "bank_c",
+  "value": "Elena Graf",
+  "why": "person named only in free text, in no labelled column"
+ },
+ {
+  "doc_id": 1401,
+  "bank_id": "bank_c",
+  "value": "David Aebischer",
+  "why": "person named only in free text, in no labelled column"
+ }
+]
