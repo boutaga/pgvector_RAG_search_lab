@@ -146,11 +146,14 @@ def ndcg_at_k_binary(
         NDCG score between 0 and 1
 
     Examples:
-        >>> ndcg_at_k_binary([1, 3, 5, 7], [1, 5], 4)
+        >>> ndcg_at_k_binary([1, 5, 3, 7], [1, 5], 4)
         1.0  # Both relevant docs at top
 
         >>> ndcg_at_k_binary([2, 4, 1, 5], [1, 5], 4)
-        0.631  # Relevant docs at positions 3 and 4
+        0.571  # Relevant docs at positions 3 and 4
+
+        >>> ndcg_at_k_binary([1, 8, 9], [1, 5], 3)
+        0.613  # One of two relevant docs retrieved (missing docs are penalized)
     """
     # Convert to binary relevance scores
     relevances = [
@@ -158,7 +161,20 @@ def ndcg_at_k_binary(
         for doc_id in retrieved_ids[:k]
     ]
 
-    return ndcg_at_k(relevances, k)
+    dcg = dcg_at_k(relevances, k)
+
+    # IDCG must come from the full relevant set (capped at k), not from the
+    # retrieved list: the ideal ranking puts every relevant document at the
+    # top. Normalizing against the retrieved list only (self-normalization)
+    # would score a query that misses relevant docs as high as one that
+    # found them all.
+    ideal_relevances = [1.0] * min(len(relevant_ids), k)
+    idcg = dcg_at_k(ideal_relevances, k)
+
+    if idcg == 0:
+        return 0.0
+
+    return dcg / idcg
 
 
 def ndcg_at_k_with_grades(

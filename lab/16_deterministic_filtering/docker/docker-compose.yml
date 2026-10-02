@@ -60,7 +60,7 @@ services:
       POSTGRES_PASSWORD: vault2026!
     networks: [vault_net]
     ports:
-      - "5438:5432"
+      - "127.0.0.1:5438:5432"   # host loopback only: the bank container cannot reach it through the host
     volumes:
       - ../sql/vault:/docker-entrypoint-initdb.d:ro
       - vaultdata16:/var/lib/postgresql

@@ -184,6 +184,20 @@ class TestBackwardCompatibility:
         score = ndcg_at_k_binary(retrieved, relevant, k)
         assert score == 0.0
 
+    def test_binary_adapter_missed_relevant_penalized(self):
+        """A query that misses relevant docs must not score 1.0.
+
+        IDCG is built from the full relevant set, so retrieving only one of
+        two relevant docs at rank 1 yields DCG=1.0 against IDCG=1+1/log2(3).
+        """
+        retrieved = [1, 8, 9]
+        relevant = [1, 5]
+        k = 3
+
+        score = ndcg_at_k_binary(retrieved, relevant, k)
+        expected = 1.0 / (1.0 + 1.0 / math.log2(3))
+        assert score == pytest.approx(expected, abs=1e-4)
+
     def test_binary_adapter_all_relevant(self):
         """Test binary adapter with all documents relevant"""
         retrieved = [1, 2, 3]

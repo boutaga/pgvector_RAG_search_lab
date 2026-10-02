@@ -38,7 +38,8 @@ CREATE TABLE vault.mapping (
 );
 
 -- token = CATEGORY_ + first 6 bytes of HMAC-SHA256(key, category:normalized value)
--- 12 hex characters: collisions are caught by the primary key, never silent.
+-- 12 hex characters (48 bits): a collision is improbable at lab size but NOT detected:
+-- ON CONFLICT DO NOTHING below would skip it silently. Production: raise instead.
 CREATE FUNCTION vault.tokenize(p_category text, p_values text[])
 RETURNS TABLE (value text, token text)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = vault, public, pg_temp
@@ -76,7 +77,9 @@ CREATE FUNCTION vault.active_key_version()
 RETURNS int LANGUAGE sql SECURITY DEFINER SET search_path = vault, pg_temp
 AS $$ SELECT key_version FROM vault.keys WHERE active $$;
 
--- Key rotation: new random key becomes active. Old mappings stay for rollback.
+-- Key rotation: new random key becomes active. Old mappings stay readable, but re-tokenizing
+-- overwrites the bank's tokenized text in place: older vector versions are not a full rollback.
+-- Not yet run end to end.
 CREATE FUNCTION vault.rotate_key()
 RETURNS int LANGUAGE plpgsql SECURITY DEFINER SET search_path = vault, public, pg_temp
 AS $$

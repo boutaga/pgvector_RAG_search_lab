@@ -458,6 +458,75 @@ What to look at: no HNSW at this size, a bitmap scan on `(version_id, bank_id)` 
 RLS predicate inside `Recheck Cond`, top-N heapsort over 508 rows, about 3 ms dense and
 under 1 ms sparse.
 
+## Step 18. Trace the agent with Langfuse, then scan the trace store (about 10 minutes)
+
+Self-hosted Langfuse from its official Docker Compose file (web, worker, PostgreSQL,
+ClickHouse, Redis, MinIO; about 3 GB of images). Its own `.env` holds random secrets and a
+pre-created project, so no sign-up is needed:
+
+```bash
+cd docker/langfuse
+r(){ openssl rand -hex $1; }
+cat > .env <<EOT
+SALT=$(r 16)
+ENCRYPTION_KEY=$(r 32)
+NEXTAUTH_SECRET=$(r 24)
+POSTGRES_PASSWORD=$(r 12)
+DATABASE_URL=postgresql://postgres:\${POSTGRES_PASSWORD}@postgres:5432/postgres
+CLICKHOUSE_PASSWORD=$(r 12)
+REDIS_AUTH=$(r 12)
+MINIO_ROOT_PASSWORD=$(r 12)
+LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY=\${MINIO_ROOT_PASSWORD}
+LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY=\${MINIO_ROOT_PASSWORD}
+LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY=\${MINIO_ROOT_PASSWORD}
+LANGFUSE_INIT_ORG_ID=lab16
+LANGFUSE_INIT_ORG_NAME=Lab 16
+LANGFUSE_INIT_PROJECT_ID=lab16-governance
+LANGFUSE_INIT_PROJECT_NAME=Lab 16 governance
+LANGFUSE_INIT_PROJECT_PUBLIC_KEY=pk-lf-lab16-$(r 8)
+LANGFUSE_INIT_PROJECT_SECRET_KEY=sk-lf-lab16-$(r 8)
+LANGFUSE_INIT_USER_EMAIL=lab@example.com
+LANGFUSE_INIT_USER_NAME=Lab
+LANGFUSE_INIT_USER_PASSWORD=$(r 10)
+TELEMETRY_ENABLED=false
+EOT
+docker compose -p lab16-langfuse up -d
+curl -s http://localhost:3000/api/public/health      # {"status":"OK",...}
+cd ../..
+```
+
+Then add to the lab `.env` (tracing is on as soon as the public key is set, off without it):
+
+```bash
+LANGFUSE_BASE_URL=http://localhost:3000
+LANGFUSE_PUBLIC_KEY=<LANGFUSE_INIT_PROJECT_PUBLIC_KEY from docker/langfuse/.env>
+LANGFUSE_SECRET_KEY=<LANGFUSE_INIT_PROJECT_SECRET_KEY>
+LANGFUSE_CLICKHOUSE_URL=http://localhost:8123
+LANGFUSE_CLICKHOUSE_USER=clickhouse
+LANGFUSE_CLICKHOUSE_PASSWORD=<CLICKHOUSE_PASSWORD>
+LANGFUSE_S3_URL=http://localhost:9090
+LANGFUSE_S3_USER=minio
+LANGFUSE_S3_PASSWORD=<MINIO_ROOT_PASSWORD>
+```
+
+Run the answers again with tracing on (`pip install "langfuse>=4.16,<5" boto3` first), then scan
+both trace stores with the egress scanner:
+
+```bash
+$PY python/evaluate_answers.py --label langfuse | tee captures/17_answers_langfuse.txt
+$PY python/scan_traces.py --label langfuse | tee captures/18_scan_traces.txt
+```
+
+What to look at: the naive traces hold more sensitive values than the naive requests sent
+(each retrieved document is recorded as the search result and again in every later model
+call), once in ClickHouse and once in object storage; the governed traces hold none. The
+traces themselves are at http://localhost:3000 (user and password from `docker/langfuse/.env`),
+and the two SQL queries of the post run in ClickHouse:
+
+```bash
+docker exec -it lab16-langfuse-clickhouse-1 clickhouse-client --user clickhouse --password <CLICKHOUSE_PASSWORD>
+```
+
 ## Replay the gap
 
 ```bash

@@ -11,6 +11,7 @@ import json
 
 from _common import CHAT_MODEL
 from filtering import Scanner
+from tracing import langfuse
 
 
 class EgressBlocked(Exception):
@@ -23,11 +24,13 @@ class EgressGate:
         self.quiet = quiet
         self.run_label = run_label
         self.client = client
+        self.values_sent = 0
         with gw_conn.cursor() as cur:
             self.scanner = Scanner(cur)
 
     def send_chat(self, messages, tools, bank_id, filtering, purpose="agent_turn", dry_run=False):
-        payload = json.dumps({"model": CHAT_MODEL, "messages": messages, "tools": tools}, default=str)
+        payload = json.dumps({"model": CHAT_MODEL, "messages": messages, "tools": tools}, default=str,
+                             ensure_ascii=False)  # keep accents: an escaped name would never match
         hits = self.scanner.scan(payload)
         blocked = filtering == "tokenized" and len(hits) > 0
         outcome = "blocked" if blocked else "dry_run" if dry_run else "attempted"
@@ -42,18 +45,33 @@ class EgressGate:
         if not self.quiet:
             print(f"  [egress] {len(payload)} chars, filtering={filtering}, scanner hits={len(hits)} "
                   f"{sorted(set(hits)) or ''}{'  BLOCKED' if blocked else ''}")
+        meta = dict(egress_id=egress_id, filtering=filtering, scanner_hits=len(hits),
+                    hit_categories=sorted(set(hits)), outcome=outcome)
         if blocked:
+            # the blocked request is not traced as a model call; note that tool results
+            # are traced when the tool returns, before this gate (see agent.py)
+            with langfuse.start_as_current_observation(name="egress_gate", as_type="guardrail", level="WARNING",
+                                                       status_message="blocked", metadata=meta):
+                pass
             raise EgressBlocked(f"{len(hits)} sensitive value(s) in outbound payload: {sorted(set(hits))}")
         if dry_run:
             return payload
-        try:
-            # gpt-6-luna accepts function tools on /v1/chat/completions only with reasoning off
-            response = self.client.chat.completions.create(model=CHAT_MODEL, messages=messages, tools=tools,
-                                                           reasoning_effort="none")
-        except Exception:
-            self._outcome(egress_id, "failed")
-            raise
-        self._outcome(egress_id, "sent")
+        with langfuse.start_as_current_observation(name="chat", as_type="generation", model=CHAT_MODEL,
+                                                   input=messages, metadata=meta) as gen:
+            try:
+                # gpt-6-luna accepts function tools on /v1/chat/completions only with reasoning off
+                response = self.client.chat.completions.create(model=CHAT_MODEL, messages=messages, tools=tools,
+                                                               reasoning_effort="none")
+            except Exception:
+                self._outcome(egress_id, "failed")
+                gen.update(level="ERROR", metadata=dict(meta, outcome="failed"))
+                raise
+            self._outcome(egress_id, "sent")
+            self.values_sent += len(hits)
+            gen.update(output=response.choices[0].message.model_dump(exclude_none=True),
+                       metadata=dict(meta, outcome="sent"),
+                       usage_details=dict(input=response.usage.prompt_tokens,
+                                          output=response.usage.completion_tokens) if response.usage else None)
         return response
 
     def _outcome(self, egress_id, outcome):

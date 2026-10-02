@@ -9,7 +9,8 @@ Progress is printed as one line per 160 documents when the output is a file, so
 `tail -f captures/07_embed.txt` or `python python/status.py` can follow a background run.
 
 Each run creates a new row in bank.embedding_versions and makes it the active
-version for its state; the previous version stays for rollback (see 10_versioning.sql).
+version for its state; the previous version stays, but it is a full rollback only if the
+text it was built from is unchanged (see text_sha256 and sql/demo/7_versioning.sql).
 
     python python/embed.py --state all
 """

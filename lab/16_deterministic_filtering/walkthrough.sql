@@ -467,10 +467,11 @@ SELECT * FROM gov.maturity;
 -- Reading: at 508 rows per bank and version, the planner skips the HNSW index
 -- and scores every candidate exactly (top-N heapsort over 508 rows). The
 -- row-level security predicate is not a filter applied afterwards: it is part
--- of the index condition on (version_id, bank_id), next to the version. Tenant
--- isolation costs nothing measurable here. At a few hundred thousand rows per
--- bank the HNSW index takes over, and hnsw.iterative_scan (set on
--- bank.retrieve) keeps the RLS filter from starving the result list.
+-- of the index condition on (version_id, bank_id), next to the version. At this
+-- size the tenant filter rides on the same index scan. With much larger tables
+-- the planner would switch to the HNSW index (threshold not measured), and
+-- hnsw.iterative_scan (set on bank.retrieve) keeps the RLS filter from starving
+-- the result list.
 
 -- =============================================================================
 -- Known limit, shown on purpose: 9 planted documents name a lawyer who exists

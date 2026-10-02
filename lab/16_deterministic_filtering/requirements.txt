@@ -7,3 +7,6 @@ psycopg[binary]>=3.2
 openai>=1.40
 python-dotenv>=1.0
 numpy>=1.26
+# tracing (step 18)
+langfuse>=4.16,<5
+boto3>=1.34

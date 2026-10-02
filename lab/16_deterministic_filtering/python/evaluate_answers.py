@@ -21,6 +21,7 @@ import time
 from _common import DATA_DIR, RESULTS_DIR, gateway_conn
 from agent import run
 from filtering import Dictionary
+from tracing import langfuse
 
 CITE = re.compile(r"\bdoc\s*#?\s*(\d+)", re.IGNORECASE)
 MODES = ["off", "tokenized"]
@@ -62,6 +63,11 @@ def main():
         for mode in MODES:
             result = run(q["question"], q["bank_id"], mode, reviewer=False, quiet=True, run_label=args.label)
             s = score(q, result, question_tokens, dictionary, mode)
+            if result:  # the deterministic scores, attached to the question's trace
+                for name in ("cited_recall", "cited_precision", "context_recall"):
+                    langfuse.create_score(trace_id=result["trace_id"], name=name, value=s[name])
+                langfuse.create_score(trace_id=result["trace_id"], name="sensitive_values_sent",
+                                      value=result["values_sent"])
             if result:
                 usage["prompt"] += result["usage"]["prompt"]
                 usage["completion"] += result["usage"]["completion"]
@@ -70,6 +76,7 @@ def main():
                              readable=result["readable"] if result else None))
         print(f"\r  {i}/{len(questions)} questions, {time.time() - t0:.0f}s", end="", flush=True)
     print()
+    langfuse.flush()
 
     with gw_conn.cursor() as cur:
         cur.execute("SELECT filtering, count(*) FILTER (WHERE outcome = 'sent'), "
