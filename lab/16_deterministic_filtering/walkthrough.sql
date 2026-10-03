@@ -135,12 +135,12 @@ ORDER BY labelled, table_name, column_name;
 --   psql -h localhost -p 5437 -U analyst_masked -d bank
 --   BEGIN; SELECT set_config('app.bank_id', 'bank_a', true);
 --   SELECT client_name, contact_phone, domicile FROM bank.clients ORDER BY client_id LIMIT 3;
--- Output:
+-- Output (phone numbers masked here: the generator draws them in real mobile ranges, your run shows them in clear):
 --  client_name |  contact_phone   | domicile
 -- -------------+------------------+----------
---  [CLIENT]    | +41 77 934 52 95 | Lausanne
---  [CLIENT]    | +41 77 470 43 63 | Geneva
---  [CLIENT]    | +41 77 340 72 29 | Lugano
+--  [CLIENT]    | +41 7x xxx xx xx | Lausanne
+--  [CLIENT]    | +41 7x xxx xx xx | Geneva
+--  [CLIENT]    | +41 7x xxx xx xx | Lugano
 -- Labelled column masked, unlabelled column in clear: the gap, made visible.
 
 -- -----------------------------------------------------------------------------

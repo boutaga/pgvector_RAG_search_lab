@@ -155,10 +155,12 @@ SELECT set_config('app.bank_id', 'bank_a', true);
 SELECT client_name, contact_phone, domicile FROM bank.clients ORDER BY client_id LIMIT 3;
 COMMIT;
 ```
+
+Phone numbers are masked below; the generator draws them in real Swiss mobile ranges, so your run shows them in clear.
 ```
  client_name |  contact_phone   | domicile
 -------------+------------------+----------
- [CLIENT]    | +41 77 934 52 95 | Lausanne
+ [CLIENT]    | +41 7x xxx xx xx | Lausanne
 ```
 
 ## Step 4. The vault
