@@ -24,7 +24,7 @@ SQL = """
 SELECT arrayElement(tags, 1) AS mode, trace_id, name, input, output,
        toJSONString(arrayZip(metadata_names, metadata_values)) AS metadata
 FROM events_full FINAL  -- ReplacingMergeTree: FINAL removes duplicate span versions
-WHERE session_id = {label:String}
+WHERE session_id = {label:String} OR startsWith(session_id, {label:String} || ':')
 FORMAT JSONEachRow
 """
 
@@ -50,11 +50,12 @@ def object_store_spans(label):
             for scope in resource.get("scopeSpans", []):
                 for span in scope.get("spans", []):
                     attrs = {a["key"]: a["value"] for a in span.get("attributes", [])}
-                    if attrs.get("session.id", {}).get("stringValue") != label:
+                    session = attrs.get("session.id", {}).get("stringValue", "")
+                    if session != label and not session.startswith(label + ":"):
                         continue
                     tags = [v["stringValue"] for v in attrs.get("langfuse.trace.tags", {})
                             .get("arrayValue", {}).get("values", [])]
-                    yield tags[0] if tags else "?", json.dumps(span.get("traceId")), json.dumps(attrs)
+                    yield tags[0] if tags else "?", json.dumps(span.get("traceId")), json.dumps(attrs, ensure_ascii=False)
 
 
 def report(title, spans, scanner):

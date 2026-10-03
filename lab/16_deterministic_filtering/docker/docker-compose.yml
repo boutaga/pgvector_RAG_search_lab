@@ -60,7 +60,7 @@ services:
       POSTGRES_PASSWORD: vault2026!
     networks: [vault_net]
     ports:
-      - "127.0.0.1:5438:5432"   # host loopback only: the bank container cannot reach it through the host
+      - "127.0.0.1:5438:5432"   # host loopback only; on Docker Desktop host.docker.internal still reaches it
     volumes:
       - ../sql/vault:/docker-entrypoint-initdb.d:ro
       - vaultdata16:/var/lib/postgresql
@@ -78,8 +78,9 @@ services:
       - "-c"
       - "log_line_prefix=%m [%p] %u@%d "   # the role name on every line: who re-identified
 
-# Two networks: the bank container cannot even open a TCP connection to the vault
-# container. Both are reached from the host through their published ports only.
+# Two networks: the bank container cannot open a TCP connection to the vault
+# container directly. On one Docker host the published port stays reachable through the
+# host (Docker Desktop: host.docker.internal); production needs separate hosts and a firewall.
 networks:
   bank_net:
   vault_net:

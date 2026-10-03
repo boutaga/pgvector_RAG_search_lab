@@ -169,7 +169,7 @@ PGPASSWORD=$VPW psql -h localhost -p 5438 -U tokenizer -d vault -X
 ```
 ```sql
 SELECT * FROM vault.keys;                                   -- ERROR: permission denied
-SELECT * FROM vault.tokenize('client', ARRAY['Alder Holding AG', 'alder holding ag ']);
+SELECT * FROM vault.tokenize('client', ARRAY['Brenta Kontor AG', 'brenta kontor ag ']);
 SELECT * FROM vault.mapping;                                -- ERROR: permission denied
 ```
 
@@ -525,6 +525,55 @@ and the two SQL queries of the post run in ClickHouse:
 
 ```bash
 docker exec -it lab16-langfuse-clickhouse-1 clickhouse-client --user clickhouse --password <CLICKHOUSE_PASSWORD>
+```
+
+## Step 19. The fair comparisons and the checks behind the post (about 15 minutes)
+
+Same search, same tools, raw text against tokens (the post's answer table), then the three
+setups together (the naive reference and the trace scan):
+
+```bash
+$PY python/evaluate_answers.py --label fair2 --modes raw_entity,tokenized_search | tee captures/27_answers_equal_tools.txt
+$PY python/scan_traces.py --label fair2 | tee -a captures/27_answers_equal_tools.txt
+$PY python/evaluate_answers.py --label fair --modes off,raw_entity,tokenized | tee captures/23_answers_fair.txt
+$PY python/scan_traces.py --label fair | tee captures/25_scan_traces_fair.txt
+```
+
+`raw_entity`: raw text, but the governed path's entity-aware search as `app_agent`, same
+candidate limits, search tool only. `tokenized_search`: the governed path with the search
+tool only. What to look at: context recall 1.000 for both, cited recall within run-to-run
+spread, and detected sensitive values sent only by the raw arm.
+
+The entity-first lookup on its own, and repeated timings of the three retrieval plans:
+
+```bash
+psql -h localhost -p 5437 -U app_agent -d bank -X <<'EOT' | tee captures/30_entity_plan.txt
+BEGIN;
+SELECT set_config('app.bank_id', 'bank_a', true);
+EXPLAIN (ANALYZE, BUFFERS, COSTS OFF)
+SELECT m.doc_id FROM bank.document_mentions m
+WHERE m.token = ANY(ARRAY['CLIENT_43aa5d8366b5'])
+GROUP BY m.doc_id HAVING count(DISTINCT m.token) = 1;
+COMMIT;
+EOT
+for i in 1 2 3 4 5; do
+  psql -h localhost -p 5437 -U app_agent -d bank -X -f sql/demo/9_plans.sql \
+    | grep "Execution Time" | awk '{printf "%s ", $3}'; echo
+done | tee captures/31_plan_timings.txt     # dense, sparse, hybrid in ms
+```
+
+The token `CLIENT_43aa5d8366b5` is from the lab's vault key; take any `client_token` from yours.
+
+PostgreSQL behaviour and storage the post relies on:
+
+```bash
+psql -h localhost -p 5437 -U lab_admin -d bank -X \
+  -c "SELECT current_setting('app.bank_id', true) IS NULL AS null_when_never_set" \
+  -c "BEGIN" -c "SELECT set_config('app.bank_id', 'bank_a', true)" -c "COMMIT" \
+  -c "SELECT quote_literal(current_setting('app.bank_id', true)) AS value_after_txn"   # '' not NULL
+psql -h localhost -p 5437 -U lab_admin -d bank -Atc \
+  "SELECT attname, attstorage FROM pg_attribute WHERE attrelid = 'bank.embeddings'::regclass AND attname IN ('dense','sparse')" -c \
+  "SELECT pg_size_pretty(pg_relation_size('bank.embeddings')), pg_size_pretty(pg_relation_size(reltoastrelid)) FROM pg_class WHERE oid = 'bank.embeddings'::regclass"
 ```
 
 ## Replay the gap

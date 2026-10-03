@@ -100,13 +100,20 @@ As `app_agent` or `analyst_masked`, set a bank first or every query returns zero
   name, so these pass. Listed in `data/planted.json`.
 - **Entities, not strings:** a server's hostname and FQDN get the same token, so
   tokenization does not break the link between the two spellings.
-- **Relevance of retrieval** (recall@5, 30 entity questions): raw hybrid 0.92, redacted
-  0.18, tokenized hybrid 0.61. With entity-aware search (`05_entity_retrieval.sql`, which
-  uses the mention index the labels built), tokenized reaches 1.00, equal to raw.
-- **Relevance of answers** (`python/evaluate_answers.py`, 36 questions, gpt-6-luna,
-  deterministic scoring on cited `[doc N]`): naive cited recall 0.67 on entity questions,
-  governed 0.80, precision 0.99 for both; naive sent 1,114 sensitive values in 75
-  requests, governed 0 in 87.
+- **Relevance of retrieval** (recall@5, 30 entity questions, rebuilt vectors of 2026-10-02):
+  raw hybrid 0.956, redacted 0.192, tokenized hybrid 0.650. With entity-aware search
+  (`05_entity_retrieval.sql`, which uses the mention index the labels built), tokenized
+  reaches 1.000, equal to raw with the same search.
+- **Relevance of answers** (runbook step 19, 36 questions, gpt-6-luna, deterministic
+  scoring on cited `[doc N]`, runs of 2026-10-03). Same entity-aware search and same
+  search tool, raw text against tokens (`--modes raw_entity,tokenized_search`): cited
+  recall on entity questions 0.722 raw against 0.719 tokens, context recall 1.000 for
+  both, so no measurable cost; detected sensitive values sent 871 in 73 requests raw,
+  0 in 74 tokenized. The naive setup (plain hybrid search across all banks) had context
+  recall 0.981 and sent 1,134 in 75 requests.
+- **Trace store** (`python/scan_traces.py`, Langfuse self-hosted, runbook steps 18 and 19):
+  in the three-setup run the naive traces hold 2,336 detected occurrences, in ClickHouse
+  and again in object storage; the governed traces none.
 - Full step-by-step with real output: `walkthrough.sql`.
 
 ## Trust boundaries: what this lab proves and what it does not
@@ -117,13 +124,17 @@ As `app_agent` or `analyst_masked`, set a bank first or every query returns zero
   its token without the vault. That is acceptable here because they already see the raw
   data. What the vault keeps away is the reversal for everything downstream of the
   filter: the agent role, the model provider, logs, anyone holding tokenized text.
+  One route stays open in the lab: `app_agent` can read the raw-text embeddings kept for
+  the measurement, and a sparse vector partly exposes the words it was built from.
 - **The tenant comes from the application.** `app_agent` scopes each transaction with
   `set_config('app.bank_id', ...)`, and the gateway decides the bank from its own input,
   never from the model. Any code holding `app_agent` credentials could still pick
   another bank. Hardening, not done here: one login role per tenant and a policy that
   derives the bank from `current_user`.
 - **Network.** The two servers sit on separate Docker networks (`docker-compose.yml`),
-  so the bank container cannot open a connection to the vault at all. Every statement
+  so the bank container cannot reach the vault container directly (on one Docker host the
+  published port stays reachable through the host; production needs separate hosts and a
+  firewall). Every statement
   of the `reidentifier` role is written to the vault's server log
   (`docker logs lab16_vault`). Purpose limitation of re-identification (who may reverse
   which token, for which request) is not implemented.

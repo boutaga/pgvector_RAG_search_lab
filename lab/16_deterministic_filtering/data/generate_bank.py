@@ -46,6 +46,9 @@ CO_WORD = ["Alpenrose", "Seeland", "Rhonetal", "Jura", "Lindenhof", "Gotthard", 
 CO_TRADE = ["Logistik", "Immobilien", "Pharma", "Trading", "Maschinenbau", "Holding", "Uhren",
             "Energie", "Bau", "Textil", "Medtech", "Agro", "Software", "Transport"]
 CO_SUFFIX = ["AG", "SA", "GmbH", "Holding AG", "Sarl"]
+# Generated names that turned out to be registered Swiss companies (Zefix search, 2026-10-03).
+# Swapped after the draw, without touching the random stream, so every other name stays identical.
+REGISTERED_NAME_SWAPS = {"Pilatus Logistik AG": "Pilatus Frachtlogistik AG"}
 DOMICILES = ["Zurich", "Geneva", "Lausanne", "Basel", "Lugano", "Bern", "Zug", "Luxembourg",
              "Monaco", "London", "Milan", "Lyon"]
 
@@ -179,6 +182,7 @@ def main():
             if i < 50:
                 name = unique(lambda: f"{rng.choice(CO_WORD)} {rng.choice(CO_TRADE)} {rng.choice(CO_SUFFIX)}",
                               used_names)
+                name = REGISTERED_NAME_SWAPS.get(name, name)
                 ctype = "company"
             else:
                 name, ctype = person(), "private"

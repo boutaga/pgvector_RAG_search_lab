@@ -118,6 +118,39 @@ class NaiveTools:
             return [dict(zip(cols, r)) for r in cur.fetchall()]
 
 
+class RawEntityTools:
+    """The fair contrast: raw text, but the same entity-aware search as the governed path,
+    run as app_agent under row-level security with the same candidate limits; only the
+    document text of the returned IDs is read raw, by the pipeline account."""
+
+    def __init__(self, bank_id, gw_conn):
+        self.bank_id = bank_id
+        self.gw = gw_conn
+        self.conn = agent_conn()
+        with self.conn.transaction(), self.conn.cursor() as cur:
+            self.access = access_context(cur)
+        with gw_conn.cursor() as cur:
+            self.dictionary = Dictionary.load(cur)
+
+    def call(self, name, args):
+        if name != "search_documents":
+            return {"error": "only search_documents in the raw setups"}
+        d = embed_queries([args["query"]])[0]
+        s = sparse_embed([args["query"]])[0]
+        tokens = sorted(self.dictionary.mentions(args["query"]))   # entities the query names
+        with tenant_cursor(self.conn, self.bank_id) as cur:
+            cur.execute("SELECT doc_id FROM bank.retrieve(%s::vector, %s::sparsevec, 'raw', %s, %s, %s)",
+                        (vec_literal(d), sparse_literal(s), "entity" if tokens else "hybrid",
+                         int(args.get("k", 5)), tokens))
+            ids = [r[0] for r in cur.fetchall()]
+        with self.gw.cursor() as cur:
+            cur.execute("SELECT doc_id, doc_type, created_at::date, title, body FROM bank.documents "
+                        "WHERE doc_id = ANY(%s)", (ids,))
+            rows = {r[0]: r for r in cur.fetchall()}
+        cols = ["doc_id", "doc_type", "created_at", "title", "body"]
+        return [dict(zip(cols, rows[i])) for i in ids if i in rows]
+
+
 def dry_run(question, bank_id, filtering, reviewer):
     """The agent's first step without the model: search, build the exact payload, scan, log, stop."""
     gw_conn = gateway_conn()
@@ -169,13 +202,17 @@ def _run(question, bank_id, filtering, reviewer, max_turns, quiet, run_label):
     gw_conn = gateway_conn()
     gate = EgressGate(gw_conn, OpenAI(), quiet=quiet, run_label=run_label)
     say = (lambda *a: None) if quiet else print
-    if filtering == "tokenized":
+    if filtering in ("tokenized", "tokenized_search"):
         with gw_conn.cursor() as cur:
             asked = Dictionary.load(cur).tokenize(question)
         tools = GovernedTools(bank_id)
+    elif filtering == "raw_entity":
+        asked = question
+        tools = RawEntityTools(bank_id, gw_conn)
     else:
         asked = question
         tools = NaiveTools(bank_id, gw_conn)
+    egress_filtering = "tokenized" if filtering.startswith("tokenized") else "off"
     say(f"question sent : {asked}")
     langfuse.update_current_span(input=asked)
     messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": asked}]
@@ -184,7 +221,7 @@ def _run(question, bank_id, filtering, reviewer, max_turns, quiet, run_label):
 
     for _ in range(max_turns):
         try:
-            response = gate.send_chat(messages, tool_specs, bank_id, filtering)
+            response = gate.send_chat(messages, tool_specs, bank_id, egress_filtering)
         except EgressBlocked as e:
             say(f"stopped at the egress gate: {e}")
             return None
@@ -224,7 +261,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("question")
     ap.add_argument("--bank", required=True, choices=["bank_a", "bank_b", "bank_c"])
-    ap.add_argument("--filtering", choices=["off", "tokenized"], default="tokenized")
+    ap.add_argument("--filtering", choices=["off", "raw_entity", "tokenized", "tokenized_search"],
+                    default="tokenized",
+                    help="raw_entity: raw text with the governed path's entity-aware search; "
+                         "tokenized_search: governed path with the search tool only")
     ap.add_argument("--reviewer", action="store_true", help="re-identify the final answer through the vault")
     ap.add_argument("--dry-run", action="store_true", help="first step only, nothing sent to the model")
     args = ap.parse_args()

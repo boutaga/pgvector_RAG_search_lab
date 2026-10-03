@@ -195,7 +195,7 @@ SELECT has_column_privilege('app_agent', 'bank.clients', 'client_name',  'SELECT
 --                    (the role does not exist on the vault; roles there: reidentifier, tokenizer)
 --   tokenizer:    SELECT * FROM vault.keys;
 --                 -> ERROR: permission denied for table keys   (nobody reads the key)
---   tokenizer:    SELECT * FROM vault.tokenize('client', ARRAY['Alder Holding AG', 'alder holding ag ']);
+--   tokenizer:    SELECT * FROM vault.tokenize('client', ARRAY['Brenta Kontor AG', 'brenta kontor ag ']);
 --                 -> both spellings get the same token; computed inside the vault
 --   reidentifier: SELECT token, value FROM vault.mapping
 --                 WHERE token IN ('CLIENT_43aa5d8366b5', 'PERSON_65a94b3e0336');

@@ -10,7 +10,7 @@ Scores, all deterministic (no LLM judge):
   leaked values    scanner hits in requests whose outcome is 'sent' (gov.egress_log,
                    rows tagged with this run's label)
 
-    python python/evaluate_answers.py [--label baseline] [--limit N]
+    python python/evaluate_answers.py [--label baseline] [--limit N] [--modes off,tokenized]
 Writes results/answers_<label>.json and rows in gov.answer_runs.
 """
 import argparse
@@ -24,7 +24,6 @@ from filtering import Dictionary
 from tracing import langfuse
 
 CITE = re.compile(r"\bdoc\s*#?\s*(\d+)", re.IGNORECASE)
-MODES = ["off", "tokenized"]
 
 
 def score(q, result, question_tokens, dictionary, mode):
@@ -34,7 +33,7 @@ def score(q, result, question_tokens, dictionary, mode):
                     explicit_entity=False, retrieved=[])
     cited = {int(n) for n in CITE.findall(result["answer"])}
     hit = cited & expected
-    if mode == "tokenized":
+    if mode.startswith("tokenized"):
         answer_tokens = set(re.findall(r"\b[A-Z]+_[0-9a-f]{12}\b", result["answer"]))
     else:
         answer_tokens = set(dictionary.mentions(result["answer"]))
@@ -50,8 +49,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--label", default="baseline")
     ap.add_argument("--limit", type=int)
+    ap.add_argument("--modes", default="off,tokenized",
+                    help="comma list of off, raw_entity, tokenized, tokenized_search "
+                         "(raw_entity: raw text with the governed entity-aware search, search tool only; "
+                         "tokenized_search: governed path with the search tool only)")
     args = ap.parse_args()
     questions = json.loads((DATA_DIR / "questions.json").read_text())[:args.limit]
+    modes = args.modes.split(",")
     gw_conn = gateway_conn()
     with gw_conn.cursor() as cur:
         dictionary = Dictionary.load(cur)
@@ -60,8 +64,10 @@ def main():
     t0 = time.time()
     for i, q in enumerate(questions, 1):
         question_tokens = set(dictionary.mentions(q["question"]))
-        for mode in MODES:
-            result = run(q["question"], q["bank_id"], mode, reviewer=False, quiet=True, run_label=args.label)
+        for mode in modes:
+            # one run label per mode: the raw arms both log their egress as filtering 'off'
+            result = run(q["question"], q["bank_id"], mode, reviewer=False, quiet=True,
+                         run_label=f"{args.label}:{mode}")
             s = score(q, result, question_tokens, dictionary, mode)
             if result:  # the deterministic scores, attached to the question's trace
                 for name in ("cited_recall", "cited_precision", "context_recall"):
@@ -79,14 +85,14 @@ def main():
     langfuse.flush()
 
     with gw_conn.cursor() as cur:
-        cur.execute("SELECT filtering, count(*) FILTER (WHERE outcome = 'sent'), "
+        cur.execute("SELECT split_part(run_label, ':', 2), count(*) FILTER (WHERE outcome = 'sent'), "
                     "coalesce(sum(hits) FILTER (WHERE outcome = 'sent'), 0), "
                     "count(*) FILTER (WHERE outcome = 'blocked'), count(*) FILTER (WHERE outcome IN ('failed', 'attempted')) "
-                    "FROM gov.egress_log WHERE run_label = %s GROUP BY filtering", (args.label,))
+                    "FROM gov.egress_log WHERE run_label LIKE %s GROUP BY 1", (args.label + ":%",))
         egress = {f: dict(sent=n, values_sent=leaked, blocked=b, failed=fl) for f, n, leaked, b, fl in cur.fetchall()}
 
     summary = []
-    for mode in MODES:
+    for mode in modes:
         for qset in ["entity", "generic", "all"]:
             sel = [r for r in rows if r["mode"] == mode and (qset == "all" or r["type"] == qset)]
             if not sel:
